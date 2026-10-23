@@ -264,6 +264,7 @@ pin button = 2 input    // a button
 pin knob = A0 analog    // a sensor that gives a range of values
 pin glow = 9 pwm        // an LED you can dim
 pin arm = 6 servo       // a servo motor
+pin motor = 8, 9, 10, 11 stepper   // a stepper motor (4 pins)
 ```
 
 | Mode | Use it for | Can do | `read` gives |
@@ -273,6 +274,7 @@ pin arm = 6 servo       // a servo motor
 | `analog` | Knobs, light sensors, temperature sensors | `read` | 0 to 1023 |
 | `pwm` | Dimming LEDs, motor speed | `on`, `off`, `toggle`, `set`, `fade` | brightness 0 to 100 |
 | `servo` | Servo motors | `set` | angle 0 to 180 |
+| `stepper` | Stepper motors (4 pins) | `turn`, `step`, `set`, `set … speed`, `off` | angle 0 to 359 |
 
 **Wiring buttons:** Volt turns on the board's built-in pull-up resistor, so just connect the button between the pin and **GND**. No extra resistor needed.
 
@@ -289,6 +291,7 @@ How pins translate:
 | `pin k = A0 analog` | `const int k = A0;` | use a GPIO number: `pin k = 26 analog` → `ADC(Pin(26))` |
 | `pin g = 9 pwm` | `pinMode(g, OUTPUT)` | `PWM(Pin(9), freq=1000)` |
 | `pin s = 6 servo` | `Servo` object + `attach(6)` | `PWM(Pin(6), freq=50)` |
+| `pin m = 8, 9, 10, 11 stepper` | 4 outputs + built-in stepper driver | 4 `Pin(…, Pin.OUT)` + built-in stepper driver |
 
 ## Controlling pins
 
@@ -313,6 +316,38 @@ set led to 1          // output: on if the value isn't 0
 ```
 
 Values outside the range are clamped, so `set glow to 150` becomes 100.
+
+### Stepper motors
+
+A stepper motor turns in tiny exact steps, so it can spin all the way round as many times as you like and stop at an exact angle. Volt supports the **28BYJ-48** motor with its **ULN2003** driver board, which comes in most Arduino kits.
+
+**Wiring:** plug the motor's 5-wire plug into the driver board. Then board **IN1, IN2, IN3, IN4** → four Arduino pins, board **+** → **5V**, board **−** → **GND**.
+
+```volt
+#c++
+pin motor = 8, 9, 10, 11 stepper     // IN1, IN2, IN3, IN4
+
+set motor speed to 12     // turns per minute (1 to 15)
+turn motor 90             // turn 90 degrees
+turn motor -90            // turn back the other way
+set motor to 180          // go to an exact angle, the short way round
+step motor 512            // move by steps (2048 steps = one full turn)
+print read motor          // its angle now, 0 to 359
+off motor                 // switch the coils off
+```
+
+| Command | What it does |
+|---|---|
+| `turn motor 90` | Turns by an angle in degrees. Negative turns the other way. `turn motor 720` spins twice |
+| `set motor to 180` | Goes to an exact angle, whichever way is shorter. 0 is where the motor was when the program started |
+| `step motor 512` | Moves by steps. 2048 steps is one full turn, so 512 is a quarter turn |
+| `set motor speed to 12` | Speed in turns per minute, 1 to 15. The 28BYJ-48 can't go faster than about 15 |
+| `off motor` | Switches the coils off. Use it when the motor is resting, or it stays warm and wastes power |
+| `read motor` | The current angle, 0 to 359 |
+
+The motor finishes moving before the next line runs. If it turns the wrong way for you, swap the signs (`90` ↔ `-90`), or swap the middle two pins.
+
+> **Power:** the ULN2003 board can take its 5V from the Arduino for one motor. For two motors, or if the Arduino resets while the motor moves, power the driver board from a separate 5V supply, with its GND joined to the Arduino's GND.
 
 ### fade … to … over
 
@@ -642,7 +677,7 @@ These are the differences between the two **board** languages:
 
 Names must start with a letter and can contain letters, numbers and `_`. They can't start with `_`, and they can't be:
 
-- **Volt keywords:** `pin input output analog pwm servo read pressed on off toggle set to fade over tone for let print show clear stop ask uptime if else repeat while break wait forever every when fn return true false and or not`
+- **Volt keywords:** `pin input output analog pwm servo stepper step turn read pressed on off toggle set to fade over tone for let print show clear stop ask uptime if else repeat while break wait forever every when fn return true false and or not`
 - **Built-ins:** `random abs min max constrain map number text length upper lower contains`
 - **Words one of Volt's languages already uses**, such as `int`, `long`, `double`, `delay`, `setup`, `loop`, `time`, `range`, `str`, `def`, `class`, `import`, `end`, `nil`, `puts`, `var`, `function`, `null`, `document`, `console`.
 - In `#ruby`, names must start with a **lowercase** letter.
@@ -712,6 +747,7 @@ pin button = 2 input         // button to GND
 pin knob = A0 analog         // 0-1023
 pin glow = 9 pwm             // 0-100%
 pin arm = 6 servo            // 0-180 degrees
+pin motor = 8, 9, 10, 11 stepper   // turn, step, set, speed
 
 let x = 0                    // new variable
 x = x + 1                    // change it
@@ -719,7 +755,10 @@ x += 1                       // same thing (-= *= /= too)
 print "x is " + x            // to the serial monitor
 
 on led / off led / toggle led
-set glow to 50               // pwm %, servo angle
+set glow to 50               // pwm %, servo angle, stepper angle
+turn motor 90                // stepper: turn by degrees
+step motor 512               // stepper: 2048 steps = 1 turn
+set motor speed to 12        // stepper: turns per minute
 fade glow to 0 over 1s
 tone led 440 for 200ms
 wait 500ms                   // or: wait x ms

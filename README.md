@@ -11,9 +11,11 @@ A desktop editor for the **Volt** language. Write Volt once, and the first line 
 | `#js` | JavaScript (Node.js) | Run |
 | `#html` | Web page (HTML + CSS + JS) | Preview |
 
+It also drives servos, stepper motors (28BYJ-48), buttons, LEDs, buzzers and sensors on Arduino boards.
+
 ## Install
 
-1. Run **Volt Studio Setup 1.3.1.exe**.
+1. Run **Volt Studio Setup 1.4.0.exe**.
 2. If Windows shows "Windows protected your PC", click **More info → Run anyway** (the app isn't code-signed).
 3. Click through the installer. You can choose a desktop shortcut and whether `.volt` files open in Volt Studio.
 
@@ -43,6 +45,10 @@ npm install
 npm start
 ```
 
+## Making a release
+
+On GitHub: **Actions → Build and release → Run workflow**, type the new version, and GitHub builds and publishes the installer. Details in [RELEASING.md](RELEASING.md).
+
 ## Build the installer yourself (on Windows)
 
 Install NSIS from nsis.sourceforge.io, then:
@@ -67,3 +73,4 @@ This creates `dist\Volt Studio Setup <version>.exe` using `installer/installer.n
 | `docs/REFERENCE.md` | The full Volt reference (also shown in the app's Reference tab) |
 | `installer/` | The Windows installer script, icon and pictures |
 | `test/` | Scripts used to test the app with fake boards |
+| `.github/workflows/release.yml` | Builds the installer on GitHub and publishes a release (see `RELEASING.md`) |

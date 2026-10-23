@@ -1,7 +1,7 @@
 {
   "name": "volt-studio",
   "productName": "Volt Studio",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "description": "Editor for the Volt language: write Volt once, turn it into Arduino C++, MicroPython, Python, Ruby, JavaScript or a web page.",
   "main": "main.js",
   "author": "Ethan",

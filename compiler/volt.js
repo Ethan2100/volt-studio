@@ -25,7 +25,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const VERSION = '3.1.0';
+const VERSION = '3.2.0';
 
 // Errors that are the Volt programmer's fault (not a bug in the compiler)
 class VoltError extends Error {
@@ -41,7 +41,8 @@ class VoltError extends Error {
 
 const KEYWORDS = new Set([
   // pins (boards)
-  'pin', 'input', 'output', 'analog', 'pwm', 'servo', 'read', 'pressed',
+  'pin', 'input', 'output', 'analog', 'pwm', 'servo', 'stepper', 'read', 'pressed',
+  'step', 'turn',
   'on', 'off', 'toggle', 'set', 'to', 'fade', 'over', 'tone', 'for',
   // variables, input and output
   'let', 'print', 'uptime', 'ask',
@@ -163,7 +164,7 @@ function lex(src) {
 //  2. PARSER - arranges tokens into a tree (AST)
 // =====================================================================
 
-const PIN_MODES = ['input', 'output', 'analog', 'pwm', 'servo'];
+const PIN_MODES = ['input', 'output', 'analog', 'pwm', 'servo', 'stepper'];
 const PAGE_WORDS = ['button', 'title', 'html'];
 
 function parse(tokens) {
@@ -235,14 +236,24 @@ function parse(tokens) {
         next();
         const name = expect('ident', 'a pin name').value;
         expect('=', "'='");
-        const numTok = next();
-        let num;
-        if (numTok.type === 'number') num = numTok.value;
-        else if (numTok.type === 'ident' && /^A\d+$/.test(numTok.value)) num = numTok.value;
-        else throw new VoltError(`Expected a pin number like 13 or A0 but found ${describe(numTok)}`, numTok.line);
+        const pinNumber = () => {
+          const numTok = next();
+          if (numTok.type === 'number') return numTok.value;
+          if (numTok.type === 'ident' && /^A\d+$/.test(numTok.value)) return numTok.value;
+          throw new VoltError(`Expected a pin number like 13 or A0 but found ${describe(numTok)}`, numTok.line);
+        };
+        // pin motor = 8, 9, 10, 11 stepper      (a stepper uses 4 pins: IN1, IN2, IN3, IN4)
+        const nums = [pinNumber()];
+        while (match(',')) nums.push(pinNumber());
         let mode = 'output';
         if (PIN_MODES.includes(peek().type)) mode = next().type;
-        return { kind: 'Pin', name, num, mode, line };
+        if (mode === 'stepper' && nums.length !== 4) {
+          throw new VoltError(`A stepper needs 4 pins (IN1, IN2, IN3, IN4), like: pin ${name} = 8, 9, 10, 11 stepper`, line);
+        }
+        if (mode !== 'stepper' && nums.length > 1) {
+          throw new VoltError(`Only stepper pins use more than one number. Did you mean: pin ${name} = ${nums.join(', ')} stepper`, line);
+        }
+        return { kind: 'Pin', name, num: nums[0], nums, mode, line };
       }
 
       // let count = 0      let name = "Ethan"
@@ -318,8 +329,23 @@ function parse(tokens) {
       case 'set': {
         next();
         const pin = expect('ident', 'a pin name').value;
+        // set motor speed to 10      (stepper speed, in turns per minute)
+        if (peek().type === 'ident' && peek().value === 'speed') {
+          next();
+          expect('to', "'to'");
+          return { kind: 'SetSpeed', pin, value: expression(), line };
+        }
         expect('to', "'to'");
         return { kind: 'Set', pin, value: expression(), line };
+      }
+
+      // step motor 512      (2048 steps = one full turn; negative goes the other way)
+      // turn motor 90       (degrees; negative goes the other way)
+      case 'step':
+      case 'turn': {
+        next();
+        const pin = expect('ident', 'a stepper pin name').value;
+        return { kind: t.type === 'step' ? 'Step' : 'Turn', pin, value: expression(), line };
       }
 
       // fade led to 100 over 2s
@@ -599,6 +625,50 @@ const CPP_HELPERS = {
   lower: 'String __lower(String s) { s.toLowerCase(); return s; }',
 };
 
+// Stepper driver (28BYJ-48 + ULN2003): half-steps, 4096 per turn, coils on IN1..IN4
+const CPP_STEPPER = [
+  'const byte __half[8][4] = {{1,0,0,0},{1,1,0,0},{0,1,0,0},{0,1,1,0},{0,0,1,0},{0,0,1,1},{0,0,0,1},{1,0,0,1}};',
+  'void __stepper_coils(const int *p, long pos) { int s = ((pos % 8) + 8) % 8; for (int i = 0; i < 4; i++) digitalWrite(p[i], __half[s][i]); }',
+  'void __stepper_move(const int *p, long &pos, long rpm, long halfSteps) {',
+  '  unsigned long wait = 60000000UL / (4096UL * (unsigned long)(rpm < 1 ? 1 : rpm));',
+  '  long dir = halfSteps > 0 ? 1 : -1;',
+  '  for (long i = 0; i < halfSteps * dir; i++) { pos += dir; __stepper_coils(p, pos); delayMicroseconds(wait); }',
+  '}',
+  'long __round_div(long a, long b) { return a >= 0 ? (a + b / 2) / b : -((-a + b / 2) / b); }',
+  'void __stepper_to(const int *p, long &pos, long rpm, long angle) {',
+  '  long now = ((pos % 4096) + 4096) % 4096;',
+  '  long target = __round_div(((angle % 360) + 360) % 360 * 4096L, 360);',
+  '  long diff = target - now;',
+  '  if (diff > 2048) diff -= 4096;',
+  '  if (diff < -2048) diff += 4096;',
+  '  __stepper_move(p, pos, rpm, diff);',
+  '}',
+  'void __stepper_off(const int *p) { for (int i = 0; i < 4; i++) digitalWrite(p[i], LOW); }',
+];
+const PY_STEPPER = [
+  '_HALF = ((1,0,0,0),(1,1,0,0),(0,1,0,0),(0,1,1,0),(0,0,1,0),(0,0,1,1),(0,0,0,1),(1,0,0,1))',
+  'def _stepper_move(pins, pos, rpm, half_steps):',
+  '    wait = 60000000 // (4096 * max(1, rpm))',
+  '    d = 1 if half_steps > 0 else -1',
+  '    for _ in range(abs(half_steps)):',
+  '        pos += d',
+  '        s = _HALF[pos % 8]',
+  '        for i in range(4):',
+  '            pins[i].value(s[i])',
+  '        time.sleep_us(wait)',
+  '    return pos',
+  'def _stepper_to(pins, pos, rpm, angle):',
+  '    diff = round((angle % 360) * 4096 / 360) - pos % 4096',
+  '    if diff > 2048:',
+  '        diff -= 4096',
+  '    if diff < -2048:',
+  '        diff += 4096',
+  '    return _stepper_move(pins, pos, rpm, diff)',
+  'def _stepper_off(pins):',
+  '    for p in pins:',
+  '        p.value(0)',
+];
+
 // Python helpers (desktop Python and MicroPython)
 const PY_HELPERS = {
   ms: ['_start = time.monotonic()', 'def _ms():', '    return int((time.monotonic() - _start) * 1000)'],
@@ -693,6 +763,7 @@ function generate(ast, target = 'cpp') {
   let usesSerial = false;
   let usesRandom = false;
   let usesServo = false;
+  let usesStepper = false;
   let usesForever = false;
   let uid = 0;                  // makes hidden helper names unique
   let loopDepth = 0;            // inside repeat/while?
@@ -704,6 +775,8 @@ function generate(ast, target = 'cpp') {
   const levelVar = (pin) => hidden(`level_${pin}`);   // pwm brightness 0-100
   const angleVar = (pin) => hidden(`angle_${pin}`);   // servo angle 0-180
   const servoObj = (pin) => `__servo_${pin}`;         // C++ Servo object
+  const posVar = (pin) => hidden(`pos_${pin}`);       // stepper position in half-steps (4096 per turn)
+  const rpmVar = (pin) => hidden(`rpm_${pin}`);       // stepper speed in turns per minute
   const global = (name) => (rb ? `$${name}` : name);  // Ruby top-level variables need $
 
   const help = (name) => { helpers.add(name); };
@@ -799,6 +872,18 @@ function generate(ast, target = 'cpp') {
       }
       pins.set(node.name, node);
       const { name, num, mode } = node;
+      if (mode === 'stepper') {
+        usesStepper = true;
+        if (micro) {
+          globals.push(`${name} = [${node.nums.map((n) => `Pin(${n}, Pin.OUT)`).join(', ')}]`);
+          globals.push(`${posVar(name)} = 0`, `${rpmVar(name)} = 10`);
+        } else {
+          globals.push(`const int ${name}[4] = {${node.nums.join(', ')}};`);
+          globals.push(`long ${posVar(name)} = 0;`, `long ${rpmVar(name)} = 10;`);
+          setupExtra.push(`  for (int __p = 0; __p < 4; __p++) pinMode(${name}[__p], OUTPUT);`);
+        }
+        continue;
+      }
       if (micro) {
         globals.push({
           output: `${name} = Pin(${num}, Pin.OUT)`,
@@ -899,6 +984,10 @@ function generate(ast, target = 'cpp') {
           case 'analog': code = micro ? `(${n}.read_u16() >> 6)` : `analogRead(${n})`; break;
           case 'pwm': code = levelVar(n); break;
           case 'servo': code = angleVar(n); break;
+          // stepper: its angle, 0-359
+          case 'stepper':
+            code = micro ? `((${posVar(n)} % 4096 * 360 + 2048) // 4096 % 360)` : `(((${posVar(n)} % 4096 + 4096) % 4096 * 360 + 2048) / 4096 % 360)`;
+            break;
         }
         return { code, type: 'num' };
       }
@@ -1184,7 +1273,14 @@ function generate(ast, target = 'cpp') {
       }
 
       case 'Write': {
-        const pin = getPin(s.pin, s.line, ['output', 'pwm'], `'${s.action}'`);
+        if (s.action !== 'off' && pins.has(s.pin) && pins.get(s.pin).mode === 'stepper') {
+          throw new VoltError(`'${s.action}' doesn't work on a stepper. Use turn ${s.pin} 90, step ${s.pin} 100 or set ${s.pin} to 180`, s.line);
+        }
+        const pin = getPin(s.pin, s.line, s.action === 'off' ? ['output', 'pwm', 'stepper'] : ['output', 'pwm'], `'${s.action}'`);
+        if (pin.mode === 'stepper') {
+          // Switch the coils off so the motor and driver don't get warm while resting
+          return [micro ? `${p}_stepper_off(${s.pin})` : `${p}__stepper_off(${s.pin});`];
+        }
         if (pin.mode === 'pwm') {
           const v = { on: '100', off: '0' }[s.action]
             || (micro ? `(0 if ${levelVar(pin.name)} else 100)` : `(${levelVar(pin.name)} ? 0 : 100)`);
@@ -1201,8 +1297,33 @@ function generate(ast, target = 'cpp') {
       }
 
       case 'Set': {
-        const pin = getPin(s.pin, s.line, ['output', 'pwm', 'servo'], "'set'");
+        const pin = getPin(s.pin, s.line, ['output', 'pwm', 'servo', 'stepper'], "'set'");
+        if (pin.mode === 'stepper') {
+          // Go to an exact angle, the short way round
+          const target = bare(genNumber(s.value, "'set'"));
+          const n = s.pin;
+          if (micro) return [`${p}${posVar(n)} = _stepper_to(${n}, ${posVar(n)}, ${rpmVar(n)}, ${target})`];
+          return [`${p}__stepper_to(${n}, ${posVar(n)}, ${rpmVar(n)}, ${target});`];
+        }
         return genSetPin(pin, bare(genNumber(s.value, "'set'")), depth);
+      }
+
+      case 'SetSpeed': {
+        getPin(s.pin, s.line, ['stepper'], "'set … speed'");
+        const v = bare(genNumber(s.value, "'speed'"));
+        // 28BYJ-48 motors stall above about 15 turns per minute
+        return [`${p}${rpmVar(s.pin)} = ${clamp(v, 1, 15)}${END}`];
+      }
+
+      case 'Step':
+      case 'Turn': {
+        getPin(s.pin, s.line, ['stepper'], `'${s.kind.toLowerCase()}'`);
+        const v = bare(genNumber(s.value, `'${s.kind.toLowerCase()}'`));
+        const n = s.pin;
+        // Volt steps: 2048 per turn. Moved as half-steps (4096 per turn) for smoothness.
+        const half = s.kind === 'Step' ? `(${v}) * 2` : (micro ? `round((${v}) * 4096 / 360)` : `__round_div((${v}) * 4096L, 360)`);
+        if (micro) return [`${p}${posVar(n)} = _stepper_move(${n}, ${posVar(n)}, ${rpmVar(n)}, ${half})`];
+        return [`${p}__stepper_move(${n}, ${posVar(n)}, ${rpmVar(n)}, ${half});`];
       }
 
       case 'Fade': {
@@ -1548,6 +1669,7 @@ function generate(ast, target = 'cpp') {
     ...scopes[0].keys(),
     ...[...pins.values()].filter((q) => q.mode === 'pwm').map((q) => levelVar(q.name)),
     ...[...pins.values()].filter((q) => q.mode === 'servo').map((q) => angleVar(q.name)),
+    ...[...pins.values()].filter((q) => q.mode === 'stepper').flatMap((q) => [posVar(q.name), rpmVar(q.name)]),
   ];
 
   const prototypes = [];
@@ -1609,7 +1731,7 @@ function generate(ast, target = 'cpp') {
       ...block([...includes, ...topLines]),
       ...globals,
       '',
-      ...block([...[...helpers].filter((h) => CPP_HELPERS[h]).map((h) => CPP_HELPERS[h]), ...prototypes]),
+      ...block([...[...helpers].filter((h) => CPP_HELPERS[h]).map((h) => CPP_HELPERS[h]), ...(usesStepper ? CPP_STEPPER : []), ...prototypes]),
       ...funcLines,
       'void setup() {',
       ...(usesSerial ? ['  Serial.begin(9600);'] : []),
@@ -1634,7 +1756,7 @@ function generate(ast, target = 'cpp') {
       ...imports,
       '',
       ...block(topLines),
-      ...block(helperLines(PY_HELPERS)),
+      ...block([...helperLines(PY_HELPERS), ...(usesStepper ? PY_STEPPER : [])]),
       ...globals,
       '',
       ...funcLines,

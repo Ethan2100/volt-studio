@@ -4,8 +4,8 @@
 (function () {
   const KEYWORDS = ['pin', 'let', 'fn', 'return', 'if', 'else', 'repeat', 'while', 'break',
     'forever', 'every', 'when', 'wait', 'print', 'show', 'clear', 'stop'];
-  const QUALIFIERS = ['input', 'output', 'analog', 'pwm', 'servo', 'pressed', 'to', 'over', 'for'];
-  const ACTIONS = ['on', 'off', 'toggle', 'set', 'fade', 'tone', 'read'];
+  const QUALIFIERS = ['input', 'output', 'analog', 'pwm', 'servo', 'stepper', 'pressed', 'to', 'over', 'for'];
+  const ACTIONS = ['on', 'off', 'toggle', 'set', 'fade', 'tone', 'read', 'step', 'turn'];
   const ATOMS = ['true', 'false', 'uptime'];
   const INPUTS = ['ask'];
   const LOGIC = ['and', 'or', 'not'];
@@ -18,6 +18,7 @@
       { regex: /#(?:c\+\+|cpp|arduino|python|py|micropython|ruby|rb|js|javascript|node|html|web)\s*$/i, token: 'meta', sol: true },
       { regex: /(\s*)(button|title|html)(?=\s+[^=\s(])/, token: [null, 'keyword'], sol: true },
       { regex: /(when)(\s+)(key)(?=\s+")/, token: ['keyword', null, 'qualifier'] },
+      { regex: /(set)(\s+)([A-Za-z_]\w*)(\s+)(speed)\b/, token: ['builtin', null, 'variable', null, 'qualifier'] },
       { regex: /(for)(\s+)([A-Za-z_]\w*)(\s+)(from)\b/, token: ['keyword', null, 'variable', null, 'qualifier'], sol: false },
       { regex: /(\s*)(input)(?=\s*[("])/, token: [null, 'builtin'] },
       { regex: /##.*/, token: 'raw' },
@@ -51,6 +52,9 @@
     { text: 'pin knob = A0 analog', label: 'pin … analog' },
     { text: 'pin glow = 9 pwm', label: 'pin … pwm' },
     { text: 'pin arm = 6 servo', label: 'pin … servo' },
+    { text: 'pin motor = 8, 9, 10, 11 stepper', label: 'pin … stepper (4 pins)' },
+    { text: 'turn motor 90', label: 'turn … (degrees)' },
+    { text: 'set motor speed to 12', label: 'set … speed to …' },
     { text: 'every 1s {\n  \n}', label: 'every 1s { }' },
     { text: 'when button pressed {\n  \n}', label: 'when … pressed { }' },
     { text: 'forever {\n  \n}', label: 'forever { }' },

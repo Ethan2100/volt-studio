@@ -12,14 +12,14 @@
     'read', 'input', 'output', 'analog', 'pwm', 'servo', 'pressed', 'true', 'false', 'uptime',
     'and', 'or', 'not', 'ask', 'input', 'show', 'clear', 'stop', 'for'];
   const BUILTINS = ['random', 'abs', 'min', 'max', 'constrain', 'map', 'number', 'text', 'length', 'upper', 'lower', 'contains'];
-  const BOARD_WORDS = ['pin', 'on', 'off', 'toggle', 'set', 'fade', 'tone', 'read', 'input', 'output', 'analog', 'pwm', 'servo'];
+  const BOARD_WORDS = ['pin', 'on', 'off', 'toggle', 'set', 'fade', 'tone', 'read', 'step', 'turn', 'input', 'output', 'analog', 'pwm', 'servo', 'stepper'];
   const BOARD_OR_PAGE = ['when', 'pressed'];
   const PAGE_WORDS = ['button', 'title', 'html'];
   const BOARD_TARGETS = ['cpp', 'micropython'];
   // Words that can start a line
   const STATEMENTS = ['pin', 'let', 'fn', 'for', 'return', 'if', 'else', 'repeat', 'while', 'break',
     'forever', 'every', 'when', 'wait', 'print', 'show', 'clear', 'stop',
-    'on', 'off', 'toggle', 'set', 'fade', 'tone', ...PAGE_WORDS];
+    'on', 'off', 'toggle', 'set', 'fade', 'tone', 'turn', 'step', ...PAGE_WORDS];
 
   // Only suggest words that work for the chosen language
   function fitsTarget(word, target) {
@@ -34,17 +34,19 @@
   // Which pin modes make sense after each action word
   const PIN_MODES_FOR = {
     fade: ['pwm'],
-    set: ['output', 'pwm', 'servo'],
+    set: ['output', 'pwm', 'servo', 'stepper'],
     on: ['output', 'pwm'],
-    off: ['output', 'pwm'],
+    off: ['output', 'pwm', 'stepper'],
+    step: ['stepper'],
+    turn: ['stepper'],
     toggle: ['output', 'pwm'],
     tone: ['output'],
     when: ['input'],
-    read: ['input', 'output', 'analog', 'pwm', 'servo'],
+    read: ['input', 'output', 'analog', 'pwm', 'servo', 'stepper'],
   };
 
   // What to suggest after "set <pin> " for each pin mode
-  const SET_VALUE = { pwm: 'to 50', servo: 'to 90', output: 'to 1' };
+  const SET_VALUE = { pwm: 'to 50', servo: 'to 90', output: 'to 1', stepper: 'to 90' };
 
   // Everything the file has declared: pins (with their mode), variables, functions
   function scan(cm) {
@@ -52,7 +54,7 @@
     const pins = [];
     const vars = [];
     const funcs = [];
-    text.replace(/\bpin\s+([A-Za-z_]\w*)\s*=\s*\w+(?:\s+(input|output|analog|pwm|servo))?/g, (m, name, mode) => {
+    text.replace(/\bpin\s+([A-Za-z_]\w*)\s*=\s*\w+(?:\s*,\s*\w+)*(?:\s+(input|output|analog|pwm|servo|stepper))?/g, (m, name, mode) => {
       pins.push({ name, mode: mode || 'output' });
     });
     text.replace(/\blet\s+([A-Za-z_]\w*)/g, (m, name) => vars.push(name));
@@ -100,7 +102,7 @@
     if (/^\s*when\s$/.test(t) && target === 'html') return 'key "k" pressed {';
     if (/^\s*when\s+key\s$/.test(t)) return '"k" pressed {';
     if (/^\s*when\s+key\s+"[^"]*"\s$/.test(t)) return 'pressed {';
-    if ((m = t.match(/\b(fade|set|on|off|toggle|tone|when)\s$/))) {
+    if ((m = t.match(/\b(fade|set|on|off|toggle|tone|when|step|turn)\s$/))) {
       return pinsFor(info.pins, m[1])[0] || null;
     }
     if (/\bread\s$/.test(t)) return info.pins[0] ? info.pins[0].name : null;
@@ -126,6 +128,9 @@
     if (/^\s*pin\s+\w+\s$/.test(t)) return '= 13';
     if (/^\s*let\s+\w+\s$/.test(t)) return '= 0';
     if (/\bpin\s+\w+\s*=\s*\w+\s$/.test(t)) return 'input';
+    if (/\bpin\s+\w+\s*=\s*\w+(\s*,\s*\w+){3}\s$/.test(t)) return 'stepper';
+    if (/^\s*step\s+\w+\s$/.test(t)) return '512';
+    if (/^\s*turn\s+\w+\s$/.test(t)) return '90';
     return null;
   }
 
