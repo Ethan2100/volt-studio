@@ -1,0 +1,94 @@
+# =====================================================================
+#  Build and release Volt Studio
+#
+#  How to use: on GitHub, open the Actions tab -> "Build and release"
+#  -> Run workflow -> type the new version (like 1.4.1) -> Run.
+#
+#  GitHub then builds the Windows installer on its own computer and
+#  publishes it as a new release (about 10 minutes). Nothing needs to
+#  be downloaded or uploaded from your PC.
+# =====================================================================
+
+name: Build and release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "New version number, like 1.4.1"
+        required: true
+      notes:
+        description: "What's new (one line, optional)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      VERSION: ${{ inputs.version }}
+
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v4
+
+      - name: Check the version number
+        shell: pwsh
+        run: |
+          if ($env:VERSION -notmatch '^\d+\.\d+\.\d+$') {
+            throw "The version must look like 1.4.1 (three numbers with dots). You typed: $env:VERSION"
+          }
+          git fetch --tags --quiet
+          if (git tag --list "v$env:VERSION") {
+            throw "Version $env:VERSION has already been released. Pick a higher number."
+          }
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install packages
+        run: npm ci
+
+      - name: Set the app version
+        shell: pwsh
+        run: npm version $env:VERSION --no-git-tag-version --allow-same-version
+
+      - name: Build the app
+        run: npx electron-builder --win dir --x64 --publish never
+
+      - name: Make sure the USB driver is the Windows one
+        shell: pwsh
+        run: |
+          $bad = Get-ChildItem -Recurse "dist/win-unpacked/resources/app.asar.unpacked" -Filter *.node |
+                 Where-Object { $_.FullName -notmatch 'prebuilds' }
+          if ($bad) { throw "Found a USB driver file that would break on Windows: $($bad.FullName)" }
+
+      - name: Install NSIS (the installer maker)
+        run: choco install nsis -y --no-progress
+
+      - name: Build the installer
+        shell: pwsh
+        working-directory: installer
+        run: '& "${env:ProgramFiles(x86)}\NSIS\makensis.exe" -V2 "-DVERSION=$env:VERSION" installer.nsi'
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}
+          name: Volt Studio ${{ inputs.version }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          files: dist/*.exe
+          body: |
+            ${{ inputs.notes }}
+
+            **Download "Volt Studio Setup ${{ inputs.version }}.exe" below and run it.**
+            Windows may say "Windows protected your PC" because the app isn't signed: click **More info → Run anyway**.
+
+            Write Volt once and turn it into Arduino C++, MicroPython, Python, Ruby, JavaScript or a web page.
