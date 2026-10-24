@@ -8,6 +8,11 @@
       "file": "studio.volt",
       "label": "Studio kit (pages, nav, hero, scroll reveals)",
       "description": "Drop-in CSS + JS router + Volt functions for a multi-page animated site: navBar/navLink, pageOpen/pageClose, heroBanner, section, revealDiv, siteFooter."
+    },
+    {
+      "file": "flipbook-template.volt",
+      "label": "Flipbook Studio (draw / play / export animation)",
+      "description": "A standalone app, not a library to paste into another page - compile this file as-is. Draw frames on a paper-white canvas with onion skinning, play them back at an adjustable FPS, and export a single self-contained .html file that plays the animation with no Volt Studio needed."
     }
   ]
 }
