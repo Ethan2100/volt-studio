@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-src 'self' file:">
+  <title>Volt Studio</title>
+  <link rel="stylesheet" href="../node_modules/codemirror/lib/codemirror.css">
+  <link rel="stylesheet" href="../node_modules/codemirror/addon/hint/show-hint.css">
+  <link rel="stylesheet" href="../node_modules/codemirror/addon/dialog/dialog.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- ============ Top bar ============ -->
+  <header class="topbar">
+    <div class="brand" title="Volt Studio">
+      <svg viewBox="0 0 24 24" class="bolt" aria-hidden="true"><path d="M13.2 2 4.5 13.4h6l-1.2 8.6 9.2-12.1h-6.2z"/></svg>
+      <span>Volt Studio</span>
+    </div>
+
+    <div class="file-actions">
+      <button class="icon-btn" id="btn-new" title="New (Ctrl+N)">
+        <svg viewBox="0 0 24 24"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M12 11v6M9 14h6"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-open" title="Open (Ctrl+O)">
+        <svg viewBox="0 0 24 24"><path d="M3 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-save" title="Save (Ctrl+S)">
+        <svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></svg>
+      </button>
+    </div>
+
+    <div class="file-name" id="file-name">untitled.volt</div>
+
+    <div class="spacer"></div>
+
+    <label class="select-wrap lang-wrap" title="Output language (the first line of your file)">
+      <svg viewBox="0 0 24 24"><path d="m8 7-5 5 5 5M16 7l5 5-5 5"/></svg>
+      <select id="target-select">
+        <optgroup label="Boards">
+          <option value="cpp">Arduino C++</option>
+          <option value="micropython">MicroPython</option>
+        </optgroup>
+        <optgroup label="Scripts">
+          <option value="python">Python</option>
+          <option value="ruby">Ruby</option>
+          <option value="js">JavaScript</option>
+        </optgroup>
+        <optgroup label="Web">
+          <option value="html">HTML page</option>
+        </optgroup>
+      </select>
+    </label>
+
+    <label class="select-wrap" id="board-wrap" title="Board type (for C++ uploads)">
+      <svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg>
+      <select id="board-select"></select>
+    </label>
+
+    <label class="select-wrap" id="port-wrap" title="USB port your board is plugged into">
+      <svg viewBox="0 0 24 24"><path d="M12 2v14M8 6l4-4 4 4M7 12v3a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-3M12 17v5"/></svg>
+      <select id="port-select"><option value="">No board found</option></select>
+    </label>
+    <button class="icon-btn board-only" id="btn-refresh" title="Look for boards again">
+      <svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/></svg>
+    </button>
+
+    <button class="btn" id="btn-compile" title="Compile and save the output file (Ctrl+R)">
+      <svg viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></svg>
+      Compile
+    </button>
+    <button class="btn primary" id="btn-upload" title="Send the program to your board (Ctrl+U)">
+      <svg viewBox="0 0 24 24" id="primary-icon"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+      <span>Upload</span>
+    </button>
+  </header>
+
+  <!-- ============ Editor + side panel ============ -->
+  <main class="workspace" id="workspace">
+    <section class="editor-pane">
+      <div id="editor"></div>
+    </section>
+
+    <div class="divider-v" id="divider-v" title="Drag to resize"></div>
+
+    <section class="side-pane" id="side-pane">
+      <nav class="tabs" data-group="side">
+        <button data-tab="output" class="active">Output code</button>
+        <button data-tab="ai">AI</button>
+      </nav>
+
+      <div class="tab-body active" data-panel="output">
+        <div class="output-bar">
+          <span class="lang-pill" id="output-lang">C++</span>
+          <span class="muted" id="output-info">Updates as you type</span>
+          <div class="spacer"></div>
+          <button class="link-btn" id="btn-copy-output">Copy</button>
+          <button class="link-btn" id="btn-open-output">Open folder</button>
+        </div>
+        <div id="output"></div>
+      </div>
+
+      <!-- Reference / Examples / Library have no tab of their own - they're
+           opened from the Tools menu (Volt Reference / Examples / Library),
+           same way Tools > Serial Monitor opens the monitor tab below. -->
+      <div class="tab-body" data-panel="reference">
+        <div class="output-bar">
+          <span class="muted">Volt Reference</span>
+          <div class="spacer"></div>
+          <button class="link-btn" data-close-tab="output">Close</button>
+        </div>
+        <article class="reference" id="reference"></article>
+      </div>
+
+      <div class="tab-body" data-panel="examples">
+        <div class="output-bar">
+          <span class="muted">Examples</span>
+          <div class="spacer"></div>
+          <button class="link-btn" data-close-tab="output">Close</button>
+        </div>
+        <div class="examples" id="examples"></div>
+      </div>
+
+      <div class="tab-body" data-panel="library">
+        <div class="output-bar">
+          <span class="muted">Addon code libraries</span>
+          <div class="spacer"></div>
+          <button class="link-btn" id="btn-plugins-folder">Open plugins folder</button>
+          <button class="link-btn" id="btn-plugins-rescan">Rescan</button>
+          <button class="link-btn" data-close-tab="output">Close</button>
+        </div>
+        <div class="examples" id="library"></div>
+      </div>
+
+      <div class="tab-body" data-panel="ai">
+        <div class="output-bar">
+          <span class="muted" id="ai-key-status">No API key set</span>
+          <div class="spacer"></div>
+          <button class="link-btn" id="btn-ai-clear">Clear chat</button>
+          <button class="link-btn" id="btn-ai-settings">API key</button>
+        </div>
+        <div class="ai-chat" id="ai-chat">
+          <div class="ai-messages" id="ai-messages"><p class="ai-empty">Ask anything about Volt — syntax, a compile error, what a built-in does — or have it write or fix code in your open file. Every question is sent with your current file as context, and any code it writes back can be inserted with one click.</p></div>
+          <div class="ai-quick-actions" id="ai-quick-actions">
+            <button type="button" class="link-btn" id="ai-explain">Explain this file</button>
+            <button type="button" class="link-btn hidden" id="ai-fix-error">Fix this error</button>
+          </div>
+          <form class="ai-input" id="ai-form">
+            <textarea id="ai-text" placeholder="Ask about Volt syntax, or ask it to write or fix code in your file…" rows="2"></textarea>
+            <button class="btn primary" type="submit" id="ai-send">Send</button>
+          </form>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ Console + serial monitor ============ -->
+  <div class="divider-h" id="divider-h" title="Drag to resize"></div>
+  <section class="bottom-pane" id="bottom-pane">
+    <nav class="tabs" data-group="bottom">
+      <button data-tab="console" class="active">Console</button>
+      <button data-tab="monitor">Serial monitor <span class="dot" id="monitor-dot"></span></button>
+      <div class="spacer"></div>
+      <button class="link-btn" id="btn-clear">Clear</button>
+    </nav>
+
+    <div class="tab-body active" data-panel="console">
+      <pre class="console" id="console"></pre>
+      <form class="console-input hidden" id="console-input">
+        <span class="prompt-mark">›</span>
+        <input type="text" id="stdin-input" placeholder="Your program is running. Type an answer here and press Enter" autocomplete="off">
+      </form>
+    </div>
+
+    <div class="tab-body" data-panel="monitor">
+      <div class="monitor-bar">
+        <button class="btn small" id="btn-monitor">Connect</button>
+        <select id="baud-select" title="Speed (must match Serial.begin / 115200 for MicroPython)">
+          <option>9600</option><option>19200</option><option>38400</option>
+          <option>57600</option><option>115200</option>
+        </select>
+        <label class="check"><input type="checkbox" id="autoscroll" checked> Auto-scroll</label>
+        <div class="spacer"></div>
+        <input type="text" id="monitor-input" placeholder="Type a message to send to the board…" disabled>
+        <button class="btn small" id="btn-send" disabled>Send</button>
+      </div>
+      <pre class="console monitor" id="monitor"></pre>
+    </div>
+  </section>
+
+  <!-- ============ Status bar ============ -->
+  <footer class="statusbar">
+    <span id="status" class="status">Ready</span>
+    <div class="spacer"></div>
+    <span id="status-target">C++</span>
+    <span id="status-cursor">Ln 1, Col 1</span>
+    <span id="status-version">Volt</span>
+  </footer>
+
+  <div id="toast" class="toast" role="status"></div>
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <h2 id="modal-title"></h2>
+      <div id="modal-body"></div>
+      <div class="modal-actions" id="modal-actions"></div>
+    </div>
+  </div>
+
+  <script src="../node_modules/codemirror/lib/codemirror.js"></script>
+  <script src="../node_modules/codemirror/addon/mode/simple.js"></script>
+  <script src="../node_modules/codemirror/addon/runmode/runmode.js"></script>
+  <script src="../node_modules/codemirror/addon/edit/matchbrackets.js"></script>
+  <script src="../node_modules/codemirror/addon/edit/closebrackets.js"></script>
+  <script src="../node_modules/codemirror/addon/selection/active-line.js"></script>
+  <script src="../node_modules/codemirror/addon/comment/comment.js"></script>
+  <script src="../node_modules/codemirror/addon/hint/show-hint.js"></script>
+  <script src="../node_modules/codemirror/addon/dialog/dialog.js"></script>
+  <script src="../node_modules/codemirror/addon/search/searchcursor.js"></script>
+  <script src="../node_modules/codemirror/addon/search/search.js"></script>
+  <script src="../node_modules/codemirror/mode/clike/clike.js"></script>
+  <script src="../node_modules/codemirror/mode/python/python.js"></script>
+  <script src="../node_modules/codemirror/mode/ruby/ruby.js"></script>
+  <script src="../node_modules/codemirror/mode/javascript/javascript.js"></script>
+  <script src="../node_modules/codemirror/mode/xml/xml.js"></script>
+  <script src="../node_modules/codemirror/mode/css/css.js"></script>
+  <script src="../node_modules/codemirror/mode/htmlmixed/htmlmixed.js"></script>
+  <script src="../node_modules/marked/marked.min.js"></script>
+  <script src="volt-mode.js"></script>
+  <script src="ghost.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>

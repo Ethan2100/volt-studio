@@ -1,0 +1,13 @@
+{
+  "name": "vfx-engine",
+  "type": "library",
+  "version": "1.0.0",
+  "description": "A small particle/screen-effects engine (burst, confetti, shake, flash, glow...) for #html Volt games, plus a thin Volt-side API to trigger them.",
+  "snippets": [
+    {
+      "file": "engine.volt",
+      "label": "VFX engine (particles, shake, flash, glow)",
+      "description": "Drop-in canvas particle engine + CSS, with burst()/confetti()/shake()/flash()/glow() Volt functions ready to call from your own game logic."
+    }
+  ]
+}

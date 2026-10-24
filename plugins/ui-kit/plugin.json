@@ -1,0 +1,13 @@
+{
+  "name": "ui-kit",
+  "type": "library",
+  "version": "1.0.0",
+  "description": "Ready-made UI pieces for #html Volt pages - cards, badges, alerts, stat tiles, progress bars, a styled button row, toasts and a modal dialog.",
+  "snippets": [
+    {
+      "file": "kit.volt",
+      "label": "UI kit (cards, badges, alerts, toasts, modal)",
+      "description": "Drop-in CSS + Volt functions for common page pieces. Everything is opt-in via ui-* classes, so it won't restyle anything else already on your page."
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "name": "pin-diagram",
+  "type": "panel",
+  "version": "1.0.0",
+  "description": "A quick-reference pin diagram for common boards, shown as its own tab.",
+  "panel": {
+    "entry": "index.html",
+    "title": "Pin Diagram"
+  }
+}

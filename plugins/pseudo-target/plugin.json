@@ -1,0 +1,13 @@
+{
+  "name": "pseudo-target",
+  "type": "target",
+  "version": "1.0.0",
+  "description": "Adds #pseudo as a compile target: turns a Volt program into plain-English pseudocode, for explaining a sketch to someone who doesn't read code.",
+  "target": {
+    "id": "pseudo",
+    "entry": "generate.js",
+    "label": "Pseudocode",
+    "board": false,
+    "fileExt": "pseudo.txt"
+  }
+}
