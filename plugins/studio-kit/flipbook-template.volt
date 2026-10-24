@@ -50,6 +50,9 @@ title "Flipbook Studio"
 ## .flip-size span { border-radius: 50%; background: #fff; display: block; }
 ## .flip-size.flip-active { border-color: var(--flip-accent); background: #3a1826; }
 
+## .flip-tool { font: inherit; font-size: 0.82em; font-weight: 600; padding: 8px 12px; border-radius: 9px; border: 2px solid var(--flip-border); background: #2a2d3b; color: #fff; cursor: pointer; }
+## .flip-tool.flip-active { border-color: var(--flip-accent); background: #3a1826; }
+
 ## .flip-btn { font: inherit; font-size: 0.95em; font-weight: 600; padding: 10px 16px; border: 0; border-radius: 10px; background: #2a2d3b; color: #fff; cursor: pointer; transition: background 0.15s ease, transform 0.08s ease; }
 ## .flip-btn:hover { background: #363a4a; }
 ## .flip-btn:active { transform: scale(0.95); }
@@ -81,15 +84,16 @@ title "Flipbook Studio"
 #
 #   let color = COLORS[0];
 #   let brushWidth = SIZES[1];
-#   let erasing = false;
+#   let tool = 'pen';       // 'pen' | 'line' | 'rect' | 'circle' | 'eraser'
+#   let smooth = true;      // stabilizer: the drawn line eases toward the pointer instead of jumping straight to it
 #   function applyBrush() {
-#     ctx.globalCompositeOperation = erasing ? 'destination-out' : 'source-over';
+#     ctx.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over';
 #     ctx.strokeStyle = color;
 #     ctx.lineWidth = brushWidth;
 #   }
 #   applyBrush();
 #
-#   // --- color + brush toolbar -------------------------------------
+#   // --- color + brush + tool toolbar --------------------------------
 #   const toolsPanel = document.createElement('div');
 #   toolsPanel.className = 'flip-panel';
 #   const toolsLabel = document.createElement('div');
@@ -101,14 +105,10 @@ title "Flipbook Studio"
 #   COLORS.forEach((c) => {
 #     const b = document.createElement('button');
 #     b.type = 'button'; b.className = 'flip-swatch'; b.style.background = c;
-#     b.onclick = () => { color = c; erasing = false; applyBrush(); updateActive(); };
+#     b.onclick = () => { color = c; if (tool === 'eraser') tool = 'pen'; applyBrush(); updateActive(); };
 #     swatchEls.push(b);
 #     toolsRow.appendChild(b);
 #   });
-#   const eraserBtn = document.createElement('button');
-#   eraserBtn.type = 'button'; eraserBtn.className = 'flip-eraser'; eraserBtn.textContent = 'E';
-#   eraserBtn.onclick = () => { erasing = true; applyBrush(); updateActive(); };
-#   toolsRow.appendChild(eraserBtn);
 #
 #   const sizeEls = [];
 #   SIZES.forEach((s) => {
@@ -122,13 +122,39 @@ title "Flipbook Studio"
 #     toolsRow.appendChild(b);
 #   });
 #
+#   const shapesLabel = document.createElement('div');
+#   shapesLabel.className = 'flip-label'; shapesLabel.textContent = 'Tool';
+#   const shapesRow = document.createElement('div');
+#   shapesRow.className = 'flip-row';
+#   const TOOLS = [
+#     ['pen', 'Pen'],
+#     ['line', 'Line'],
+#     ['rect', 'Rect'],
+#     ['circle', 'Circle'],
+#     ['eraser', 'Eraser'],
+#   ];
+#   const toolEls = [];
+#   TOOLS.forEach(([id, label]) => {
+#     const b = document.createElement('button');
+#     b.type = 'button'; b.className = 'flip-tool'; b.textContent = label;
+#     b.onclick = () => { tool = id; applyBrush(); updateActive(); };
+#     toolEls.push(b);
+#     shapesRow.appendChild(b);
+#   });
+#   const smoothBtn = document.createElement('button');
+#   smoothBtn.type = 'button'; smoothBtn.className = 'flip-tool'; smoothBtn.textContent = 'Smooth';
+#   smoothBtn.title = 'Stabilizes your strokes - the line follows your cursor with a slight lag instead of jumping straight to it, which irons out hand shake. Pen tool only.';
+#   smoothBtn.onclick = () => { smooth = !smooth; updateActive(); };
+#   shapesRow.appendChild(smoothBtn);
+#
 #   function updateActive() {
-#     swatchEls.forEach((b, i) => b.classList.toggle('flip-active', !erasing && COLORS[i] === color));
-#     eraserBtn.classList.toggle('flip-active', erasing);
+#     swatchEls.forEach((b, i) => b.classList.toggle('flip-active', tool !== 'eraser' && COLORS[i] === color));
 #     sizeEls.forEach((b, i) => b.classList.toggle('flip-active', SIZES[i] === brushWidth));
+#     toolEls.forEach((b, i) => b.classList.toggle('flip-active', TOOLS[i][0] === tool));
+#     smoothBtn.classList.toggle('flip-active', smooth);
 #   }
 #   updateActive();
-#   toolsPanel.append(toolsLabel, toolsRow);
+#   toolsPanel.append(toolsLabel, toolsRow, shapesLabel, shapesRow);
 #
 #   // --- frame + playback + export toolbar --------------------------
 #   const actionsPanel = document.createElement('div');
@@ -180,20 +206,71 @@ title "Flipbook Studio"
 #     const scaleX = draw.width / r.width, scaleY = draw.height / r.height;
 #     return [(e.clientX - r.left) * scaleX, (e.clientY - r.top) * scaleY];
 #   }
+#
+#   // Snaps a point to the nearest 15-degree angle from (x0,y0) - used by
+#   // the Line tool while Shift is held, like the "constrain" behavior in
+#   // real drawing apps.
+#   function snapAngle(x0, y0, x1, y1) {
+#     const dx = x1 - x0, dy = y1 - y0;
+#     const dist = Math.hypot(dx, dy);
+#     const angle = Math.round(Math.atan2(dy, dx) / (Math.PI / 12)) * (Math.PI / 12);
+#     return [x0 + Math.cos(angle) * dist, y0 + Math.sin(angle) * dist];
+#   }
+#
+#   let startPos = null;     // stroke start, for line/rect/circle
+#   let shapeSnapshot = null; // canvas pixels before the current shape preview, so dragging can redraw live without leaving trails
+#   let smoothed = null;      // the stabilizer's eased brush position, for Pen tool
+#
 #   draw.addEventListener('pointerdown', (e) => {
 #     if (playing) return;
-#     drawingNow = true; last = posOf(e);
+#     drawingNow = true;
+#     last = posOf(e);
+#     startPos = last;
+#     smoothed = last;
 #     draw.setPointerCapture(e.pointerId);
-#     ctx.beginPath(); ctx.moveTo(last[0], last[1]); ctx.lineTo(last[0] + 0.01, last[1] + 0.01); ctx.stroke();
+#     if (tool === 'line' || tool === 'rect' || tool === 'circle') {
+#       shapeSnapshot = ctx.getImageData(0, 0, draw.width, draw.height);
+#     } else {
+#       ctx.beginPath(); ctx.moveTo(last[0], last[1]); ctx.lineTo(last[0] + 0.01, last[1] + 0.01); ctx.stroke();
+#     }
 #   });
+#
 #   draw.addEventListener('pointermove', (e) => {
 #     if (!drawingNow) return;
 #     const p = posOf(e);
-#     const mid = [(last[0] + p[0]) / 2, (last[1] + p[1]) / 2];
-#     ctx.beginPath(); ctx.moveTo(last[0], last[1]); ctx.quadraticCurveTo(last[0], last[1], mid[0], mid[1]); ctx.stroke();
-#     last = p;
+#
+#     if (tool === 'pen' || tool === 'eraser') {
+#       let target = p;
+#       if (tool === 'pen' && smooth) {
+#         smoothed = [smoothed[0] + (p[0] - smoothed[0]) * 0.35, smoothed[1] + (p[1] - smoothed[1]) * 0.35];
+#         target = smoothed;
+#       }
+#       const mid = [(last[0] + target[0]) / 2, (last[1] + target[1]) / 2];
+#       ctx.beginPath(); ctx.moveTo(last[0], last[1]); ctx.quadraticCurveTo(last[0], last[1], mid[0], mid[1]); ctx.stroke();
+#       last = target;
+#       return;
+#     }
+#
+#     // line/rect/circle: restore the pre-shape pixels, then draw the
+#     // shape fresh from startPos to the current pointer, so dragging
+#     // around previews live without leaving a trail of old attempts.
+#     ctx.putImageData(shapeSnapshot, 0, 0);
+#     let end = p;
+#     if (tool === 'line' && e.shiftKey) end = snapAngle(startPos[0], startPos[1], p[0], p[1]);
+#     ctx.beginPath();
+#     if (tool === 'line') {
+#       ctx.moveTo(startPos[0], startPos[1]); ctx.lineTo(end[0], end[1]);
+#     } else if (tool === 'rect') {
+#       ctx.rect(startPos[0], startPos[1], end[0] - startPos[0], end[1] - startPos[1]);
+#     } else if (tool === 'circle') {
+#       const rx = Math.abs(end[0] - startPos[0]) / 2, ry = Math.abs(end[1] - startPos[1]) / 2;
+#       const cx = (startPos[0] + end[0]) / 2, cy = (startPos[1] + end[1]) / 2;
+#       ctx.ellipse(cx, cy, Math.max(rx, 0.01), Math.max(ry, 0.01), 0, 0, Math.PI * 2);
+#     }
+#     ctx.stroke();
 #   });
-#   function endStroke() { drawingNow = false; }
+#
+#   function endStroke() { drawingNow = false; shapeSnapshot = null; }
 #   draw.addEventListener('pointerup', endStroke);
 #   draw.addEventListener('pointerleave', endStroke);
 #
