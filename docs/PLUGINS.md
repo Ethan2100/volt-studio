@@ -4,7 +4,8 @@ A plugin is just a folder with a `plugin.json` manifest. Drop it into:
 
 - `<Volt Studio install>/plugins/` - bundled examples (the ones that ship
   with the app; see `plugins/vfx-engine`, `plugins/pin-diagram`,
-  `plugins/pseudo-target` for working, tested examples of all three kinds).
+  `plugins/pseudo-target`, `plugins/ui-kit`, `plugins/studio-kit` for
+  working, tested examples of all three kinds).
 - Your own plugins folder - open it from the **Library** tab's "Open
   plugins folder" button, or find it at `<userData>/plugins/` (Help →
   About shows where `userData` is for your OS). No build step, no install

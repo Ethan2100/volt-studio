@@ -1,0 +1,13 @@
+{
+  "name": "studio-kit",
+  "type": "library",
+  "version": "1.0.0",
+  "description": "Build a full, multi-page, animated website in #html Volt - sticky nav, full-bleed hero banners, instant page switching, and scroll-triggered reveal animations. For studio/show/portfolio-style sites.",
+  "snippets": [
+    {
+      "file": "studio.volt",
+      "label": "Studio kit (pages, nav, hero, scroll reveals)",
+      "description": "Drop-in CSS + JS router + Volt functions for a multi-page animated site: navBar/navLink, pageOpen/pageClose, heroBanner, section, revealDiv, siteFooter."
+    }
+  ]
+}
