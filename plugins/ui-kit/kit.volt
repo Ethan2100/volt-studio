@@ -15,11 +15,19 @@
 //
 // A STYLED BUTTON ROW uses Volt's real `button` statement (so clicks
 // still run your own Volt code) wrapped in a coloured row:
-//   html "<div class='ui-btn-row ui-primary'>"
+//   html btnRowOpen("primary")
 //   button "Save" { print "Saved!" }
 //   button "Cancel" { print "Cancelled" }
-//   html "</div>"
-// (swap ui-primary for ui-danger or ui-ghost for the other styles)
+//   html btnRowClose()
+// (swap "primary" for "danger" or "ghost" for the other styles)
+//
+// btnRowOpen/btnRowClose use a marker-div trick, not a literal opening
+// and closing HTML tag - each `html x` call parses its string on its
+// own, so an open tag written in one call and a close tag in a later
+// call never actually nest in the DOM (the browser just auto-closes
+// the lone open tag). The markers get re-parented into a real wrapper
+// after the page's own content has rendered - see the reflow() note
+// in the raw-JS block below if you're curious how.
 //
 // INTERACTIVE pieces (toast, showModal, closeModal) are raw JS, same
 // escape-hatch trick as the VFX engine library: everything lands on
@@ -63,6 +71,7 @@
 ## .ui-btn-row.ui-primary button { background: var(--ui-accent); color: #04121a; }
 ## .ui-btn-row.ui-danger button { background: #f87171; color: #2a0a0a; }
 ## .ui-btn-row.ui-ghost button { background: transparent; border: 1px solid var(--ui-border); color: var(--ui-text); }
+## .ui-group-start, .ui-group-end { display: none !important; }
 
 ## .ui-toast-wrap { position: fixed; right: 16px; bottom: 16px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
 ## .ui-toast { padding: 10px 16px; border-radius: 10px; background: var(--ui-card); border: 1px solid var(--ui-border); color: var(--ui-text); box-shadow: 0 8px 24px rgba(0,0,0,0.35); opacity: 0; transform: translateY(8px); transition: opacity 0.2s ease, transform 0.2s ease; }
@@ -109,6 +118,48 @@
 #     backdrop.classList.add('ui-show');
 #   };
 #   window.UI.closeModal = closeModal;
+#
+#   // Re-parents whatever sits between a btnRowOpen/btnRowClose marker
+#   // pair into a real .ui-btn-row wrapper, once after the page's own
+#   // top-level Volt code has finished building everything. Needed
+#   // because `html x` always wraps x in its own <div class="volt-html">
+#   // before appending it, so a marker dropped by btnRowOpen is one
+#   // level deeper than a direct child of #volt - this unwraps that.
+#   function uiMarker(node) {
+#     if (node.nodeType !== 1) return null;
+#     if (node.classList.contains('ui-group-start')) return { kind: 'start', data: node.dataset };
+#     if (node.classList.contains('ui-group-end')) return { kind: 'end' };
+#     if (node.classList.contains('volt-html') && node.children.length === 1) return uiMarker(node.firstElementChild);
+#     return null;
+#   }
+#   function uiReflow() {
+#     const root = document.getElementById('volt');
+#     if (!root) return;
+#     const kids = Array.from(root.childNodes);
+#     const stack = [{ el: root, out: [] }];
+#     kids.forEach((node) => {
+#       const m = uiMarker(node);
+#       if (m && m.kind === 'start') {
+#         const wrap = document.createElement('div');
+#         if (m.data.class) wrap.className = m.data.class;
+#         stack.push({ el: wrap, out: [] });
+#       } else if (m && m.kind === 'end' && stack.length > 1) {
+#         const finished = stack.pop();
+#         finished.out.forEach((c) => finished.el.appendChild(c));
+#         stack[stack.length - 1].out.push(finished.el);
+#       } else {
+#         stack[stack.length - 1].out.push(node);
+#       }
+#     });
+#     while (stack.length > 1) {
+#       const finished = stack.pop();
+#       finished.out.forEach((c) => finished.el.appendChild(c));
+#       stack[stack.length - 1].out.push(finished.el);
+#     }
+#     root.innerHTML = '';
+#     stack[0].out.forEach((c) => root.appendChild(c));
+#   }
+#   window.addEventListener('DOMContentLoaded', uiReflow);
 # })();
 
 // ---------------------------------------------------------------------
@@ -141,6 +192,14 @@ fn progressBar(percent) {
 
 fn avatar(initials) {
   return "<span class='ui-avatar'>" + initials + "</span>"
+}
+
+fn btnRowOpen(variant) {
+  return "<div class='ui-group-start' data-class='ui-btn-row ui-" + variant + "'></div>"
+}
+
+fn btnRowClose() {
+  return "<div class='ui-group-end'></div>"
 }
 
 // ---------------------------------------------------------------------
