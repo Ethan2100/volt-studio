@@ -441,39 +441,54 @@ title "Flipbook Studio"
 #           natural.width = img.width; natural.height = img.height;
 #           natural.getContext('2d').drawImage(img, 0, 0);
 #           const mask = await net.segmentPerson(natural, { internalResolution: 'medium', segmentationThreshold: 0.6 });
+#           let personPixels = 0;
+#           for (let i = 0; i < mask.data.length; i++) if (mask.data[i]) personPixels++;
 #
 #           // Background: the whole picture, scaled to fit, committed
-#           // straight onto the shared Background layer.
+#           // straight onto the shared Background layer - do this
+#           // regardless of whether a subject was found, since it's
+#           // useful on its own.
 #           const scale = Math.min(560 / img.width, 400 / img.height, 1);
 #           const w = Math.max(1, Math.round(img.width * scale)), h = Math.max(1, Math.round(img.height * scale));
 #           bgCtx.drawImage(img, (560 - w) / 2, (400 - h) / 2, w, h);
 #
-#           // Character: only the pixels the model marked as the
-#           // subject, everything else made transparent, then dropped
-#           // in as a floating selection just like Import Image - drag
-#           // it into place, same as a manual import.
-#           const cut = natural.getContext('2d').getImageData(0, 0, img.width, img.height);
-#           for (let i = 0; i < mask.data.length; i++) {
-#             if (!mask.data[i]) cut.data[i * 4 + 3] = 0;
-#           }
-#           const cutCanvasNatural = document.createElement('canvas');
-#           cutCanvasNatural.width = img.width; cutCanvasNatural.height = img.height;
-#           cutCanvasNatural.getContext('2d').putImageData(cut, 0, 0);
-#           const cutScaled = document.createElement('canvas');
-#           cutScaled.width = w; cutScaled.height = h;
-#           cutScaled.getContext('2d').drawImage(cutCanvasNatural, 0, 0, w, h);
+#           // The model only recognizes human figures. On art styles or
+#           // subjects it doesn't recognize (an anime character, a
+#           // creature, an object) it can come back having marked
+#           // nothing at all - rather than drop an invisible, empty
+#           // floating selection with no explanation, say so plainly
+#           // and leave Character for the person to fill in by hand.
+#           if (personPixels < 40) {
+#             renderOnion(); renderStrip();
+#             alert('Auto-Detect looks for a human figure and couldn\'t find one in this picture, so only the Background layer was filled in. Use Import Image above, or draw the Character by hand, to add the subject yourself.');
+#           } else {
+#             // Character: only the pixels the model marked as the
+#             // subject, everything else made transparent, then dropped
+#             // in as a floating selection just like Import Image - drag
+#             // it into place, same as a manual import.
+#             const cut = natural.getContext('2d').getImageData(0, 0, img.width, img.height);
+#             for (let i = 0; i < mask.data.length; i++) {
+#               if (!mask.data[i]) cut.data[i * 4 + 3] = 0;
+#             }
+#             const cutCanvasNatural = document.createElement('canvas');
+#             cutCanvasNatural.width = img.width; cutCanvasNatural.height = img.height;
+#             cutCanvasNatural.getContext('2d').putImageData(cut, 0, 0);
+#             const cutScaled = document.createElement('canvas');
+#             cutScaled.width = w; cutScaled.height = h;
+#             cutScaled.getContext('2d').drawImage(cutCanvasNatural, 0, 0, w, h);
 #
-#           commitFloatingSelection();
-#           activeLayer = 'character';
-#           const x = Math.round((560 - w) / 2), y = Math.round((400 - h) / 2);
-#           selectState = { phase: 'floating', canvas: cutScaled, x, y, w, h, dragging: false, dragOffset: [0, 0], srcCtx: ctx };
-#           tool = 'select';
-#           applyBrush();
-#           updateActive();
-#           updateLayerButtons();
-#           stage.className = 'flip-stage flip-cursor-select';
-#           drawFloatingPreview();
-#           renderOnion(); renderStrip();
+#             commitFloatingSelection();
+#             activeLayer = 'character';
+#             const x = Math.round((560 - w) / 2), y = Math.round((400 - h) / 2);
+#             selectState = { phase: 'floating', canvas: cutScaled, x, y, w, h, dragging: false, dragOffset: [0, 0], srcCtx: ctx };
+#             tool = 'select';
+#             applyBrush();
+#             updateActive();
+#             updateLayerButtons();
+#             stage.className = 'flip-stage flip-cursor-select';
+#             drawFloatingPreview();
+#             renderOnion(); renderStrip();
+#           }
 #         } catch (err) {
 #           alert('Auto-Detect needs an internet connection (it downloads a small detection model the first time) and couldn\'t load it: ' + err.message + '. Import Image above works offline if you\'d rather place the layers yourself.');
 #         } finally {
