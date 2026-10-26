@@ -501,16 +501,259 @@ title "Flipbook Studio"
 #   };
 #   autoLabel.appendChild(autoInput);
 #
+#   // --- auto-rig + walk cycle -------------------------------------------
+#   // Builds on Auto-Detect: after finding the subject (BodyPix) it ALSO
+#   // runs a pose-detection model (MoveNet) to find the skeleton
+#   // (shoulders, elbows, wrists, hips, knees, ankles, nose), slices the
+#   // cutout into a paper-doll rig around those joints, and drives the rig
+#   // through a procedural walk cycle. Honesty up front: both models are
+#   // trained on PHOTOS of real people. On a photo of a person standing
+#   // reasonably upright and mostly visible, this usually works; on
+#   // illustrated/anime art, a logo, an object, or someone heavily
+#   // obscured, pose detection is likely to come back too thin to rig -
+#   // in that case this still drops the cutout in as a normal floating
+#   // selection, same as Auto-Detect, so the import isn't wasted.
+#   let poseDetectorLoad = null;
+#   function ensurePoseDetector() {
+#     if (!poseDetectorLoad) {
+#       poseDetectorLoad = (async () => {
+#         if (!window.tf) await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js');
+#         if (!window.poseDetection) await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js');
+#         return window.poseDetection.createDetector(window.poseDetection.SupportedModels.MoveNet, {
+#           modelType: window.poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
+#         });
+#       })();
+#     }
+#     return poseDetectorLoad;
+#   }
+#
+#   // Crops a rectangle from `src` into its own small canvas and records
+#   // where that rectangle's top-left sits in `src`'s space, so a joint's
+#   // position inside the crop can be recovered later.
+#   function cropRect(src, srcW, srcH, left, top, right, bottom) {
+#     left = Math.max(0, Math.floor(left)); top = Math.max(0, Math.floor(top));
+#     right = Math.min(srcW, Math.ceil(right)); bottom = Math.min(srcH, Math.ceil(bottom));
+#     const w = Math.max(1, right - left), h = Math.max(1, bottom - top);
+#     const c = document.createElement('canvas');
+#     c.width = w; c.height = h;
+#     c.getContext('2d').drawImage(src, left, top, w, h, 0, 0, w, h);
+#     return { canvas: c, left, top };
+#   }
+#   function cropBone(src, srcW, srcH, p1, p2, padFrac, minPad) {
+#     const len = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+#     const pad = Math.max(minPad, len * padFrac);
+#     return cropRect(src, srcW, srcH, Math.min(p1.x, p2.x) - pad, Math.min(p1.y, p2.y) - pad, Math.max(p1.x, p2.x) + pad, Math.max(p1.y, p2.y) + pad);
+#   }
+#   // A rig part: its own cropped image, where to draw that image once
+#   // translated to its pivot joint, and its rest-pose offset from its
+#   // parent's pivot - the offset is what keeps it attached to the parent
+#   // as the parent rotates, since it's applied INSIDE the parent's own
+#   // translate/rotate (see drawRigPart).
+#   function makePart(pivot, crop, parentPivot, anim) {
+#     return {
+#       canvas: crop.canvas,
+#       drawOffsetX: -(pivot.x - crop.left),
+#       drawOffsetY: -(pivot.y - crop.top),
+#       restVec: parentPivot ? { x: pivot.x - parentPivot.x, y: pivot.y - parentPivot.y } : { x: 0, y: 0 },
+#       anim,
+#       children: [],
+#     };
+#   }
+#   function drawRigPart(ctx, part, phase) {
+#     ctx.save();
+#     ctx.translate(part.restVec.x, part.restVec.y);
+#     ctx.rotate(part.anim(phase));
+#     ctx.drawImage(part.canvas, part.drawOffsetX, part.drawOffsetY);
+#     part.children.forEach((child) => drawRigPart(ctx, child, phase));
+#     ctx.restore();
+#   }
+#
+#   // Classic procedural gait - opposite-phase arm/leg swing, a little
+#   // knee/elbow bend, a subtle hip twist and step bob. Amplitudes are in
+#   // radians/pixels, tuned by eye rather than biomechanics.
+#   const WALK = { leg: 0.5, arm: 0.42, kneeBend: 0.55, elbowBend: 0.32, torsoRot: 0.05, bob: 5 };
+#   function walkAnim(kind) {
+#     return (phase) => {
+#       if (kind === 'leftThigh') return WALK.leg * Math.sin(phase);
+#       if (kind === 'rightThigh') return WALK.leg * Math.sin(phase + Math.PI);
+#       if (kind === 'leftShin') return WALK.kneeBend * Math.max(0, -Math.sin(phase + 0.6));
+#       if (kind === 'rightShin') return WALK.kneeBend * Math.max(0, -Math.sin(phase + 0.6 + Math.PI));
+#       if (kind === 'leftArm') return WALK.arm * Math.sin(phase + Math.PI);
+#       if (kind === 'rightArm') return WALK.arm * Math.sin(phase);
+#       if (kind === 'leftForearm') return WALK.elbowBend * Math.max(0, Math.sin(phase + Math.PI + 0.5));
+#       if (kind === 'rightForearm') return WALK.elbowBend * Math.max(0, Math.sin(phase + 0.5));
+#       if (kind === 'torso') return WALK.torsoRot * Math.sin(phase * 2);
+#       if (kind === 'head') return -WALK.torsoRot * 0.3 * Math.sin(phase * 2);
+#       return 0;
+#     };
+#   }
+#
+#   const rigLabel = document.createElement('label');
+#   rigLabel.className = 'flip-btn flip-btn-accent flip-file-btn'; rigLabel.textContent = 'Auto-Rig + Walk';
+#   rigLabel.title = 'Imports a picture, finds the subject AND its skeleton (shoulders/elbows/hips/knees/etc.), and auto-generates a walking loop. Works best on a clear photo of a person, mostly visible and roughly upright - needs internet the first time, to download the detection models.';
+#   const rigInput = document.createElement('input');
+#   rigInput.type = 'file'; rigInput.accept = 'image/*';
+#   rigInput.onchange = () => {
+#     const file = rigInput.files && rigInput.files[0];
+#     rigInput.value = '';
+#     if (!file) return;
+#     const reader = new FileReader();
+#     reader.onload = async () => {
+#       const img = new Image();
+#       img.onload = async () => {
+#         const originalLabel = rigLabel.textContent;
+#         rigLabel.textContent = 'Loading models...';
+#         try {
+#           const [net, detector] = await Promise.all([ensureBodyPix(), ensurePoseDetector()]);
+#           rigLabel.textContent = 'Detecting...';
+#           const natural = document.createElement('canvas');
+#           natural.width = img.width; natural.height = img.height;
+#           natural.getContext('2d').drawImage(img, 0, 0);
+#           const [mask, poses] = await Promise.all([
+#             net.segmentPerson(natural, { internalResolution: 'medium', segmentationThreshold: 0.6 }),
+#             detector.estimatePoses(natural),
+#           ]);
+#           let personPixels = 0;
+#           for (let i = 0; i < mask.data.length; i++) if (mask.data[i]) personPixels++;
+#
+#           const scale = Math.min(560 / img.width, 400 / img.height, 1);
+#           const w = Math.max(1, Math.round(img.width * scale)), h = Math.max(1, Math.round(img.height * scale));
+#           bgCtx.drawImage(img, (560 - w) / 2, (400 - h) / 2, w, h);
+#
+#           if (personPixels < 40) {
+#             renderOnion(); renderStrip();
+#             alert('Auto-Rig looks for a human figure and couldn\'t find one in this picture, so only the Background layer was filled in. Use Import Image above, or draw the Character by hand, to add the subject yourself.');
+#             return;
+#           }
+#
+#           const cut = natural.getContext('2d').getImageData(0, 0, img.width, img.height);
+#           for (let i = 0; i < mask.data.length; i++) { if (!mask.data[i]) cut.data[i * 4 + 3] = 0; }
+#           const cutCanvasNatural = document.createElement('canvas');
+#           cutCanvasNatural.width = img.width; cutCanvasNatural.height = img.height;
+#           cutCanvasNatural.getContext('2d').putImageData(cut, 0, 0);
+#           const cutScaled = document.createElement('canvas');
+#           cutScaled.width = w; cutScaled.height = h;
+#           cutScaled.getContext('2d').drawImage(cutCanvasNatural, 0, 0, w, h);
+#           const x = Math.round((560 - w) / 2), y = Math.round((400 - h) / 2);
+#
+#           // --- find the skeleton (all joint coords local to cutScaled, i.e. 0..w, 0..h) ---
+#           const kps = (poses && poses[0] && poses[0].keypoints) || [];
+#           function joint(name, minScore) {
+#             const k = kps.find((p) => p.name === name);
+#             if (!k || (k.score || 0) < (minScore === undefined ? 0.25 : minScore)) return null;
+#             return { x: k.x * scale, y: k.y * scale };
+#           }
+#           const lsh = joint('left_shoulder', 0.3), rsh = joint('right_shoulder', 0.3);
+#           const lhip = joint('left_hip', 0.3), rhip = joint('right_hip', 0.3);
+#
+#           if (!lsh || !rsh || !lhip || !rhip) {
+#             // Not enough of the skeleton to rig a walk cycle - fall back
+#             // to dropping the cutout in as a normal movable selection,
+#             // same as Auto-Detect, so the import still isn't wasted.
+#             commitFloatingSelection();
+#             activeLayer = 'character';
+#             selectState = { phase: 'floating', canvas: cutScaled, x, y, w, h, dragging: false, dragOffset: [0, 0], srcCtx: ctx };
+#             tool = 'select';
+#             applyBrush(); updateActive(); updateLayerButtons();
+#             stage.className = 'flip-stage flip-cursor-select';
+#             drawFloatingPreview();
+#             renderOnion(); renderStrip();
+#             alert('Found the subject, but not enough of a clear skeleton (shoulders + hips) to build a walk cycle - it\'s been dropped in as a normal movable selection instead. This works best on a photo of a person standing, mostly visible and upright.');
+#             return;
+#           }
+#
+#           const nose = joint('nose', 0.2);
+#           const lel = joint('left_elbow'), rel = joint('right_elbow');
+#           const lwr = joint('left_wrist'), rwr = joint('right_wrist');
+#           const lkn = joint('left_knee'), rkn = joint('right_knee');
+#           const lan = joint('left_ankle'), ran = joint('right_ankle');
+#
+#           const shoulderC = { x: (lsh.x + rsh.x) / 2, y: (lsh.y + rsh.y) / 2 };
+#           const hipC = { x: (lhip.x + rhip.x) / 2, y: (lhip.y + rhip.y) / 2 };
+#           const torsoHeight = Math.max(20, hipC.y - shoulderC.y);
+#           const shoulderW = Math.hypot(rsh.x - lsh.x, rsh.y - lsh.y);
+#
+#           const torsoPad = Math.max(10, shoulderW * 0.25);
+#           const torso = makePart(hipC, cropRect(cutScaled, w, h,
+#             Math.min(lsh.x, rsh.x, lhip.x, rhip.x) - torsoPad, Math.min(lsh.y, rsh.y) - torsoPad * 0.5,
+#             Math.max(lsh.x, rsh.x, lhip.x, rhip.x) + torsoPad, Math.max(lhip.y, rhip.y) + torsoPad,
+#           ), null, walkAnim('torso'));
+#
+#           const headTop = nose ? nose.y - (shoulderC.y - nose.y) * 1.5 - 6 : shoulderC.y - torsoHeight * 0.6;
+#           const headCx = nose ? nose.x : shoulderC.x;
+#           const headHalfW = Math.max(14, shoulderW * 0.45);
+#           const head = makePart(shoulderC, cropRect(cutScaled, w, h, headCx - headHalfW, headTop, headCx + headHalfW, shoulderC.y + 6), hipC, walkAnim('head'));
+#           torso.children.push(head);
+#
+#           function limb(shoulder, elbow, wrist, armKind, forearmKind) {
+#             if (!shoulder || !elbow) return;
+#             const upper = makePart(shoulder, cropBone(cutScaled, w, h, shoulder, elbow, 0.4, 10), hipC, walkAnim(armKind));
+#             torso.children.push(upper);
+#             if (wrist) upper.children.push(makePart(elbow, cropBone(cutScaled, w, h, elbow, wrist, 0.4, 9), shoulder, walkAnim(forearmKind)));
+#           }
+#           limb(lsh, lel, lwr, 'leftArm', 'leftForearm');
+#           limb(rsh, rel, rwr, 'rightArm', 'rightForearm');
+#
+#           // Legs are drawn in their own pass, BEFORE the torso (and
+#           // everything attached to it), so they land behind it.
+#           const legs = [];
+#           function leg(hip, knee, ankle, thighKind, shinKind) {
+#             if (!hip || !knee) return;
+#             const thigh = makePart(hip, cropBone(cutScaled, w, h, hip, knee, 0.35, 11), hipC, walkAnim(thighKind));
+#             if (ankle) thigh.children.push(makePart(knee, cropBone(cutScaled, w, h, knee, ankle, 0.35, 10), hip, walkAnim(shinKind)));
+#             legs.push(thigh);
+#           }
+#           leg(lhip, lkn, lan, 'leftThigh', 'leftShin');
+#           leg(rhip, rkn, ran, 'rightThigh', 'rightShin');
+#
+#           commitFloatingSelection();
+#           activeLayer = 'character';
+#           const steps = 10;
+#           const insertAt = activeIndex < frames.length ? activeIndex + 1 : frames.length;
+#           const newIndices = [];
+#           for (let k = 0; k < steps; k++) {
+#             const phase = (Math.PI * 2 * k) / steps;
+#             const bob = -Math.abs(Math.sin(phase)) * WALK.bob;
+#             const frameCanvas = document.createElement('canvas');
+#             frameCanvas.width = 560; frameCanvas.height = 400;
+#             const fctx = frameCanvas.getContext('2d');
+#             fctx.save();
+#             fctx.translate(x + hipC.x, y + hipC.y + bob);
+#             legs.forEach((part) => drawRigPart(fctx, part, phase));
+#             drawRigPart(fctx, torso, phase);
+#             fctx.restore();
+#
+#             const idx = insertAt + k;
+#             frames.splice(idx, 0, frameCanvas.toDataURL('image/png'));
+#             holds.splice(idx, 0, 1);
+#             newIndices.push(idx);
+#           }
+#           activeIndex = newIndices[newIndices.length - 1];
+#           loadFrame(activeIndex);
+#           updateLayerButtons();
+#           renderOnion(); renderStrip(); renderHold();
+#         } catch (err) {
+#           alert('Auto-Rig needs an internet connection (it downloads two small detection models the first time) and couldn\'t load them: ' + err.message + '. Import Image above works offline if you\'d rather place and animate the layers yourself.');
+#         } finally {
+#           rigLabel.textContent = originalLabel;
+#         }
+#       };
+#       img.src = reader.result;
+#     };
+#     reader.readAsDataURL(file);
+#   };
+#   rigLabel.appendChild(rigInput);
+#
 #   function updateLayerButtons() {
 #     charLayerBtn.classList.toggle('flip-active', activeLayer === 'character');
 #     bgLayerBtn.classList.toggle('flip-active', activeLayer === 'background');
 #     bgVisibleBtn.classList.toggle('flip-active', bgVisible);
 #   }
 #   updateLayerButtons();
-#   layersRow.append(charLayerBtn, bgLayerBtn, bgVisibleBtn, clearLayerBtn, importLabel, autoLabel);
+#   layersRow.append(charLayerBtn, bgLayerBtn, bgVisibleBtn, clearLayerBtn, importLabel, autoLabel, rigLabel);
 #   const layersHint = document.createElement('div');
 #   layersHint.className = 'flip-hint';
-#   layersHint.textContent = 'Background is one shared layer behind every frame. Character is the per-frame layer New/Save/Duplicate/Delete work on. Auto-Detect splits one picture into both automatically (needs internet the first time); Import Image places a picture onto whichever layer is active, no internet needed.';
+#   layersHint.textContent = 'Background is one shared layer behind every frame. Character is the per-frame layer New/Save/Duplicate/Delete work on. Auto-Detect splits one picture into both automatically (needs internet the first time); Auto-Rig + Walk does the same but also finds the skeleton and generates a walking loop (best on a clear photo of a person); Import Image places a picture onto whichever layer is active, no internet needed.';
 #   layersContent.append(layersLabel, layersRow, layersHint);
 #
 #   // --- frame (exposure sheet) tab content -------------------------------
