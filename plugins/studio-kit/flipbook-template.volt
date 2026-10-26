@@ -140,7 +140,7 @@ title "Flipbook Studio"
 # (function () {
 #   const COLORS = ['#1b1d27', '#ff3d68', '#4cc9f0', '#3fcf8e', '#ffb703', '#f1f2f8'];
 #   const SIZES = [3, 7, 14];
-#   const BRUSHES = [['pen', 'Standard'], ['pencil', 'Pencil'], ['marker', 'Marker'], ['airbrush', 'Airbrush']];
+#   const BRUSHES = [['pen', 'Standard'], ['pencil', 'Pencil'], ['marker', 'Marker'], ['ink', 'Ink'], ['airbrush', 'Airbrush']];
 #   const AA_LEVELS = ['high', 'low', 'none']; // cycled by the AA button; 'none' disables image smoothing
 #
 #   const stage = document.createElement('div');
@@ -248,9 +248,13 @@ title "Flipbook Studio"
 #   const brushRow = document.createElement('div');
 #   brushRow.className = 'flip-row';
 #   const brushEls = [];
+#   const BRUSH_TITLES = {
+#     ink: 'Tapered, variable-width line like a real inking brush - thin where a stroke starts/lifts and where the pointer moves fast, fuller where it slows down or lingers. This is the brush for clean anime-style linework; the other brushes stay a flat width.',
+#   };
 #   BRUSHES.forEach(([id, label]) => {
 #     const b = document.createElement('button');
 #     b.type = 'button'; b.className = 'flip-tool'; b.textContent = label;
+#     if (BRUSH_TITLES[id]) b.title = BRUSH_TITLES[id];
 #     b.onclick = () => { brushType = id; tool = 'pen'; applyBrush(); updateActive(); };
 #     brushEls.push(b);
 #     brushRow.appendChild(b);
@@ -1107,6 +1111,10 @@ title "Flipbook Studio"
 #   let startPos = null;     // stroke start, for line/rect/circle
 #   let shapeSnapshot = null; // canvas pixels before the current shape preview, so dragging can redraw live without leaving trails
 #   let smoothed = null;      // the stabilizer's eased brush position, for Pen tool
+#   let inkWidth = 0;        // Ink brush's current (smoothed) stroke width, carried segment to segment
+#   let inkSegIndex = 0;     // segments drawn since this stroke started - drives the taper-in ramp
+#   let inkLastDir = [0, 0]; // direction of the most recent real (non-dot) ink segment, for the taper-out flick
+#   let inkHasMoved = false; // whether this ink stroke has moved enough to need a taper-out at all
 #
 #   // --- brush texture strokes (Pen tool only) ----------------------------
 #   function strokePenSegment(c, x0, y0, x1, y1) {
@@ -1148,10 +1156,75 @@ title "Flipbook Studio"
 #     }
 #     c.restore();
 #   }
+#   // Tapered, variable-width line - the one brush here that isn't a flat
+#   // stroke width. Each segment is filled as its own little ribbon from
+#   // the width carried out of the previous segment (w0) to a new target
+#   // width (w1): wider where the pointer slows or lingers, thinner where
+#   // it moves fast, and ramped up from near-zero for the stroke's first
+#   // handful of segments so every line actually starts at a point
+#   // instead of a stamped-on full-width blob. This is what gives
+#   // anime-style inking its characteristic tapered linework instead of
+#   // the uniform width every other brush here draws.
+#   function strokeInkSegment(c, x0, y0, x1, y1) {
+#     const w0 = inkWidth;
+#     const dx = x1 - x0, dy = y1 - y0;
+#     const dist = Math.hypot(dx, dy);
+#     const rampFactor = Math.min(1, (inkSegIndex + 1) / 7);
+#     const speedFactor = Math.max(0.3, Math.min(1.35, 1.5 - dist * 0.055));
+#     const targetWidth = Math.max(0.6, brushWidth * speedFactor * rampFactor);
+#     const w1 = inkSegIndex === 0 ? targetWidth : w0 + (targetWidth - w0) * 0.5;
+#     inkWidth = w1;
+#     inkSegIndex++;
+#     c.globalAlpha = 1;
+#     if (dist < 0.5) {
+#       c.beginPath(); c.arc(x1, y1, w1 / 2, 0, Math.PI * 2); c.fill();
+#       return;
+#     }
+#     inkHasMoved = true;
+#     inkLastDir = [dx / dist, dy / dist];
+#     const nx = -dy / dist, ny = dx / dist;
+#     const hw0 = w0 / 2, hw1 = w1 / 2;
+#     c.beginPath();
+#     c.moveTo(x0 + nx * hw0, y0 + ny * hw0);
+#     c.lineTo(x1 + nx * hw1, y1 + ny * hw1);
+#     c.lineTo(x1 - nx * hw1, y1 - ny * hw1);
+#     c.lineTo(x0 - nx * hw0, y0 - ny * hw0);
+#     c.closePath();
+#     c.fill();
+#     // Round off the joint so two segments meeting at an angle don't
+#     // leave a visible notch - cheap substitute for a proper line-join.
+#     c.beginPath(); c.arc(x1, y1, hw1, 0, Math.PI * 2); c.fill();
+#   }
+#   // Shrinks the ink line's width down to nothing over a short flick
+#   // past the stroke's last point - the taper-out half of the pair,
+#   // drawn once on release since (unlike the taper-in) there's no way
+#   // to know a stroke has ended until the pointer actually lifts.
+#   function inkTaperOut(c) {
+#     if (!inkHasMoved || !last || inkWidth <= 0.6) return;
+#     const steps = 3;
+#     let w0 = inkWidth, x0 = last[0], y0 = last[1];
+#     const nx = -inkLastDir[1], ny = inkLastDir[0];
+#     c.globalAlpha = 1;
+#     for (let i = 1; i <= steps; i++) {
+#       const w1 = inkWidth * (1 - i / steps);
+#       const x1 = x0 + inkLastDir[0] * (inkWidth * 0.3);
+#       const y1 = y0 + inkLastDir[1] * (inkWidth * 0.3);
+#       const hw0 = w0 / 2, hw1 = Math.max(0, w1 / 2);
+#       c.beginPath();
+#       c.moveTo(x0 + nx * hw0, y0 + ny * hw0);
+#       c.lineTo(x1 + nx * hw1, y1 + ny * hw1);
+#       c.lineTo(x1 - nx * hw1, y1 - ny * hw1);
+#       c.lineTo(x0 - nx * hw0, y0 - ny * hw0);
+#       c.closePath();
+#       c.fill();
+#       x0 = x1; y0 = y1; w0 = w1;
+#     }
+#   }
 #   function strokeSegment(c, x0, y0, x1, y1) {
 #     if (brushType === 'pencil') strokePencilSegment(c, x0, y0, x1, y1);
 #     else if (brushType === 'marker') strokeMarkerSegment(c, x0, y0, x1, y1);
 #     else if (brushType === 'airbrush') strokeAirbrushSegment(c, x0, y0, x1, y1);
+#     else if (brushType === 'ink') strokeInkSegment(c, x0, y0, x1, y1);
 #     else strokePenSegment(c, x0, y0, x1, y1);
 #   }
 #
@@ -1178,6 +1251,7 @@ title "Flipbook Studio"
 #     last = p;
 #     startPos = p;
 #     smoothed = p;
+#     inkWidth = 0; inkSegIndex = 0; inkLastDir = [0, 0]; inkHasMoved = false;
 #     stage.setPointerCapture(e.pointerId);
 #     if (tool === 'line' || tool === 'rect' || tool === 'circle') {
 #       shapeSnapshot = c.getImageData(0, 0, 560, 400);
@@ -1270,6 +1344,7 @@ title "Flipbook Studio"
 #       }
 #       return;
 #     }
+#     if (drawingNow && tool === 'pen' && brushType === 'ink') inkTaperOut(activeCtx());
 #     drawingNow = false;
 #     shapeSnapshot = null;
 #   }
