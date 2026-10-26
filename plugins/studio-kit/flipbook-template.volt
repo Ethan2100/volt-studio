@@ -17,7 +17,21 @@
 //   "Character" layer (what New/Save/Duplicate/Delete/the thumbnails
 //   actually operate on). Switch which one you're drawing on, hide
 //   the background to check the character alone, or import an image
-//   onto either one.
+//   onto either one. Import Image drops the picture in as a movable
+//   selection (scaled to fit) instead of baking it straight onto the
+//   layer - drag it into position first, then draw elsewhere or
+//   switch tools to lock it in. That's the "ready to animate" part:
+//   it's now sitting there as one bitmap you can Save as a frame and
+//   hand straight to Keyframe Tween.
+//
+// FILL & SHADE
+//   Fill is flood fill - click inside a closed outline for flat cel
+//   color. Shade and Highlight are freehand brushes that darken
+//   (multiply) or lighten (screen) whatever's underneath instead of
+//   replacing it, the way cel-shading is actually done: flat-fill the
+//   character with Fill, then paint shadow/light areas with Shade/
+//   Highlight and they blend with the fill color rather than
+//   covering it up.
 //
 // BRUSHES
 //   Pen / Pencil / Marker / Airbrush textures for the Pen tool, a
@@ -161,11 +175,14 @@ title "Flipbook Studio"
 #
 #   function applyBrush(targetCtx) {
 #     const c = targetCtx || activeCtx();
-#     c.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over';
+#     c.globalCompositeOperation = tool === 'eraser' ? 'destination-out'
+#       : tool === 'shade' ? 'multiply'   // darkens whatever's under the stroke - cel-shading shadows
+#       : tool === 'highlight' ? 'screen' // lightens whatever's under the stroke - cel-shading highlights
+#       : 'source-over';
 #     c.strokeStyle = color;
 #     c.fillStyle = color;
 #     c.lineWidth = brushWidth;
-#     c.globalAlpha = 1;
+#     c.globalAlpha = (tool === 'shade' || tool === 'highlight') ? 0.45 : 1;
 #   }
 #   applyBrush();
 #
@@ -246,14 +263,22 @@ title "Flipbook Studio"
 #     ['rect', 'Rect'],
 #     ['circle', 'Circle'],
 #     ['fill', 'Fill'],
+#     ['shade', 'Shade'],
+#     ['highlight', 'Highlight'],
 #     ['eraser', 'Eraser'],
 #     ['select', 'Select'],
 #   ];
+#   const TOOL_TITLES = {
+#     fill: 'Flood-fills the connected area you click with the current color - flat cel colors.',
+#     shade: 'Paints a darkening (multiply) stroke over whatever is underneath, instead of replacing the color - pick a shadow tone (a muted blue/purple works well) and paint where the light doesn\'t reach.',
+#     highlight: 'Paints a lightening (screen) stroke over whatever is underneath - pick a light/warm tone and paint where the light hits.',
+#     select: 'Drag a rectangle to lift that part of the layer, then drag it again to move it. Pick another tool, or click outside it, to drop it back in.',
+#   };
 #   const toolEls = [];
 #   TOOLS.forEach(([id, label]) => {
 #     const b = document.createElement('button');
 #     b.type = 'button'; b.className = 'flip-tool'; b.textContent = label;
-#     if (id === 'select') b.title = 'Drag a rectangle to lift that part of the layer, then drag it again to move it. Pick another tool, or click outside it, to drop it back in.';
+#     if (TOOL_TITLES[id]) b.title = TOOL_TITLES[id];
 #     b.onclick = () => { commitFloatingSelection(); tool = id; applyBrush(); updateActive(); stage.className = 'flip-stage ' + (id === 'select' ? 'flip-cursor-select' : 'flip-cursor-draw'); };
 #     toolEls.push(b);
 #     shapesRow.appendChild(b);
@@ -325,6 +350,7 @@ title "Flipbook Studio"
 #   clearLayerBtn.onclick = () => { activeCtx().clearRect(0, 0, 560, 400); renderOnion(); renderStrip(); };
 #   const importLabel = document.createElement('label');
 #   importLabel.className = 'flip-btn flip-file-btn'; importLabel.textContent = 'Import Image';
+#   importLabel.title = 'Drops the image in as a movable selection, scaled to fit - drag it into position (for example on the Character layer, right where you\'ll want it for frame 1), then switch tools or draw elsewhere to lock it in. From there, Save it as a frame and use Keyframe Tween (Tween tab) to animate it.';
 #   const importInput = document.createElement('input');
 #   importInput.type = 'file'; importInput.accept = 'image/*';
 #   importInput.onchange = () => {
@@ -334,11 +360,24 @@ title "Flipbook Studio"
 #     reader.onload = () => {
 #       const img = new Image();
 #       img.onload = () => {
-#         const c = activeCtx();
+#         // Drop the image in as a FLOATING selection (the same lifted
+#         // state the Select tool produces) rather than baking it
+#         // straight onto the layer - so the very next thing you do is
+#         // drag it into position, ready to pose/animate, instead of
+#         // having to switch to Select and re-lift it yourself.
+#         commitFloatingSelection();
 #         const scale = Math.min(560 / img.width, 400 / img.height, 1);
-#         const w = img.width * scale, h = img.height * scale;
-#         c.drawImage(img, (560 - w) / 2, (400 - h) / 2, w, h);
-#         renderOnion(); renderStrip();
+#         const w = Math.max(1, Math.round(img.width * scale)), h = Math.max(1, Math.round(img.height * scale));
+#         const off = document.createElement('canvas');
+#         off.width = w; off.height = h;
+#         off.getContext('2d').drawImage(img, 0, 0, w, h);
+#         const x = Math.round((560 - w) / 2), y = Math.round((400 - h) / 2);
+#         selectState = { phase: 'floating', canvas: off, x, y, w, h, dragging: false, dragOffset: [0, 0], srcCtx: activeCtx() };
+#         tool = 'select';
+#         applyBrush();
+#         updateActive();
+#         stage.className = 'flip-stage flip-cursor-select';
+#         drawFloatingPreview();
 #       };
 #       img.src = reader.result;
 #     };
@@ -630,8 +669,13 @@ title "Flipbook Studio"
 #     stage.setPointerCapture(e.pointerId);
 #     if (tool === 'line' || tool === 'rect' || tool === 'circle') {
 #       shapeSnapshot = c.getImageData(0, 0, 560, 400);
-#     } else {
+#     } else if (tool === 'pen') {
 #       strokeSegment(c, last[0], last[1], last[0] + 0.01, last[1] + 0.01);
+#     } else {
+#       // eraser/shade/highlight: a plain dot, not a Pen-tool texture -
+#       // keeps shade/highlight's reduced globalAlpha intact instead of
+#       // strokeSegment's texture branches overriding it to 1.
+#       c.beginPath(); c.moveTo(last[0], last[1]); c.lineTo(last[0] + 0.01, last[1] + 0.01); c.stroke();
 #     }
 #   });
 #
@@ -652,17 +696,20 @@ title "Flipbook Studio"
 #     if (!drawingNow) return;
 #     const c = activeCtx();
 #
-#     if (tool === 'pen' || tool === 'eraser') {
+#     if (tool === 'pen' || tool === 'eraser' || tool === 'shade' || tool === 'highlight') {
 #       let target = p;
 #       if (tool === 'pen' && smooth) {
 #         smoothed = [smoothed[0] + (p[0] - smoothed[0]) * 0.35, smoothed[1] + (p[1] - smoothed[1]) * 0.35];
 #         target = smoothed;
 #       }
-#       if (tool === 'eraser') {
+#       if (tool === 'pen') {
+#         strokeSegment(c, last[0], last[1], target[0], target[1]);
+#       } else {
+#         // eraser/shade/highlight: a plain round stroke - the effect
+#         // comes from globalCompositeOperation (set in applyBrush), not
+#         // from a Pen-tool texture.
 #         const mid = [(last[0] + target[0]) / 2, (last[1] + target[1]) / 2];
 #         c.beginPath(); c.moveTo(last[0], last[1]); c.quadraticCurveTo(last[0], last[1], mid[0], mid[1]); c.stroke();
-#       } else {
-#         strokeSegment(c, last[0], last[1], target[0], target[1]);
 #       }
 #       last = target;
 #       return;
