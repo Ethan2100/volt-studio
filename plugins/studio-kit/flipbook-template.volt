@@ -3,45 +3,60 @@
 // A standalone #html Volt app (not a library you paste into another
 // page - this file IS the whole app, start from an empty file).
 //
-// Rebuilt after looking at how real frame-by-frame tools (Clip Studio
-// Paint's animation workflow, Toon Boom Harmony) are actually laid out:
-//   - Clip Studio Paint: a Timeline with numbered frame "cels", an
-//     onion-skin toggle, Automatic Interpolation (keyframes), and a
-//     Fill tool with "close gap"/tolerance options.
-//   - Toon Boom Harmony: an Exposure Sheet where each frame is its own
-//     slot you can click back into and redraw, not just append to.
-// Flipbook Studio borrows the parts that make sense for a quick, tiny
-// 2D flipbook rather than a full production timeline:
-//   - Frames are an exposure sheet, not a one-way stack: click any
-//     thumbnail to load that exact frame back onto the canvas and
-//     keep drawing on it. "Save" writes the canvas into the selected
-//     frame (overwriting it) or appends a new one if you started a
-//     blank "New" frame.
-//   - "Duplicate" copies the selected frame right after itself - the
-//     normal way to start the next pose without redrawing a static
-//     background every time.
-//   - "Onion" toggles the faint previous-frame trace on/off (Clip
-//     Studio Paint's onion-skin toggle).
-//   - A Fill (bucket) tool, flood-filling a connected area of similar
-//     color - Clip Studio Paint's fill tool is one of its most-used.
-//   - "Loop" toggles whether Play repeats or stops after one pass.
+// Built after looking at how real frame-by-frame tools (Clip Studio
+// Paint's animation workflow, Toon Boom Harmony) are actually laid
+// out, taking the parts that make sense for a quick 2D flipbook:
 //
-// - Pick a color and brush size, draw with the mouse/pen on the
-//   paper-white canvas. Smoothed strokes, real eraser (lifts pixels,
-//   doesn't just paint over), straight/rect/circle shape tools with
-//   shift-angle-snap on Line, and a Fill tool.
+// FRAMES (exposure sheet)
+//   Click any thumbnail to reopen that exact frame for editing.
+//   New / Save / Duplicate / Delete, an Onion-skin toggle.
+//
+// LAYERS
+//   Two layers: a persistent "Background" (shared by every frame, so
+//   you don't redraw a static background each time) and a per-frame
+//   "Character" layer (what New/Save/Duplicate/Delete/the thumbnails
+//   actually operate on). Switch which one you're drawing on, hide
+//   the background to check the character alone, or import an image
+//   onto either one.
+//
+// BRUSHES
+//   Pen / Pencil / Marker / Airbrush textures for the Pen tool, a
+//   thickness slider, and an anti-aliasing setting. Being honest
+//   about that last one: canvas strokes are always smoothed by the
+//   browser - the AA setting changes how IMPORTED IMAGES and the
+//   onion-skin ghost get scaled, not your hand-drawn lines.
+//
+// SELECT / TRANSFORM
+//   Drag a rectangle to lift that piece of the active layer, then
+//   drag it to reposition it before it's dropped back in - a small
+//   move/transform tool rather than only drawing fresh ink.
+//
+// KEYFRAME TWEEN
+//   Enter a move/scale/rotate/opacity amount and a frame count, and
+//   it auto-generates that many in-between frames by redrawing the
+//   active layer's current bitmap at interpolated positions - Clip
+//   Studio Paint calls this Automatic Interpolation. Combined with
+//   "Import Image" on the Character layer, this is how you bring in
+//   a character image and have Flipbook Studio generate its motion
+//   automatically, rather than hand-drawing every pose. To be clear:
+//   it tweens the transform you give it (position/scale/rotation/
+//   opacity) - it isn't an AI that invents a walk cycle on its own.
+//
+// BOARD EXPORT
+//   "Export Board" lays saved frames out top-to-bottom into one tall
+//   image, like a manhwa page/scroll, and downloads it as a PNG.
+//
 // - "Play"/"Stop" plays the saved frames at the current FPS, looping
-//   unless you turn "Loop" off.
+//   unless "Loop" is off.
 // - "Export" downloads a single, self-contained .html file that plays
 //   the animation on its own - no Volt Studio needed to view it.
 //
-// The whole toolbar (colors, brush sizes, frame/playback/export
-// buttons) is built as real styled DOM elements in the raw-JS block
-// below, not with Volt's `button` statement - Volt's button always
-// compiles to a bare, unstyled <button> with no per-button class hook,
-// which isn't enough control for color swatches or a selected/active
-// state. Everything still lives under flip-* classes/ids so it won't
-// clash with other addons on the same page.
+// The whole toolbar is built as real styled DOM elements in the
+// raw-JS block below, not with Volt's `button` statement - Volt's
+// button always compiles to a bare, unstyled <button> with no
+// per-button class hook, which isn't enough control for color
+// swatches or active-state toggles. Everything lives under flip-*
+// classes/ids so it won't clash with other addons on the same page.
 // =====================================================================
 
 #html
@@ -55,11 +70,16 @@ title "Flipbook Studio"
 ## .flip-stage { position: relative; width: 560px; height: 400px; border-radius: 14px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.5); touch-action: none; }
 ## .flip-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 ## canvas#flip-onion { background: #e9e6da; }
-## canvas#flip-draw { background: transparent; cursor: crosshair; }
+## canvas#flip-bg { background: transparent; }
+## canvas#flip-draw { background: transparent; }
+## canvas#flip-overlay { background: transparent; pointer-events: none; }
+## .flip-stage.flip-cursor-draw { cursor: crosshair; }
+## .flip-stage.flip-cursor-select { cursor: cell; }
 
 ## .flip-panel { width: 560px; background: var(--flip-panel); border: 1px solid var(--flip-border); border-radius: 14px; padding: 14px 16px; }
 ## .flip-panel + .flip-panel { margin-top: -4px; }
 ## .flip-label { font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.06em; color: var(--flip-muted); margin-bottom: 10px; font-weight: 700; }
+## .flip-label:not(:first-child) { margin-top: 14px; }
 ## .flip-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 
 ## .flip-swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--flip-border); cursor: pointer; padding: 0; transition: transform 0.1s ease; }
@@ -82,6 +102,13 @@ title "Flipbook Studio"
 ## .flip-btn-play:hover { background: #5be0a6; }
 ## .flip-fps { min-width: 64px; text-align: center; font-weight: 700; color: var(--flip-text); }
 
+## .flip-field { display: flex; flex-direction: column; gap: 4px; font-size: 0.72em; color: var(--flip-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+## .flip-input { width: 66px; padding: 7px 8px; border-radius: 8px; border: 2px solid var(--flip-border); background: #2a2d3b; color: #fff; font: inherit; font-size: 0.9em; }
+## .flip-range { width: 130px; accent-color: var(--flip-accent); }
+## .flip-file-btn { display: inline-flex; }
+## .flip-file-btn input { display: none; }
+## .flip-hint { font-size: 0.78em; color: var(--flip-muted); line-height: 1.4; }
+
 ## .flip-strip { display: flex; gap: 8px; overflow-x: auto; width: 560px; padding: 8px; background: var(--flip-panel); border: 1px solid var(--flip-border); border-radius: 12px; min-height: 68px; }
 ## .flip-thumb { width: 60px; height: 45px; flex: none; border-radius: 6px; border: 2px solid var(--flip-border); background-size: cover; background-position: center; background-color: #e9e6da; cursor: pointer; }
 ## .flip-thumb.flip-thumb-active { border-color: var(--flip-accent); box-shadow: 0 0 0 2px var(--flip-accent); }
@@ -90,29 +117,58 @@ title "Flipbook Studio"
 # (function () {
 #   const COLORS = ['#1b1d27', '#ff3d68', '#4cc9f0', '#3fcf8e', '#ffb703', '#f1f2f8'];
 #   const SIZES = [3, 7, 14];
+#   const BRUSHES = [['pen', 'Standard'], ['pencil', 'Pencil'], ['marker', 'Marker'], ['airbrush', 'Airbrush']];
+#   const AA_LEVELS = ['high', 'low', 'none']; // cycled by the AA button; 'none' disables image smoothing
 #
 #   const stage = document.createElement('div');
-#   stage.className = 'flip-stage';
+#   stage.className = 'flip-stage flip-cursor-draw';
 #   const onion = document.createElement('canvas');
 #   onion.id = 'flip-onion'; onion.width = 560; onion.height = 400;
+#   const bg = document.createElement('canvas');
+#   bg.id = 'flip-bg'; bg.width = 560; bg.height = 400;
 #   const draw = document.createElement('canvas');
 #   draw.id = 'flip-draw'; draw.width = 560; draw.height = 400;
-#   stage.append(onion, draw);
+#   const overlay = document.createElement('canvas');
+#   overlay.id = 'flip-overlay'; overlay.width = 560; overlay.height = 400;
+#   stage.append(onion, bg, draw, overlay);
 #
 #   const onionCtx = onion.getContext('2d');
+#   const bgCtx = bg.getContext('2d');
 #   const ctx = draw.getContext('2d');
+#   const overlayCtx = overlay.getContext('2d');
 #   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+#   bgCtx.lineCap = 'round'; bgCtx.lineJoin = 'round';
 #
 #   let color = COLORS[0];
 #   let brushWidth = SIZES[1];
-#   let tool = 'pen';       // 'pen' | 'line' | 'rect' | 'circle' | 'eraser' | 'fill'
+#   let brushType = 'pen';  // 'pen' | 'pencil' | 'marker' | 'airbrush' - texture for the Pen drawing tool
+#   let tool = 'pen';       // 'pen' | 'line' | 'rect' | 'circle' | 'eraser' | 'fill' | 'select'
 #   let smooth = true;      // stabilizer: the drawn line eases toward the pointer instead of jumping straight to it
-#   function applyBrush() {
-#     ctx.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over';
-#     ctx.strokeStyle = color;
-#     ctx.lineWidth = brushWidth;
+#   let aaIndex = 0;        // index into AA_LEVELS
+#   let activeLayer = 'character'; // 'character' | 'background'
+#   let bgVisible = true;
+#
+#   function activeCanvas() { return activeLayer === 'background' ? bg : draw; }
+#   function activeCtx() { return activeLayer === 'background' ? bgCtx : ctx; }
+#
+#   function applyBrush(targetCtx) {
+#     const c = targetCtx || activeCtx();
+#     c.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over';
+#     c.strokeStyle = color;
+#     c.fillStyle = color;
+#     c.lineWidth = brushWidth;
+#     c.globalAlpha = 1;
 #   }
 #   applyBrush();
+#
+#   function applyAA() {
+#     const mode = AA_LEVELS[aaIndex];
+#     [ctx, bgCtx, onionCtx].forEach((c) => {
+#       c.imageSmoothingEnabled = mode !== 'none';
+#       if (mode !== 'none') c.imageSmoothingQuality = mode;
+#     });
+#   }
+#   applyAA();
 #
 #   // --- color + brush + tool toolbar --------------------------------
 #   const toolsPanel = document.createElement('div');
@@ -138,10 +194,39 @@ title "Flipbook Studio"
 #     const dot = document.createElement('span');
 #     dot.style.width = s + 'px'; dot.style.height = s + 'px';
 #     b.appendChild(dot);
-#     b.onclick = () => { brushWidth = s; applyBrush(); updateActive(); };
+#     b.onclick = () => { brushWidth = s; thicknessInput.value = s; applyBrush(); updateActive(); };
 #     sizeEls.push(b);
 #     toolsRow.appendChild(b);
 #   });
+#
+#   const thicknessField = document.createElement('label');
+#   thicknessField.className = 'flip-field'; thicknessField.textContent = 'Thickness';
+#   const thicknessInput = document.createElement('input');
+#   thicknessInput.type = 'range'; thicknessInput.min = '1'; thicknessInput.max = '40'; thicknessInput.value = String(brushWidth);
+#   thicknessInput.className = 'flip-range';
+#   thicknessInput.oninput = () => { brushWidth = Number(thicknessInput.value); applyBrush(); updateActive(); };
+#   thicknessField.appendChild(thicknessInput);
+#   toolsRow.appendChild(thicknessField);
+#
+#   const brushLabel = document.createElement('div');
+#   brushLabel.className = 'flip-label'; brushLabel.textContent = 'Brush texture (Pen tool)';
+#   const brushRow = document.createElement('div');
+#   brushRow.className = 'flip-row';
+#   const brushEls = [];
+#   BRUSHES.forEach(([id, label]) => {
+#     const b = document.createElement('button');
+#     b.type = 'button'; b.className = 'flip-tool'; b.textContent = label;
+#     b.onclick = () => { brushType = id; tool = 'pen'; applyBrush(); updateActive(); };
+#     brushEls.push(b);
+#     brushRow.appendChild(b);
+#   });
+#   const aaBtn = document.createElement('button');
+#   aaBtn.type = 'button'; aaBtn.className = 'flip-tool';
+#   aaBtn.title = 'Anti-aliasing: affects imported images and the onion-skin ghost. Hand-drawn strokes are always smoothed by the browser, so this does not change them.';
+#   aaBtn.onclick = () => { aaIndex = (aaIndex + 1) % AA_LEVELS.length; applyAA(); renderAABtn(); };
+#   function renderAABtn() { aaBtn.textContent = 'AA: ' + ({ high: 'Strong', low: 'Weak', none: 'None' })[AA_LEVELS[aaIndex]]; }
+#   renderAABtn();
+#   brushRow.appendChild(aaBtn);
 #
 #   const shapesLabel = document.createElement('div');
 #   shapesLabel.className = 'flip-label'; shapesLabel.textContent = 'Tool';
@@ -154,12 +239,14 @@ title "Flipbook Studio"
 #     ['circle', 'Circle'],
 #     ['fill', 'Fill'],
 #     ['eraser', 'Eraser'],
+#     ['select', 'Select'],
 #   ];
 #   const toolEls = [];
 #   TOOLS.forEach(([id, label]) => {
 #     const b = document.createElement('button');
 #     b.type = 'button'; b.className = 'flip-tool'; b.textContent = label;
-#     b.onclick = () => { tool = id; applyBrush(); updateActive(); };
+#     if (id === 'select') b.title = 'Drag a rectangle to lift that part of the layer, then drag it again to move it. Pick another tool, or click outside it, to drop it back in.';
+#     b.onclick = () => { commitFloatingSelection(); tool = id; applyBrush(); updateActive(); stage.className = 'flip-stage ' + (id === 'select' ? 'flip-cursor-select' : 'flip-cursor-draw'); };
 #     toolEls.push(b);
 #     shapesRow.appendChild(b);
 #   });
@@ -172,11 +259,66 @@ title "Flipbook Studio"
 #   function updateActive() {
 #     swatchEls.forEach((b, i) => b.classList.toggle('flip-active', tool !== 'eraser' && COLORS[i] === color));
 #     sizeEls.forEach((b, i) => b.classList.toggle('flip-active', SIZES[i] === brushWidth));
+#     brushEls.forEach((b, i) => b.classList.toggle('flip-active', BRUSHES[i][0] === brushType && tool === 'pen'));
 #     toolEls.forEach((b, i) => b.classList.toggle('flip-active', TOOLS[i][0] === tool));
 #     smoothBtn.classList.toggle('flip-active', smooth);
 #   }
 #   updateActive();
-#   toolsPanel.append(toolsLabel, toolsRow, shapesLabel, shapesRow);
+#   toolsPanel.append(toolsLabel, toolsRow, brushLabel, brushRow, shapesLabel, shapesRow);
+#
+#   // --- layers panel ---------------------------------------------------
+#   const layersPanel = document.createElement('div');
+#   layersPanel.className = 'flip-panel';
+#   const layersLabel = document.createElement('div');
+#   layersLabel.className = 'flip-label'; layersLabel.textContent = 'Layers';
+#   const layersRow = document.createElement('div');
+#   layersRow.className = 'flip-row';
+#   const charLayerBtn = document.createElement('button');
+#   charLayerBtn.type = 'button'; charLayerBtn.className = 'flip-tool'; charLayerBtn.textContent = 'Draw on: Character';
+#   const bgLayerBtn = document.createElement('button');
+#   bgLayerBtn.type = 'button'; bgLayerBtn.className = 'flip-tool'; bgLayerBtn.textContent = 'Draw on: Background';
+#   charLayerBtn.onclick = () => { commitFloatingSelection(); activeLayer = 'character'; applyBrush(); updateLayerButtons(); };
+#   bgLayerBtn.onclick = () => { commitFloatingSelection(); activeLayer = 'background'; applyBrush(); updateLayerButtons(); };
+#   const bgVisibleBtn = document.createElement('button');
+#   bgVisibleBtn.type = 'button'; bgVisibleBtn.className = 'flip-tool'; bgVisibleBtn.textContent = 'Background visible';
+#   bgVisibleBtn.onclick = () => { bgVisible = !bgVisible; bg.style.visibility = bgVisible ? 'visible' : 'hidden'; updateLayerButtons(); renderOnion(); renderStrip(); };
+#   const clearLayerBtn = document.createElement('button');
+#   clearLayerBtn.type = 'button'; clearLayerBtn.className = 'flip-btn'; clearLayerBtn.textContent = 'Clear Layer';
+#   clearLayerBtn.onclick = () => { activeCtx().clearRect(0, 0, 560, 400); renderOnion(); renderStrip(); };
+#   const importLabel = document.createElement('label');
+#   importLabel.className = 'flip-btn flip-file-btn'; importLabel.textContent = 'Import Image';
+#   const importInput = document.createElement('input');
+#   importInput.type = 'file'; importInput.accept = 'image/*';
+#   importInput.onchange = () => {
+#     const file = importInput.files && importInput.files[0];
+#     if (!file) return;
+#     const reader = new FileReader();
+#     reader.onload = () => {
+#       const img = new Image();
+#       img.onload = () => {
+#         const c = activeCtx();
+#         const scale = Math.min(560 / img.width, 400 / img.height, 1);
+#         const w = img.width * scale, h = img.height * scale;
+#         c.drawImage(img, (560 - w) / 2, (400 - h) / 2, w, h);
+#         renderOnion(); renderStrip();
+#       };
+#       img.src = reader.result;
+#     };
+#     reader.readAsDataURL(file);
+#     importInput.value = '';
+#   };
+#   importLabel.appendChild(importInput);
+#   function updateLayerButtons() {
+#     charLayerBtn.classList.toggle('flip-active', activeLayer === 'character');
+#     bgLayerBtn.classList.toggle('flip-active', activeLayer === 'background');
+#     bgVisibleBtn.classList.toggle('flip-active', bgVisible);
+#   }
+#   updateLayerButtons();
+#   layersRow.append(charLayerBtn, bgLayerBtn, bgVisibleBtn, clearLayerBtn, importLabel);
+#   const layersHint = document.createElement('div');
+#   layersHint.className = 'flip-hint';
+#   layersHint.textContent = 'Background is one shared layer behind every frame. Character is the per-frame layer New/Save/Duplicate/Delete work on.';
+#   layersPanel.append(layersLabel, layersRow, layersHint);
 #
 #   // --- frame (exposure sheet) + playback + export toolbar ----------
 #   const actionsPanel = document.createElement('div');
@@ -227,8 +369,40 @@ title "Flipbook Studio"
 #     playBtn,
 #     stopBtn,
 #     mkBtn('Export', 'flip-btn-accent', () => FLIP.export()),
+#     mkBtn('Export Board', '', () => FLIP.exportBoard()),
 #   );
 #   actionsPanel.append(frameLabel, frameRow, playLabel, playRow);
+#
+#   // --- keyframe tween panel -------------------------------------------
+#   const tweenPanel = document.createElement('div');
+#   tweenPanel.className = 'flip-panel';
+#   const tweenLabel = document.createElement('div');
+#   tweenLabel.className = 'flip-label'; tweenLabel.textContent = 'Keyframe Tween (animates the active layer)';
+#   const tweenRow = document.createElement('div');
+#   tweenRow.className = 'flip-row';
+#   function mkNum(labelText, value, min, max) {
+#     const field = document.createElement('label');
+#     field.className = 'flip-field'; field.textContent = labelText;
+#     const input = document.createElement('input');
+#     input.type = 'number'; input.className = 'flip-input'; input.value = String(value);
+#     if (min !== undefined) input.min = String(min);
+#     if (max !== undefined) input.max = String(max);
+#     field.appendChild(input);
+#     tweenRow.appendChild(field);
+#     return input;
+#   }
+#   const tweenDx = mkNum('Move X (px)', 0, -560, 560);
+#   const tweenDy = mkNum('Move Y (px)', 0, -400, 400);
+#   const tweenScale = mkNum('Scale (%)', 100, 10, 400);
+#   const tweenRotate = mkNum('Rotate (°)', 0, -360, 360);
+#   const tweenOpacity = mkNum('Opacity (%)', 100, 0, 100);
+#   const tweenSteps = mkNum('Frames', 4, 1, 24);
+#   const tweenBtn = mkBtn('Generate Tween', 'flip-btn-accent', () => FLIP.generateTween());
+#   tweenRow.appendChild(tweenBtn);
+#   const tweenHint = document.createElement('div');
+#   tweenHint.className = 'flip-hint';
+#   tweenHint.textContent = 'Takes the active layer\'s current drawing (e.g. an imported character) and auto-generates that many in-between frames moving/scaling/rotating/fading it from its current spot to the amounts above, inserted right after the selected frame.';
+#   tweenPanel.append(tweenLabel, tweenRow, tweenHint);
 #
 #   // --- frame strip (exposure sheet) - click a thumbnail to reopen it
 #   // for editing, instead of frames only ever being appended ----------
@@ -236,8 +410,8 @@ title "Flipbook Studio"
 #   strip.className = 'flip-strip';
 #
 #   // --- drawing --------------------------------------------------------
-#   const frames = [];
-#   let activeIndex = 0; // index into frames, or === frames.length for a blank unsaved draft
+#   const frames = [];     // character-layer-only dataURLs, one per frame slot
+#   let activeIndex = 0;   // index into frames, or === frames.length for a blank unsaved draft
 #   let onionOn = true;
 #   let loopOn = true;
 #   let fps = 8;
@@ -247,8 +421,8 @@ title "Flipbook Studio"
 #   let last = null;
 #
 #   function posOf(e) {
-#     const r = draw.getBoundingClientRect();
-#     const scaleX = draw.width / r.width, scaleY = draw.height / r.height;
+#     const r = stage.getBoundingClientRect();
+#     const scaleX = 560 / r.width, scaleY = 400 / r.height;
 #     return [(e.clientX - r.left) * scaleX, (e.clientY - r.top) * scaleY];
 #   }
 #
@@ -263,18 +437,19 @@ title "Flipbook Studio"
 #   }
 #
 #   // Flood-fills the connected region under (x,y) with the current
-#   // color - a stack-based fill over the canvas's own pixel buffer,
-#   // tolerant of slightly anti-aliased edges so it doesn't leave a
-#   // thin un-filled ring around pencil lines.
+#   // color - a stack-based fill over the active layer's own pixel
+#   // buffer, tolerant of slightly anti-aliased edges so it doesn't
+#   // leave a thin un-filled ring around pencil lines.
 #   function hexToRgba(hex) {
 #     const n = parseInt(hex.slice(1), 16);
 #     return [(n >> 16) & 255, (n >> 8) & 255, n & 255, 255];
 #   }
 #   function performFill(px, py) {
-#     const w = draw.width, h = draw.height;
+#     const c = activeCtx();
+#     const w = 560, h = 400;
 #     const x0 = Math.max(0, Math.min(w - 1, Math.round(px)));
 #     const y0 = Math.max(0, Math.min(h - 1, Math.round(py)));
-#     const imgData = ctx.getImageData(0, 0, w, h);
+#     const imgData = c.getImageData(0, 0, w, h);
 #     const data = imgData.data;
 #     const startIdx = (y0 * w + x0) * 4;
 #     const target = [data[startIdx], data[startIdx + 1], data[startIdx + 2], data[startIdx + 3]];
@@ -298,32 +473,143 @@ title "Flipbook Studio"
 #       data[idx] = fillColor[0]; data[idx + 1] = fillColor[1]; data[idx + 2] = fillColor[2]; data[idx + 3] = fillColor[3];
 #       stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
 #     }
-#     ctx.putImageData(imgData, 0, 0);
+#     c.putImageData(imgData, 0, 0);
+#   }
+#
+#   // --- select / transform tool -----------------------------------------
+#   let selectState = null; // { phase:'marquee', startPos } | { phase:'floating', canvas, x, y, w, h, dragging, dragOffset, srcCtx }
+#   function clearOverlay() { overlayCtx.clearRect(0, 0, 560, 400); }
+#   function drawMarquee(x0, y0, x1, y1) {
+#     clearOverlay();
+#     overlayCtx.save();
+#     overlayCtx.setLineDash([6, 4]);
+#     overlayCtx.strokeStyle = '#ffffff';
+#     overlayCtx.lineWidth = 1.5;
+#     overlayCtx.strokeRect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0));
+#     overlayCtx.restore();
+#   }
+#   function drawFloatingPreview() {
+#     clearOverlay();
+#     if (!selectState || selectState.phase !== 'floating') return;
+#     overlayCtx.drawImage(selectState.canvas, selectState.x, selectState.y);
+#     overlayCtx.save();
+#     overlayCtx.setLineDash([6, 4]);
+#     overlayCtx.strokeStyle = '#ffffff';
+#     overlayCtx.lineWidth = 1.5;
+#     overlayCtx.strokeRect(selectState.x, selectState.y, selectState.w, selectState.h);
+#     overlayCtx.restore();
+#   }
+#   function commitFloatingSelection() {
+#     if (!selectState || selectState.phase !== 'floating') return;
+#     selectState.srcCtx.drawImage(selectState.canvas, selectState.x, selectState.y);
+#     selectState = null;
+#     clearOverlay();
+#     renderOnion(); renderStrip();
+#   }
+#   function pointInFloating(p) {
+#     return selectState && selectState.phase === 'floating' &&
+#       p[0] >= selectState.x && p[0] <= selectState.x + selectState.w &&
+#       p[1] >= selectState.y && p[1] <= selectState.y + selectState.h;
 #   }
 #
 #   let startPos = null;     // stroke start, for line/rect/circle
 #   let shapeSnapshot = null; // canvas pixels before the current shape preview, so dragging can redraw live without leaving trails
 #   let smoothed = null;      // the stabilizer's eased brush position, for Pen tool
 #
-#   draw.addEventListener('pointerdown', (e) => {
+#   // --- brush texture strokes (Pen tool only) ----------------------------
+#   function strokePenSegment(c, x0, y0, x1, y1) {
+#     const mid = [(x0 + x1) / 2, (y0 + y1) / 2];
+#     c.globalAlpha = 1;
+#     c.beginPath(); c.moveTo(x0, y0); c.quadraticCurveTo(x0, y0, mid[0], mid[1]); c.stroke();
+#   }
+#   function strokePencilSegment(c, x0, y0, x1, y1) {
+#     const savedWidth = c.lineWidth;
+#     c.lineWidth = Math.max(1, savedWidth * 0.6);
+#     c.globalAlpha = 0.8;
+#     const mid = [(x0 + x1) / 2, (y0 + y1) / 2];
+#     c.beginPath(); c.moveTo(x0, y0); c.quadraticCurveTo(x0, y0, mid[0], mid[1]); c.stroke();
+#     c.lineWidth = savedWidth;
+#     c.globalAlpha = 1;
+#   }
+#   function strokeMarkerSegment(c, x0, y0, x1, y1) {
+#     const savedWidth = c.lineWidth;
+#     c.lineWidth = savedWidth * 1.4;
+#     c.globalAlpha = 0.4;
+#     const mid = [(x0 + x1) / 2, (y0 + y1) / 2];
+#     c.beginPath(); c.moveTo(x0, y0); c.quadraticCurveTo(x0, y0, mid[0], mid[1]); c.stroke();
+#     c.lineWidth = savedWidth;
+#     c.globalAlpha = 1;
+#   }
+#   function strokeAirbrushSegment(c, x0, y0, x1, y1) {
+#     const dist = Math.hypot(x1 - x0, y1 - y0);
+#     const dabCount = Math.max(1, Math.round(dist / 2)) + 3;
+#     c.save();
+#     c.globalAlpha = 0.12;
+#     c.fillStyle = color;
+#     for (let i = 0; i < dabCount; i++) {
+#       const t = i / dabCount;
+#       const cx = x0 + (x1 - x0) * t, cy = y0 + (y1 - y0) * t;
+#       const r = brushWidth * (0.4 + Math.random() * 0.6);
+#       const ox = (Math.random() - 0.5) * brushWidth;
+#       const oy = (Math.random() - 0.5) * brushWidth;
+#       c.beginPath(); c.arc(cx + ox, cy + oy, r / 2, 0, Math.PI * 2); c.fill();
+#     }
+#     c.restore();
+#   }
+#   function strokeSegment(c, x0, y0, x1, y1) {
+#     if (brushType === 'pencil') strokePencilSegment(c, x0, y0, x1, y1);
+#     else if (brushType === 'marker') strokeMarkerSegment(c, x0, y0, x1, y1);
+#     else if (brushType === 'airbrush') strokeAirbrushSegment(c, x0, y0, x1, y1);
+#     else strokePenSegment(c, x0, y0, x1, y1);
+#   }
+#
+#   stage.addEventListener('pointerdown', (e) => {
 #     if (playing) return;
 #     const p = posOf(e);
+#
+#     if (tool === 'select') {
+#       if (pointInFloating(p)) {
+#         selectState.dragging = true;
+#         selectState.dragOffset = [p[0] - selectState.x, p[1] - selectState.y];
+#       } else {
+#         commitFloatingSelection();
+#         selectState = { phase: 'marquee', startPos: p };
+#       }
+#       stage.setPointerCapture(e.pointerId);
+#       return;
+#     }
+#
 #     if (tool === 'fill') { performFill(p[0], p[1]); return; }
+#
+#     const c = activeCtx();
 #     drawingNow = true;
 #     last = p;
-#     startPos = last;
-#     smoothed = last;
-#     draw.setPointerCapture(e.pointerId);
+#     startPos = p;
+#     smoothed = p;
+#     stage.setPointerCapture(e.pointerId);
 #     if (tool === 'line' || tool === 'rect' || tool === 'circle') {
-#       shapeSnapshot = ctx.getImageData(0, 0, draw.width, draw.height);
+#       shapeSnapshot = c.getImageData(0, 0, 560, 400);
 #     } else {
-#       ctx.beginPath(); ctx.moveTo(last[0], last[1]); ctx.lineTo(last[0] + 0.01, last[1] + 0.01); ctx.stroke();
+#       strokeSegment(c, last[0], last[1], last[0] + 0.01, last[1] + 0.01);
 #     }
 #   });
 #
-#   draw.addEventListener('pointermove', (e) => {
-#     if (!drawingNow) return;
+#   stage.addEventListener('pointermove', (e) => {
 #     const p = posOf(e);
+#
+#     if (tool === 'select' && selectState) {
+#       if (selectState.phase === 'marquee') { drawMarquee(selectState.startPos[0], selectState.startPos[1], p[0], p[1]); return; }
+#       if (selectState.phase === 'floating' && selectState.dragging) {
+#         selectState.x = p[0] - selectState.dragOffset[0];
+#         selectState.y = p[1] - selectState.dragOffset[1];
+#         drawFloatingPreview();
+#         return;
+#       }
+#       return;
+#     }
+#
+#     if (!drawingNow) return;
+#     const c = activeCtx();
 #
 #     if (tool === 'pen' || tool === 'eraser') {
 #       let target = p;
@@ -331,8 +617,12 @@ title "Flipbook Studio"
 #         smoothed = [smoothed[0] + (p[0] - smoothed[0]) * 0.35, smoothed[1] + (p[1] - smoothed[1]) * 0.35];
 #         target = smoothed;
 #       }
-#       const mid = [(last[0] + target[0]) / 2, (last[1] + target[1]) / 2];
-#       ctx.beginPath(); ctx.moveTo(last[0], last[1]); ctx.quadraticCurveTo(last[0], last[1], mid[0], mid[1]); ctx.stroke();
+#       if (tool === 'eraser') {
+#         const mid = [(last[0] + target[0]) / 2, (last[1] + target[1]) / 2];
+#         c.beginPath(); c.moveTo(last[0], last[1]); c.quadraticCurveTo(last[0], last[1], mid[0], mid[1]); c.stroke();
+#       } else {
+#         strokeSegment(c, last[0], last[1], target[0], target[1]);
+#       }
 #       last = target;
 #       return;
 #     }
@@ -340,45 +630,93 @@ title "Flipbook Studio"
 #     // line/rect/circle: restore the pre-shape pixels, then draw the
 #     // shape fresh from startPos to the current pointer, so dragging
 #     // around previews live without leaving a trail of old attempts.
-#     ctx.putImageData(shapeSnapshot, 0, 0);
+#     c.putImageData(shapeSnapshot, 0, 0);
 #     let end = p;
 #     if (tool === 'line' && e.shiftKey) end = snapAngle(startPos[0], startPos[1], p[0], p[1]);
-#     ctx.beginPath();
+#     c.beginPath();
 #     if (tool === 'line') {
-#       ctx.moveTo(startPos[0], startPos[1]); ctx.lineTo(end[0], end[1]);
+#       c.moveTo(startPos[0], startPos[1]); c.lineTo(end[0], end[1]);
 #     } else if (tool === 'rect') {
-#       ctx.rect(startPos[0], startPos[1], end[0] - startPos[0], end[1] - startPos[1]);
+#       c.rect(startPos[0], startPos[1], end[0] - startPos[0], end[1] - startPos[1]);
 #     } else if (tool === 'circle') {
 #       const rx = Math.abs(end[0] - startPos[0]) / 2, ry = Math.abs(end[1] - startPos[1]) / 2;
 #       const cx = (startPos[0] + end[0]) / 2, cy = (startPos[1] + end[1]) / 2;
-#       ctx.ellipse(cx, cy, Math.max(rx, 0.01), Math.max(ry, 0.01), 0, 0, Math.PI * 2);
+#       c.ellipse(cx, cy, Math.max(rx, 0.01), Math.max(ry, 0.01), 0, 0, Math.PI * 2);
 #     }
-#     ctx.stroke();
+#     c.stroke();
 #   });
 #
-#   function endStroke() { drawingNow = false; shapeSnapshot = null; }
-#   draw.addEventListener('pointerup', endStroke);
-#   draw.addEventListener('pointerleave', endStroke);
+#   function endStroke(e) {
+#     if (tool === 'select' && selectState) {
+#       const p = posOf(e);
+#       if (selectState.phase === 'marquee') {
+#         const x = Math.min(selectState.startPos[0], p[0]);
+#         const y = Math.min(selectState.startPos[1], p[1]);
+#         const w = Math.abs(p[0] - selectState.startPos[0]);
+#         const h = Math.abs(p[1] - selectState.startPos[1]);
+#         clearOverlay();
+#         if (w < 2 || h < 2) { selectState = null; return; }
+#         const srcCtx = activeCtx();
+#         const clipped = { x: Math.max(0, Math.round(x)), y: Math.max(0, Math.round(y)), w: Math.round(Math.min(w, 560 - x)), h: Math.round(Math.min(h, 400 - y)) };
+#         const lifted = srcCtx.getImageData(clipped.x, clipped.y, clipped.w, clipped.h);
+#         const off = document.createElement('canvas');
+#         off.width = clipped.w; off.height = clipped.h;
+#         off.getContext('2d').putImageData(lifted, 0, 0);
+#         srcCtx.clearRect(clipped.x, clipped.y, clipped.w, clipped.h);
+#         selectState = { phase: 'floating', canvas: off, x: clipped.x, y: clipped.y, w: clipped.w, h: clipped.h, dragging: false, dragOffset: [0, 0], srcCtx };
+#         drawFloatingPreview();
+#       } else if (selectState.phase === 'floating') {
+#         selectState.dragging = false;
+#       }
+#       return;
+#     }
+#     drawingNow = false;
+#     shapeSnapshot = null;
+#   }
+#   stage.addEventListener('pointerup', endStroke);
+#   stage.addEventListener('pointerleave', (e) => { if (tool !== 'select') endStroke(e); });
 #
-#   function clearCanvas() { ctx.clearRect(0, 0, draw.width, draw.height); }
+#   function clearCanvas() { ctx.clearRect(0, 0, 560, 400); }
 #
 #   function loadFrame(idx) {
 #     clearCanvas();
 #     if (idx >= 0 && idx < frames.length) {
 #       const img = new Image();
-#       img.onload = () => ctx.drawImage(img, 0, 0, draw.width, draw.height);
+#       img.onload = () => ctx.drawImage(img, 0, 0, 560, 400);
 #       img.src = frames[idx];
 #     }
 #   }
 #
+#   // Composites the background layer (if visible) with a given
+#   // character-layer image onto a fresh canvas and returns its PNG
+#   // data URL - used for the onion ghost, thumbnails, playback and
+#   // export, all of which need the two layers flattened into one
+#   // picture.
+#   function compositeWith(characterImg) {
+#     const c = document.createElement('canvas');
+#     c.width = 560; c.height = 400;
+#     const cx = c.getContext('2d');
+#     cx.fillStyle = '#e9e6da';
+#     cx.fillRect(0, 0, 560, 400);
+#     if (bgVisible) cx.drawImage(bg, 0, 0);
+#     if (characterImg) cx.drawImage(characterImg, 0, 0, 560, 400);
+#     return c;
+#   }
+#   function compositeFrame(idx, cb) {
+#     if (idx < 0 || idx >= frames.length) { cb(compositeWith(null)); return; }
+#     const img = new Image();
+#     img.onload = () => cb(compositeWith(img));
+#     img.src = frames[idx];
+#   }
+#
 #   function renderOnion() {
-#     onionCtx.clearRect(0, 0, onion.width, onion.height);
+#     onionCtx.clearRect(0, 0, 560, 400);
 #     onionCtx.fillStyle = '#e9e6da';
-#     onionCtx.fillRect(0, 0, onion.width, onion.height);
+#     onionCtx.fillRect(0, 0, 560, 400);
 #     const prevIdx = activeIndex - 1;
 #     if (onionOn && prevIdx >= 0 && prevIdx < frames.length) {
 #       const img = new Image();
-#       img.onload = () => { onionCtx.globalAlpha = 0.3; onionCtx.drawImage(img, 0, 0, onion.width, onion.height); onionCtx.globalAlpha = 1; };
+#       img.onload = () => { onionCtx.globalAlpha = 0.3; onionCtx.drawImage(img, 0, 0, 560, 400); onionCtx.globalAlpha = 1; };
 #       img.src = frames[prevIdx];
 #     }
 #   }
@@ -387,10 +725,10 @@ title "Flipbook Studio"
 #     frames.forEach((f, i) => {
 #       const t = document.createElement('div');
 #       t.className = 'flip-thumb' + (i === activeIndex ? ' flip-thumb-active' : '');
-#       t.style.backgroundImage = "url('" + f + "')";
 #       t.title = 'Frame ' + (i + 1) + ' - click to reopen for editing';
 #       t.onclick = () => FLIP.selectFrame(i);
 #       strip.appendChild(t);
+#       compositeFrame(i, (c) => { t.style.backgroundImage = "url('" + c.toDataURL('image/png') + "')"; });
 #     });
 #   }
 #   function updateFrameToggles() {
@@ -401,12 +739,14 @@ title "Flipbook Studio"
 #   window.FLIP = {
 #     newFrame() {
 #       if (playing) return;
+#       commitFloatingSelection();
 #       activeIndex = frames.length;
 #       clearCanvas();
 #       renderOnion();
 #       renderStrip();
 #     },
 #     saveFrame() {
+#       commitFloatingSelection();
 #       const data = draw.toDataURL('image/png');
 #       if (activeIndex < frames.length) {
 #         frames[activeIndex] = data;
@@ -419,6 +759,7 @@ title "Flipbook Studio"
 #     },
 #     duplicateFrame() {
 #       if (!frames.length) return;
+#       commitFloatingSelection();
 #       const srcIdx = Math.min(activeIndex, frames.length - 1);
 #       frames.splice(srcIdx + 1, 0, frames[srcIdx]);
 #       activeIndex = srcIdx + 1;
@@ -428,6 +769,7 @@ title "Flipbook Studio"
 #     },
 #     deleteFrame() {
 #       if (!frames.length || activeIndex >= frames.length) return;
+#       commitFloatingSelection();
 #       frames.splice(activeIndex, 1);
 #       if (!frames.length) {
 #         activeIndex = 0;
@@ -441,6 +783,7 @@ title "Flipbook Studio"
 #     },
 #     selectFrame(idx) {
 #       if (playing) return;
+#       commitFloatingSelection();
 #       activeIndex = idx;
 #       loadFrame(idx);
 #       renderOnion();
@@ -461,21 +804,80 @@ title "Flipbook Studio"
 #       if (playing) { this.stop(); this.play(); }
 #       return fps;
 #     },
+#     // Reads the Character layer's CURRENT bitmap as a single "object"
+#     // (e.g. an imported character image) and auto-generates `steps` new
+#     // frames right after the selected one, each redrawing that bitmap
+#     // at a linearly interpolated position/scale/rotation/opacity between
+#     // where it is now and the amounts entered in the panel. Only the
+#     // Character layer can be tweened this way - Background is one
+#     // layer shared by every frame, so it has no "per frame" version to
+#     // animate between.
+#     generateTween() {
+#       commitFloatingSelection();
+#       if (activeLayer === 'background') {
+#         alert('Keyframe Tween animates the Character layer. Background is shared by every frame, so it can\'t be tweened per frame - switch "Draw on" to Character first.');
+#         return;
+#       }
+#       const dx = Number(tweenDx.value) || 0;
+#       const dy = Number(tweenDy.value) || 0;
+#       const scalePct = Number(tweenScale.value) || 100;
+#       const rotateDeg = Number(tweenRotate.value) || 0;
+#       const opacityPct = Math.max(0, Math.min(100, Number(tweenOpacity.value) || 0));
+#       const steps = Math.max(1, Math.min(24, Math.round(Number(tweenSteps.value)) || 1));
+#
+#       const movingSrc = document.createElement('canvas');
+#       movingSrc.width = 560; movingSrc.height = 400;
+#       movingSrc.getContext('2d').drawImage(draw, 0, 0);
+#
+#       const insertAt = activeIndex < frames.length ? activeIndex + 1 : frames.length;
+#       const newIndices = [];
+#       for (let step = 1; step <= steps; step++) {
+#         const t = step / steps;
+#         // Character-layer frames are transparent except where drawn -
+#         // the background (if any) is composited in separately at
+#         // render/export time, so this canvas must stay transparent,
+#         // not filled with the paper color.
+#         const frameCanvas = document.createElement('canvas');
+#         frameCanvas.width = 560; frameCanvas.height = 400;
+#         const fctx = frameCanvas.getContext('2d');
+#         fctx.save();
+#         fctx.globalAlpha = Math.max(0, Math.min(1, 1 + (opacityPct - 100) / 100 * t));
+#         const cx = 280 + dx * t, cy = 200 + dy * t;
+#         fctx.translate(cx, cy);
+#         fctx.rotate((rotateDeg * t) * Math.PI / 180);
+#         const s = 1 + (scalePct - 100) / 100 * t;
+#         fctx.scale(s, s);
+#         fctx.translate(-280, -200);
+#         fctx.drawImage(movingSrc, 0, 0, 560, 400);
+#         fctx.restore();
+#
+#         const idx = insertAt + step - 1;
+#         frames.splice(idx, 0, frameCanvas.toDataURL('image/png'));
+#         newIndices.push(idx);
+#       }
+#
+#       activeIndex = newIndices[newIndices.length - 1];
+#       loadFrame(activeIndex);
+#       renderOnion();
+#       renderStrip();
+#     },
 #     play() {
 #       if (!frames.length || playing) return;
 #       playing = true;
 #       draw.style.visibility = 'hidden';
+#       bg.style.visibility = 'hidden';
 #       let i = 0;
-#       onionCtx.clearRect(0, 0, onion.width, onion.height);
-#       const img = new Image();
+#       onionCtx.clearRect(0, 0, 560, 400);
 #       const showFrame = () => {
 #         if (i >= frames.length) {
 #           if (loopOn) { i = 0; } else { this.stop(); return; }
 #         }
-#         img.src = frames[i];
+#         compositeFrame(i, (c) => {
+#           onionCtx.clearRect(0, 0, 560, 400);
+#           onionCtx.drawImage(c, 0, 0);
+#         });
 #         i++;
 #       };
-#       img.onload = () => { onionCtx.clearRect(0, 0, onion.width, onion.height); onionCtx.drawImage(img, 0, 0, onion.width, onion.height); };
 #       showFrame();
 #       playTimer = setInterval(showFrame, 1000 / fps);
 #     },
@@ -483,30 +885,54 @@ title "Flipbook Studio"
 #       playing = false;
 #       clearInterval(playTimer);
 #       draw.style.visibility = 'visible';
+#       bg.style.visibility = bgVisible ? 'visible' : 'hidden';
 #       renderOnion();
 #     },
 #     export() {
-#       const html = '<!doctype html><html><head><meta charset="utf-8"><title>My Flipbook</title>' +
-#         '<style>body{margin:0;background:#111;display:flex;align-items:center;justify-content:center;height:100vh}' +
-#         'canvas{background:#e9e6da;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.5)}</style></head><body>' +
-#         '<canvas id="c" width="560" height="400"></canvas><script>' +
-#         'const frames=' + JSON.stringify(frames) + ';const fps=' + fps + ';const loop=' + loopOn + ';' +
-#         'const ctx=document.getElementById("c").getContext("2d");let i=0;const img=new Image();' +
-#         'img.onload=()=>ctx.drawImage(img,0,0,560,400);' +
-#         'let timer=null;function tick(){if(i>=frames.length){if(loop){i=0;}else{clearInterval(timer);return;}}img.src=frames[i];i++;}' +
-#         'if(frames.length){tick();timer=setInterval(tick,1000/fps);}' +
-#         '</scr' + 'ipt></body></html>';
-#       const blob = new Blob([html], { type: 'text/html' });
-#       const a = document.createElement('a');
-#       a.href = URL.createObjectURL(blob);
-#       a.download = 'my-flipbook.html';
-#       a.click();
+#       const pending = frames.map((_, i) => new Promise((resolve) => compositeFrame(i, (c) => resolve(c.toDataURL('image/png')))));
+#       Promise.all(pending).then((composited) => {
+#         const html = '<!doctype html><html><head><meta charset="utf-8"><title>My Flipbook</title>' +
+#           '<style>body{margin:0;background:#111;display:flex;align-items:center;justify-content:center;height:100vh}' +
+#           'canvas{background:#e9e6da;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.5)}</style></head><body>' +
+#           '<canvas id="c" width="560" height="400"></canvas><script>' +
+#           'const frames=' + JSON.stringify(composited) + ';const fps=' + fps + ';const loop=' + loopOn + ';' +
+#           'const ctx=document.getElementById("c").getContext("2d");let i=0;const img=new Image();' +
+#           'img.onload=()=>ctx.drawImage(img,0,0,560,400);' +
+#           'let timer=null;function tick(){if(i>=frames.length){if(loop){i=0;}else{clearInterval(timer);return;}}img.src=frames[i];i++;}' +
+#           'if(frames.length){tick();timer=setInterval(tick,1000/fps);}' +
+#           '</scr' + 'ipt></body></html>';
+#         const blob = new Blob([html], { type: 'text/html' });
+#         const a = document.createElement('a');
+#         a.href = URL.createObjectURL(blob);
+#         a.download = 'my-flipbook.html';
+#         a.click();
+#       });
+#     },
+#     // Lays every saved frame out top-to-bottom into one tall image and
+#     // downloads it as a PNG - a manhwa-style scroll page/board.
+#     exportBoard() {
+#       if (!frames.length) return;
+#       const pending = frames.map((_, i) => new Promise((resolve) => compositeFrame(i, resolve)));
+#       Promise.all(pending).then((canvases) => {
+#         const gap = 16;
+#         const board = document.createElement('canvas');
+#         board.width = 560;
+#         board.height = canvases.length * 400 + (canvases.length - 1) * gap;
+#         const bctx = board.getContext('2d');
+#         bctx.fillStyle = '#0b0c10';
+#         bctx.fillRect(0, 0, board.width, board.height);
+#         canvases.forEach((c, i) => bctx.drawImage(c, 0, i * (400 + gap)));
+#         const a = document.createElement('a');
+#         a.href = board.toDataURL('image/png');
+#         a.download = 'flipbook-board.png';
+#         a.click();
+#       });
 #     },
 #   };
 #
 #   window.addEventListener('DOMContentLoaded', () => {
 #     const volt = document.getElementById('volt');
-#     volt.append(stage, toolsPanel, actionsPanel, strip);
+#     volt.append(stage, toolsPanel, layersPanel, actionsPanel, tweenPanel, strip);
 #     renderFps();
 #     renderOnion();
 #     updateFrameToggles();
