@@ -3,13 +3,35 @@
 // A standalone #html Volt app (not a library you paste into another
 // page - this file IS the whole app, start from an empty file).
 //
+// Rebuilt after looking at how real frame-by-frame tools (Clip Studio
+// Paint's animation workflow, Toon Boom Harmony) are actually laid out:
+//   - Clip Studio Paint: a Timeline with numbered frame "cels", an
+//     onion-skin toggle, Automatic Interpolation (keyframes), and a
+//     Fill tool with "close gap"/tolerance options.
+//   - Toon Boom Harmony: an Exposure Sheet where each frame is its own
+//     slot you can click back into and redraw, not just append to.
+// Flipbook Studio borrows the parts that make sense for a quick, tiny
+// 2D flipbook rather than a full production timeline:
+//   - Frames are an exposure sheet, not a one-way stack: click any
+//     thumbnail to load that exact frame back onto the canvas and
+//     keep drawing on it. "Save" writes the canvas into the selected
+//     frame (overwriting it) or appends a new one if you started a
+//     blank "New" frame.
+//   - "Duplicate" copies the selected frame right after itself - the
+//     normal way to start the next pose without redrawing a static
+//     background every time.
+//   - "Onion" toggles the faint previous-frame trace on/off (Clip
+//     Studio Paint's onion-skin toggle).
+//   - A Fill (bucket) tool, flood-filling a connected area of similar
+//     color - Clip Studio Paint's fill tool is one of its most-used.
+//   - "Loop" toggles whether Play repeats or stops after one pass.
+//
 // - Pick a color and brush size, draw with the mouse/pen on the
 //   paper-white canvas. Smoothed strokes, real eraser (lifts pixels,
-//   doesn't just paint over).
-// - "Add Frame" saves the drawing as the next frame and clears the
-//   canvas, leaving the saved frame faintly visible (onion skin) so
-//   you can trace the next pose on top of it.
-// - "Play"/"Stop" loops the saved frames at the current FPS.
+//   doesn't just paint over), straight/rect/circle shape tools with
+//   shift-angle-snap on Line, and a Fill tool.
+// - "Play"/"Stop" plays the saved frames at the current FPS, looping
+//   unless you turn "Loop" off.
 // - "Export" downloads a single, self-contained .html file that plays
 //   the animation on its own - no Volt Studio needed to view it.
 //
@@ -43,8 +65,6 @@ title "Flipbook Studio"
 ## .flip-swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--flip-border); cursor: pointer; padding: 0; transition: transform 0.1s ease; }
 ## .flip-swatch:hover { transform: scale(1.1); }
 ## .flip-swatch.flip-active { border-color: #fff; box-shadow: 0 0 0 2px var(--flip-accent); }
-## .flip-eraser { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--flip-border); background: #e9e6da; cursor: pointer; font-size: 0.9em; }
-## .flip-eraser.flip-active { border-color: #fff; box-shadow: 0 0 0 2px var(--flip-accent); }
 
 ## .flip-size { width: 36px; height: 36px; border-radius: 10px; border: 2px solid var(--flip-border); background: #2a2d3b; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 ## .flip-size span { border-radius: 50%; background: #fff; display: block; }
@@ -63,8 +83,9 @@ title "Flipbook Studio"
 ## .flip-fps { min-width: 64px; text-align: center; font-weight: 700; color: var(--flip-text); }
 
 ## .flip-strip { display: flex; gap: 8px; overflow-x: auto; width: 560px; padding: 8px; background: var(--flip-panel); border: 1px solid var(--flip-border); border-radius: 12px; min-height: 68px; }
-## .flip-thumb { width: 60px; height: 45px; flex: none; border-radius: 6px; border: 2px solid var(--flip-border); background-size: cover; background-position: center; background-color: #e9e6da; }
-## .flip-strip:empty::after { content: 'No frames yet - draw something, then click "Add Frame"'; color: var(--flip-muted); font-size: 0.85em; padding: 8px; }
+## .flip-thumb { width: 60px; height: 45px; flex: none; border-radius: 6px; border: 2px solid var(--flip-border); background-size: cover; background-position: center; background-color: #e9e6da; cursor: pointer; }
+## .flip-thumb.flip-thumb-active { border-color: var(--flip-accent); box-shadow: 0 0 0 2px var(--flip-accent); }
+## .flip-strip:empty::after { content: 'No frames yet - draw something, then click "Save"'; color: var(--flip-muted); font-size: 0.85em; padding: 8px; }
 
 # (function () {
 #   const COLORS = ['#1b1d27', '#ff3d68', '#4cc9f0', '#3fcf8e', '#ffb703', '#f1f2f8'];
@@ -84,7 +105,7 @@ title "Flipbook Studio"
 #
 #   let color = COLORS[0];
 #   let brushWidth = SIZES[1];
-#   let tool = 'pen';       // 'pen' | 'line' | 'rect' | 'circle' | 'eraser'
+#   let tool = 'pen';       // 'pen' | 'line' | 'rect' | 'circle' | 'eraser' | 'fill'
 #   let smooth = true;      // stabilizer: the drawn line eases toward the pointer instead of jumping straight to it
 #   function applyBrush() {
 #     ctx.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over';
@@ -131,6 +152,7 @@ title "Flipbook Studio"
 #     ['line', 'Line'],
 #     ['rect', 'Rect'],
 #     ['circle', 'Circle'],
+#     ['fill', 'Fill'],
 #     ['eraser', 'Eraser'],
 #   ];
 #   const toolEls = [];
@@ -156,15 +178,27 @@ title "Flipbook Studio"
 #   updateActive();
 #   toolsPanel.append(toolsLabel, toolsRow, shapesLabel, shapesRow);
 #
-#   // --- frame + playback + export toolbar --------------------------
+#   // --- frame (exposure sheet) + playback + export toolbar ----------
 #   const actionsPanel = document.createElement('div');
 #   actionsPanel.className = 'flip-panel';
-#   const actionsRow = document.createElement('div');
-#   actionsRow.className = 'flip-row';
+#   const frameLabel = document.createElement('div');
+#   frameLabel.className = 'flip-label'; frameLabel.textContent = 'Frame';
+#   const frameRow = document.createElement('div');
+#   frameRow.className = 'flip-row';
+#   const playLabel = document.createElement('div');
+#   playLabel.className = 'flip-label'; playLabel.textContent = 'Playback & Export';
+#   const playRow = document.createElement('div');
+#   playRow.className = 'flip-row';
 #
 #   function mkBtn(label, cls, onClick) {
 #     const b = document.createElement('button');
 #     b.type = 'button'; b.className = 'flip-btn' + (cls ? ' ' + cls : ''); b.textContent = label;
+#     b.onclick = onClick;
+#     return b;
+#   }
+#   function mkToggle(label, onClick) {
+#     const b = document.createElement('button');
+#     b.type = 'button'; b.className = 'flip-tool'; b.textContent = label;
 #     b.onclick = onClick;
 #     return b;
 #   }
@@ -173,28 +207,39 @@ title "Flipbook Studio"
 #   fpsLabel.className = 'flip-fps';
 #   function renderFps() { fpsLabel.textContent = fps + ' fps'; }
 #
+#   const onionBtn = mkToggle('Onion', () => FLIP.toggleOnion());
+#   const loopBtn = mkToggle('Loop', () => FLIP.toggleLoop());
 #   const playBtn = mkBtn('Play', 'flip-btn-play', () => FLIP.play());
 #   const stopBtn = mkBtn('Stop', '', () => FLIP.stop());
 #
-#   actionsRow.append(
-#     mkBtn('Add Frame', 'flip-btn-accent', () => FLIP.addFrame()),
-#     mkBtn('Undo Frame', '', () => FLIP.undoFrame()),
-#     mkBtn('Clear', '', () => FLIP.clearFrame()),
+#   frameRow.append(
+#     mkBtn('New', '', () => FLIP.newFrame()),
+#     mkBtn('Save', 'flip-btn-accent', () => FLIP.saveFrame()),
+#     mkBtn('Duplicate', '', () => FLIP.duplicateFrame()),
+#     mkBtn('Delete', '', () => FLIP.deleteFrame()),
+#     onionBtn,
+#   );
+#   playRow.append(
 #     mkBtn('−', '', () => FLIP.setFps(fps - 1)),
 #     fpsLabel,
 #     mkBtn('+', '', () => FLIP.setFps(fps + 1)),
+#     loopBtn,
 #     playBtn,
 #     stopBtn,
 #     mkBtn('Export', 'flip-btn-accent', () => FLIP.export()),
 #   );
-#   actionsPanel.appendChild(actionsRow);
+#   actionsPanel.append(frameLabel, frameRow, playLabel, playRow);
 #
-#   // --- frame strip --------------------------------------------------
+#   // --- frame strip (exposure sheet) - click a thumbnail to reopen it
+#   // for editing, instead of frames only ever being appended ----------
 #   const strip = document.createElement('div');
 #   strip.className = 'flip-strip';
 #
 #   // --- drawing --------------------------------------------------------
 #   const frames = [];
+#   let activeIndex = 0; // index into frames, or === frames.length for a blank unsaved draft
+#   let onionOn = true;
+#   let loopOn = true;
 #   let fps = 8;
 #   let playing = false;
 #   let playTimer = null;
@@ -217,14 +262,55 @@ title "Flipbook Studio"
 #     return [x0 + Math.cos(angle) * dist, y0 + Math.sin(angle) * dist];
 #   }
 #
+#   // Flood-fills the connected region under (x,y) with the current
+#   // color - a stack-based fill over the canvas's own pixel buffer,
+#   // tolerant of slightly anti-aliased edges so it doesn't leave a
+#   // thin un-filled ring around pencil lines.
+#   function hexToRgba(hex) {
+#     const n = parseInt(hex.slice(1), 16);
+#     return [(n >> 16) & 255, (n >> 8) & 255, n & 255, 255];
+#   }
+#   function performFill(px, py) {
+#     const w = draw.width, h = draw.height;
+#     const x0 = Math.max(0, Math.min(w - 1, Math.round(px)));
+#     const y0 = Math.max(0, Math.min(h - 1, Math.round(py)));
+#     const imgData = ctx.getImageData(0, 0, w, h);
+#     const data = imgData.data;
+#     const startIdx = (y0 * w + x0) * 4;
+#     const target = [data[startIdx], data[startIdx + 1], data[startIdx + 2], data[startIdx + 3]];
+#     const fillColor = hexToRgba(color);
+#     if (target[0] === fillColor[0] && target[1] === fillColor[1] && target[2] === fillColor[2] && target[3] === fillColor[3]) return;
+#     const tol = 24;
+#     function matches(idx) {
+#       return Math.abs(data[idx] - target[0]) <= tol && Math.abs(data[idx + 1] - target[1]) <= tol &&
+#         Math.abs(data[idx + 2] - target[2]) <= tol && Math.abs(data[idx + 3] - target[3]) <= tol;
+#     }
+#     const visited = new Uint8Array(w * h);
+#     const stack = [[x0, y0]];
+#     while (stack.length) {
+#       const [cx, cy] = stack.pop();
+#       if (cx < 0 || cx >= w || cy < 0 || cy >= h) continue;
+#       const vIdx = cy * w + cx;
+#       if (visited[vIdx]) continue;
+#       const idx = vIdx * 4;
+#       if (!matches(idx)) continue;
+#       visited[vIdx] = 1;
+#       data[idx] = fillColor[0]; data[idx + 1] = fillColor[1]; data[idx + 2] = fillColor[2]; data[idx + 3] = fillColor[3];
+#       stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+#     }
+#     ctx.putImageData(imgData, 0, 0);
+#   }
+#
 #   let startPos = null;     // stroke start, for line/rect/circle
 #   let shapeSnapshot = null; // canvas pixels before the current shape preview, so dragging can redraw live without leaving trails
 #   let smoothed = null;      // the stabilizer's eased brush position, for Pen tool
 #
 #   draw.addEventListener('pointerdown', (e) => {
 #     if (playing) return;
+#     const p = posOf(e);
+#     if (tool === 'fill') { performFill(p[0], p[1]); return; }
 #     drawingNow = true;
-#     last = posOf(e);
+#     last = p;
 #     startPos = last;
 #     smoothed = last;
 #     draw.setPointerCapture(e.pointerId);
@@ -274,40 +360,100 @@ title "Flipbook Studio"
 #   draw.addEventListener('pointerup', endStroke);
 #   draw.addEventListener('pointerleave', endStroke);
 #
+#   function clearCanvas() { ctx.clearRect(0, 0, draw.width, draw.height); }
+#
+#   function loadFrame(idx) {
+#     clearCanvas();
+#     if (idx >= 0 && idx < frames.length) {
+#       const img = new Image();
+#       img.onload = () => ctx.drawImage(img, 0, 0, draw.width, draw.height);
+#       img.src = frames[idx];
+#     }
+#   }
+#
 #   function renderOnion() {
 #     onionCtx.clearRect(0, 0, onion.width, onion.height);
 #     onionCtx.fillStyle = '#e9e6da';
 #     onionCtx.fillRect(0, 0, onion.width, onion.height);
-#     if (frames.length) {
+#     const prevIdx = activeIndex - 1;
+#     if (onionOn && prevIdx >= 0 && prevIdx < frames.length) {
 #       const img = new Image();
 #       img.onload = () => { onionCtx.globalAlpha = 0.3; onionCtx.drawImage(img, 0, 0, onion.width, onion.height); onionCtx.globalAlpha = 1; };
-#       img.src = frames[frames.length - 1];
+#       img.src = frames[prevIdx];
 #     }
 #   }
 #   function renderStrip() {
 #     strip.innerHTML = '';
-#     frames.forEach((f) => {
+#     frames.forEach((f, i) => {
 #       const t = document.createElement('div');
-#       t.className = 'flip-thumb';
+#       t.className = 'flip-thumb' + (i === activeIndex ? ' flip-thumb-active' : '');
 #       t.style.backgroundImage = "url('" + f + "')";
+#       t.title = 'Frame ' + (i + 1) + ' - click to reopen for editing';
+#       t.onclick = () => FLIP.selectFrame(i);
 #       strip.appendChild(t);
 #     });
 #   }
+#   function updateFrameToggles() {
+#     onionBtn.classList.toggle('flip-active', onionOn);
+#     loopBtn.classList.toggle('flip-active', loopOn);
+#   }
 #
 #   window.FLIP = {
-#     addFrame() {
-#       frames.push(draw.toDataURL('image/png'));
-#       ctx.clearRect(0, 0, draw.width, draw.height);
+#     newFrame() {
+#       if (playing) return;
+#       activeIndex = frames.length;
+#       clearCanvas();
 #       renderOnion();
 #       renderStrip();
 #     },
-#     undoFrame() {
-#       frames.pop();
+#     saveFrame() {
+#       const data = draw.toDataURL('image/png');
+#       if (activeIndex < frames.length) {
+#         frames[activeIndex] = data;
+#       } else {
+#         frames.push(data);
+#         activeIndex = frames.length - 1;
+#       }
 #       renderOnion();
 #       renderStrip();
 #     },
-#     clearFrame() {
-#       ctx.clearRect(0, 0, draw.width, draw.height);
+#     duplicateFrame() {
+#       if (!frames.length) return;
+#       const srcIdx = Math.min(activeIndex, frames.length - 1);
+#       frames.splice(srcIdx + 1, 0, frames[srcIdx]);
+#       activeIndex = srcIdx + 1;
+#       loadFrame(activeIndex);
+#       renderOnion();
+#       renderStrip();
+#     },
+#     deleteFrame() {
+#       if (!frames.length || activeIndex >= frames.length) return;
+#       frames.splice(activeIndex, 1);
+#       if (!frames.length) {
+#         activeIndex = 0;
+#         clearCanvas();
+#       } else {
+#         if (activeIndex >= frames.length) activeIndex = frames.length - 1;
+#         loadFrame(activeIndex);
+#       }
+#       renderOnion();
+#       renderStrip();
+#     },
+#     selectFrame(idx) {
+#       if (playing) return;
+#       activeIndex = idx;
+#       loadFrame(idx);
+#       renderOnion();
+#       renderStrip();
+#     },
+#     toggleOnion() {
+#       onionOn = !onionOn;
+#       renderOnion();
+#       updateFrameToggles();
+#     },
+#     toggleLoop() {
+#       loopOn = !loopOn;
+#       updateFrameToggles();
 #     },
 #     setFps(n) {
 #       fps = Math.max(1, Math.min(24, n));
@@ -322,7 +468,13 @@ title "Flipbook Studio"
 #       let i = 0;
 #       onionCtx.clearRect(0, 0, onion.width, onion.height);
 #       const img = new Image();
-#       const showFrame = () => { img.src = frames[i % frames.length]; i++; };
+#       const showFrame = () => {
+#         if (i >= frames.length) {
+#           if (loopOn) { i = 0; } else { this.stop(); return; }
+#         }
+#         img.src = frames[i];
+#         i++;
+#       };
 #       img.onload = () => { onionCtx.clearRect(0, 0, onion.width, onion.height); onionCtx.drawImage(img, 0, 0, onion.width, onion.height); };
 #       showFrame();
 #       playTimer = setInterval(showFrame, 1000 / fps);
@@ -338,11 +490,11 @@ title "Flipbook Studio"
 #         '<style>body{margin:0;background:#111;display:flex;align-items:center;justify-content:center;height:100vh}' +
 #         'canvas{background:#e9e6da;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.5)}</style></head><body>' +
 #         '<canvas id="c" width="560" height="400"></canvas><script>' +
-#         'const frames=' + JSON.stringify(frames) + ';const fps=' + fps + ';' +
+#         'const frames=' + JSON.stringify(frames) + ';const fps=' + fps + ';const loop=' + loopOn + ';' +
 #         'const ctx=document.getElementById("c").getContext("2d");let i=0;const img=new Image();' +
 #         'img.onload=()=>ctx.drawImage(img,0,0,560,400);' +
-#         'function tick(){img.src=frames[i%frames.length];i++;}' +
-#         'if(frames.length){tick();setInterval(tick,1000/fps);}' +
+#         'let timer=null;function tick(){if(i>=frames.length){if(loop){i=0;}else{clearInterval(timer);return;}}img.src=frames[i];i++;}' +
+#         'if(frames.length){tick();timer=setInterval(tick,1000/fps);}' +
 #         '</scr' + 'ipt></body></html>';
 #       const blob = new Blob([html], { type: 'text/html' });
 #       const a = document.createElement('a');
@@ -357,5 +509,6 @@ title "Flipbook Studio"
 #     volt.append(stage, toolsPanel, actionsPanel, strip);
 #     renderFps();
 #     renderOnion();
+#     updateFrameToggles();
 #   });
 # })();
