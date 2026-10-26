@@ -545,12 +545,28 @@ title "Flipbook Studio"
 #   const playBtn = mkBtn('Play', 'flip-btn-play', () => FLIP.play());
 #   const stopBtn = mkBtn('Stop', '', () => FLIP.stop());
 #
+#   // Per-frame exposure ("hold") - classic "on 1s/2s/3s" anime timing,
+#   // where a key/impact pose is held for several ticks while a fast
+#   // action beat only gets one, instead of every frame taking the same
+#   // amount of screen time.
+#   const holdLabel = document.createElement('span');
+#   holdLabel.className = 'flip-fps';
+#   holdLabel.title = 'How many ticks this frame is held for during playback/export - hold impact poses longer, fast motion shorter.';
+#   function renderHold() {
+#     const h = activeIndex < holds.length ? holds[activeIndex] : 1;
+#     holdLabel.textContent = 'Hold: ' + h + 'x';
+#   }
+#   const holdMinusBtn = mkBtn('−', '', () => FLIP.setHold((activeIndex < holds.length ? holds[activeIndex] : 1) - 1));
+#   const holdPlusBtn = mkBtn('+', '', () => FLIP.setHold((activeIndex < holds.length ? holds[activeIndex] : 1) + 1));
+#
 #   frameRow.append(
 #     mkBtn('New', '', () => FLIP.newFrame()),
 #     mkBtn('Save', 'flip-btn-accent', () => FLIP.saveFrame()),
 #     mkBtn('Duplicate', '', () => FLIP.duplicateFrame()),
 #     mkBtn('Delete', '', () => FLIP.deleteFrame()),
+#     mkBtn('Flash', '', () => FLIP.insertFlash()),
 #     onionBtn,
+#     holdMinusBtn, holdLabel, holdPlusBtn,
 #   );
 #   playRow.append(
 #     mkBtn('−', '', () => FLIP.setFps(fps - 1)),
@@ -586,12 +602,15 @@ title "Flipbook Studio"
 #   const tweenRotate = mkNum('Rotate (°)', 0, -360, 360);
 #   const tweenOpacity = mkNum('Opacity (%)', 100, 0, 100);
 #   const tweenSteps = mkNum('Frames', 4, 1, 24);
+#   const easeBtn = mkBtn('Ease: Linear', '', () => FLIP.cycleEase());
+#   easeBtn.title = 'Shapes the timing of the in-between frames - Linear moves at a constant rate, Ease In/Out starts or ends slow for weight, Ease In-Out does both (the most natural-feeling motion).';
 #   const tweenBtn = mkBtn('Generate Tween', 'flip-btn-accent', () => FLIP.generateTween());
-#   tweenRow.appendChild(tweenBtn);
+#   tweenRow.append(easeBtn, tweenBtn);
 #   const tweenHint = document.createElement('div');
 #   tweenHint.className = 'flip-hint';
 #   tweenHint.textContent = 'Takes the active layer\'s current drawing (e.g. an imported character) and auto-generates that many in-between frames moving/scaling/rotating/fading it from its current spot to the amounts above, inserted right after the selected frame. Works on the Character layer only.';
 #   tweenContent.append(tweenRow, tweenHint);
+#   function renderEaseBtn() { easeBtn.textContent = 'Ease: ' + EASE_LABELS[easeMode]; }
 #
 #   addTab('frame', 'Frame', frameContent);
 #   addTab('play', 'Play', playContent);
@@ -607,7 +626,17 @@ title "Flipbook Studio"
 #
 #   // --- drawing --------------------------------------------------------
 #   const frames = [];     // character-layer-only dataURLs, one per frame slot
+#   const holds = [];      // exposure count per frame (how many ticks it's held) - "on 1s/2s/3s" timing, parallel to frames
 #   let activeIndex = 0;   // index into frames, or === frames.length for a blank unsaved draft
+#   let easeMode = 'linear'; // 'linear' | 'in' | 'out' | 'inout' - shapes Tween's interpolation curve
+#   const EASE_MODES = ['linear', 'in', 'out', 'inout'];
+#   const EASE_LABELS = { linear: 'Linear', in: 'Ease In', out: 'Ease Out', inout: 'Ease In-Out' };
+#   function ease(t) {
+#     if (easeMode === 'in') return t * t;
+#     if (easeMode === 'out') return 1 - (1 - t) * (1 - t);
+#     if (easeMode === 'inout') return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+#     return t;
+#   }
 #   let onionOn = true;
 #   let loopOn = true;
 #   let fps = 8;
@@ -948,6 +977,7 @@ title "Flipbook Studio"
 #       clearCanvas();
 #       renderOnion();
 #       renderStrip();
+#       renderHold();
 #     },
 #     saveFrame() {
 #       commitFloatingSelection();
@@ -956,25 +986,30 @@ title "Flipbook Studio"
 #         frames[activeIndex] = data;
 #       } else {
 #         frames.push(data);
+#         holds.push(1);
 #         activeIndex = frames.length - 1;
 #       }
 #       renderOnion();
 #       renderStrip();
+#       renderHold();
 #     },
 #     duplicateFrame() {
 #       if (!frames.length) return;
 #       commitFloatingSelection();
 #       const srcIdx = Math.min(activeIndex, frames.length - 1);
 #       frames.splice(srcIdx + 1, 0, frames[srcIdx]);
+#       holds.splice(srcIdx + 1, 0, holds[srcIdx]);
 #       activeIndex = srcIdx + 1;
 #       loadFrame(activeIndex);
 #       renderOnion();
 #       renderStrip();
+#       renderHold();
 #     },
 #     deleteFrame() {
 #       if (!frames.length || activeIndex >= frames.length) return;
 #       commitFloatingSelection();
 #       frames.splice(activeIndex, 1);
+#       holds.splice(activeIndex, 1);
 #       if (!frames.length) {
 #         activeIndex = 0;
 #         clearCanvas();
@@ -984,6 +1019,7 @@ title "Flipbook Studio"
 #       }
 #       renderOnion();
 #       renderStrip();
+#       renderHold();
 #     },
 #     selectFrame(idx) {
 #       if (playing) return;
@@ -992,6 +1028,7 @@ title "Flipbook Studio"
 #       loadFrame(idx);
 #       renderOnion();
 #       renderStrip();
+#       renderHold();
 #     },
 #     toggleOnion() {
 #       onionOn = !onionOn;
@@ -1036,7 +1073,7 @@ title "Flipbook Studio"
 #       const insertAt = activeIndex < frames.length ? activeIndex + 1 : frames.length;
 #       const newIndices = [];
 #       for (let step = 1; step <= steps; step++) {
-#         const t = step / steps;
+#         const t = ease(step / steps);
 #         // Character-layer frames are transparent except where drawn -
 #         // the background (if any) is composited in separately at
 #         // render/export time, so this canvas must stay transparent,
@@ -1057,6 +1094,7 @@ title "Flipbook Studio"
 #
 #         const idx = insertAt + step - 1;
 #         frames.splice(idx, 0, frameCanvas.toDataURL('image/png'));
+#         holds.splice(idx, 0, 1);
 #         newIndices.push(idx);
 #       }
 #
@@ -1064,6 +1102,39 @@ title "Flipbook Studio"
 #       loadFrame(activeIndex);
 #       renderOnion();
 #       renderStrip();
+#       renderHold();
+#     },
+#     // Inserts a single, fully opaque near-white frame right after the
+#     // selected one - a classic anime "impact flash" cut. It's stored
+#     // just like any other Character-layer frame (so it fully covers
+#     // the Background too, which is what sells the flash), and starts
+#     // with hold 1 - bump the hold if you want the white to linger.
+#     insertFlash() {
+#       commitFloatingSelection();
+#       const flashCanvas = document.createElement('canvas');
+#       flashCanvas.width = 560; flashCanvas.height = 400;
+#       const fctx = flashCanvas.getContext('2d');
+#       fctx.fillStyle = '#ffffff';
+#       fctx.fillRect(0, 0, 560, 400);
+#       const idx = activeIndex < frames.length ? activeIndex + 1 : frames.length;
+#       frames.splice(idx, 0, flashCanvas.toDataURL('image/png'));
+#       holds.splice(idx, 0, 1);
+#       activeIndex = idx;
+#       loadFrame(activeIndex);
+#       renderOnion();
+#       renderStrip();
+#       renderHold();
+#     },
+#     cycleEase() {
+#       easeMode = EASE_MODES[(EASE_MODES.indexOf(easeMode) + 1) % EASE_MODES.length];
+#       renderEaseBtn();
+#       return easeMode;
+#     },
+#     setHold(n) {
+#       const clamped = Math.max(1, Math.min(24, Math.round(n) || 1));
+#       if (activeIndex < holds.length) holds[activeIndex] = clamped;
+#       renderHold();
+#       return clamped;
 #     },
 #     play() {
 #       if (!frames.length || playing) return;
@@ -1080,14 +1151,15 @@ title "Flipbook Studio"
 #           onionCtx.clearRect(0, 0, 560, 400);
 #           onionCtx.drawImage(c, 0, 0);
 #         });
+#         const dur = (1000 / fps) * Math.max(1, holds[i] || 1);
 #         i++;
+#         playTimer = setTimeout(showFrame, dur);
 #       };
 #       showFrame();
-#       playTimer = setInterval(showFrame, 1000 / fps);
 #     },
 #     stop() {
 #       playing = false;
-#       clearInterval(playTimer);
+#       clearTimeout(playTimer);
 #       draw.style.visibility = 'visible';
 #       bg.style.visibility = bgVisible ? 'visible' : 'hidden';
 #       renderOnion();
@@ -1099,11 +1171,11 @@ title "Flipbook Studio"
 #           '<style>body{margin:0;background:#111;display:flex;align-items:center;justify-content:center;height:100vh}' +
 #           'canvas{background:#e9e6da;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.5)}</style></head><body>' +
 #           '<canvas id="c" width="560" height="400"></canvas><script>' +
-#           'const frames=' + JSON.stringify(composited) + ';const fps=' + fps + ';const loop=' + loopOn + ';' +
+#           'const frames=' + JSON.stringify(composited) + ';const holds=' + JSON.stringify(holds) + ';const fps=' + fps + ';const loop=' + loopOn + ';' +
 #           'const ctx=document.getElementById("c").getContext("2d");let i=0;const img=new Image();' +
 #           'img.onload=()=>ctx.drawImage(img,0,0,560,400);' +
-#           'let timer=null;function tick(){if(i>=frames.length){if(loop){i=0;}else{clearInterval(timer);return;}}img.src=frames[i];i++;}' +
-#           'if(frames.length){tick();timer=setInterval(tick,1000/fps);}' +
+#           'let timer=null;function tick(){if(i>=frames.length){if(loop){i=0;}else{return;}}img.src=frames[i];const dur=(1000/fps)*Math.max(1,holds[i]||1);i++;timer=setTimeout(tick,dur);}' +
+#           'if(frames.length){tick();}' +
 #           '</scr' + 'ipt></body></html>';
 #         const blob = new Blob([html], { type: 'text/html' });
 #         const a = document.createElement('a');
@@ -1140,5 +1212,7 @@ title "Flipbook Studio"
 #     renderFps();
 #     renderOnion();
 #     updateFrameToggles();
+#     renderHold();
+#     renderEaseBtn();
 #   });
 # })();
