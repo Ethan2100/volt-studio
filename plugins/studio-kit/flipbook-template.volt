@@ -385,16 +385,117 @@ title "Flipbook Studio"
 #     importInput.value = '';
 #   };
 #   importLabel.appendChild(importInput);
+#
+#   // --- Auto-Detect: splits one imported picture into Background +
+#   // Character automatically, using a real foreground-detection model
+#   // (TensorFlow.js BodyPix) rather than a color-based trick - a flat
+#   // chroma-key wouldn't do anything useful on a photo-like background
+#   // like the one in the screenshot this was built against. Honesty
+#   // up front: BodyPix is trained to find PEOPLE in photos. It often
+#   // still picks out a clear single subject in anime/illustration art
+#   // too (edges + a salient figure against a busy background give it
+#   // enough to go on), but it's not guaranteed on every image, and the
+#   // cutout can come out rough around fine details like hair or fur -
+#   // clean it up afterward with Select/Eraser/Fill like any cutout.
+#   // It also needs an internet connection the FIRST time it's used in
+#   // a session, to download the (few-MB) model; Import Image above
+#   // needs no internet and always works.
+#   let bodyPixLoad = null;
+#   function loadScript(src) {
+#     return new Promise((resolve, reject) => {
+#       const s = document.createElement('script');
+#       s.src = src; s.onload = () => resolve(); s.onerror = () => reject(new Error('failed to load ' + src));
+#       document.head.appendChild(s);
+#     });
+#   }
+#   function ensureBodyPix() {
+#     if (!bodyPixLoad) {
+#       bodyPixLoad = (async () => {
+#         if (!window.tf) await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js');
+#         if (!window.bodyPix) await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.2.0/dist/body-pix.min.js');
+#         return window.bodyPix.load({ architecture: 'MobileNetV1', outputStride: 16, multiplier: 0.75, quantBytes: 2 });
+#       })();
+#     }
+#     return bodyPixLoad;
+#   }
+#
+#   const autoLabel = document.createElement('label');
+#   autoLabel.className = 'flip-btn flip-btn-accent flip-file-btn'; autoLabel.textContent = 'Auto-Detect';
+#   autoLabel.title = 'Splits one picture into Background (the whole image) and Character (just the detected subject, cut out and dropped in as a movable selection) automatically. Needs internet the first time, to download the detection model.';
+#   const autoInput = document.createElement('input');
+#   autoInput.type = 'file'; autoInput.accept = 'image/*';
+#   autoInput.onchange = () => {
+#     const file = autoInput.files && autoInput.files[0];
+#     autoInput.value = '';
+#     if (!file) return;
+#     const reader = new FileReader();
+#     reader.onload = async () => {
+#       const img = new Image();
+#       img.onload = async () => {
+#         const originalLabel = autoLabel.textContent;
+#         autoLabel.textContent = 'Loading model...';
+#         try {
+#           const net = await ensureBodyPix();
+#           autoLabel.textContent = 'Detecting...';
+#           const natural = document.createElement('canvas');
+#           natural.width = img.width; natural.height = img.height;
+#           natural.getContext('2d').drawImage(img, 0, 0);
+#           const mask = await net.segmentPerson(natural, { internalResolution: 'medium', segmentationThreshold: 0.6 });
+#
+#           // Background: the whole picture, scaled to fit, committed
+#           // straight onto the shared Background layer.
+#           const scale = Math.min(560 / img.width, 400 / img.height, 1);
+#           const w = Math.max(1, Math.round(img.width * scale)), h = Math.max(1, Math.round(img.height * scale));
+#           bgCtx.drawImage(img, (560 - w) / 2, (400 - h) / 2, w, h);
+#
+#           // Character: only the pixels the model marked as the
+#           // subject, everything else made transparent, then dropped
+#           // in as a floating selection just like Import Image - drag
+#           // it into place, same as a manual import.
+#           const cut = natural.getContext('2d').getImageData(0, 0, img.width, img.height);
+#           for (let i = 0; i < mask.data.length; i++) {
+#             if (!mask.data[i]) cut.data[i * 4 + 3] = 0;
+#           }
+#           const cutCanvasNatural = document.createElement('canvas');
+#           cutCanvasNatural.width = img.width; cutCanvasNatural.height = img.height;
+#           cutCanvasNatural.getContext('2d').putImageData(cut, 0, 0);
+#           const cutScaled = document.createElement('canvas');
+#           cutScaled.width = w; cutScaled.height = h;
+#           cutScaled.getContext('2d').drawImage(cutCanvasNatural, 0, 0, w, h);
+#
+#           commitFloatingSelection();
+#           activeLayer = 'character';
+#           const x = Math.round((560 - w) / 2), y = Math.round((400 - h) / 2);
+#           selectState = { phase: 'floating', canvas: cutScaled, x, y, w, h, dragging: false, dragOffset: [0, 0], srcCtx: ctx };
+#           tool = 'select';
+#           applyBrush();
+#           updateActive();
+#           updateLayerButtons();
+#           stage.className = 'flip-stage flip-cursor-select';
+#           drawFloatingPreview();
+#           renderOnion(); renderStrip();
+#         } catch (err) {
+#           alert('Auto-Detect needs an internet connection (it downloads a small detection model the first time) and couldn\'t load it: ' + err.message + '. Import Image above works offline if you\'d rather place the layers yourself.');
+#         } finally {
+#           autoLabel.textContent = originalLabel;
+#         }
+#       };
+#       img.src = reader.result;
+#     };
+#     reader.readAsDataURL(file);
+#   };
+#   autoLabel.appendChild(autoInput);
+#
 #   function updateLayerButtons() {
 #     charLayerBtn.classList.toggle('flip-active', activeLayer === 'character');
 #     bgLayerBtn.classList.toggle('flip-active', activeLayer === 'background');
 #     bgVisibleBtn.classList.toggle('flip-active', bgVisible);
 #   }
 #   updateLayerButtons();
-#   layersRow.append(charLayerBtn, bgLayerBtn, bgVisibleBtn, clearLayerBtn, importLabel);
+#   layersRow.append(charLayerBtn, bgLayerBtn, bgVisibleBtn, clearLayerBtn, importLabel, autoLabel);
 #   const layersHint = document.createElement('div');
 #   layersHint.className = 'flip-hint';
-#   layersHint.textContent = 'Background is one shared layer behind every frame. Character is the per-frame layer New/Save/Duplicate/Delete work on.';
+#   layersHint.textContent = 'Background is one shared layer behind every frame. Character is the per-frame layer New/Save/Duplicate/Delete work on. Auto-Detect splits one picture into both automatically (needs internet the first time); Import Image places a picture onto whichever layer is active, no internet needed.';
 #   layersContent.append(layersLabel, layersRow, layersHint);
 #
 #   // --- frame (exposure sheet) tab content -------------------------------
