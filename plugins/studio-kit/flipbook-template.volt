@@ -420,7 +420,9 @@ title "Flipbook Studio"
 #   }
 #
 #   const autoLabel = document.createElement('label');
-#   autoLabel.className = 'flip-btn flip-btn-accent flip-file-btn'; autoLabel.textContent = 'Auto-Detect';
+#   autoLabel.className = 'flip-btn flip-btn-accent flip-file-btn';
+#   const autoLabelText = document.createElement('span'); autoLabelText.textContent = 'Auto-Detect';
+#   autoLabel.appendChild(autoLabelText);
 #   autoLabel.title = 'Splits one picture into Background (the whole image) and Character (just the detected subject, cut out and dropped in as a movable selection) automatically. Needs internet the first time, to download the detection model.';
 #   const autoInput = document.createElement('input');
 #   autoInput.type = 'file'; autoInput.accept = 'image/*';
@@ -432,11 +434,11 @@ title "Flipbook Studio"
 #     reader.onload = async () => {
 #       const img = new Image();
 #       img.onload = async () => {
-#         const originalLabel = autoLabel.textContent;
-#         autoLabel.textContent = 'Loading model...';
+#         const originalLabel = autoLabelText.textContent;
+#         autoLabelText.textContent = 'Loading model...';
 #         try {
 #           const net = await ensureBodyPix();
-#           autoLabel.textContent = 'Detecting...';
+#           autoLabelText.textContent = 'Detecting...';
 #           const natural = document.createElement('canvas');
 #           natural.width = img.width; natural.height = img.height;
 #           natural.getContext('2d').drawImage(img, 0, 0);
@@ -492,7 +494,7 @@ title "Flipbook Studio"
 #         } catch (err) {
 #           alert('Auto-Detect needs an internet connection (it downloads a small detection model the first time) and couldn\'t load it: ' + err.message + '. Import Image above works offline if you\'d rather place the layers yourself.');
 #         } finally {
-#           autoLabel.textContent = originalLabel;
+#           autoLabelText.textContent = originalLabel;
 #         }
 #       };
 #       img.src = reader.result;
@@ -568,29 +570,105 @@ title "Flipbook Studio"
 #     ctx.restore();
 #   }
 #
-#   // Classic procedural gait - opposite-phase arm/leg swing, a little
-#   // knee/elbow bend, a subtle hip twist and step bob. Amplitudes are in
-#   // radians/pixels, tuned by eye rather than biomechanics.
-#   const WALK = { leg: 0.5, arm: 0.42, kneeBend: 0.55, elbowBend: 0.32, torsoRot: 0.05, bob: 5 };
-#   function walkAnim(kind) {
-#     return (phase) => {
-#       if (kind === 'leftThigh') return WALK.leg * Math.sin(phase);
-#       if (kind === 'rightThigh') return WALK.leg * Math.sin(phase + Math.PI);
-#       if (kind === 'leftShin') return WALK.kneeBend * Math.max(0, -Math.sin(phase + 0.6));
-#       if (kind === 'rightShin') return WALK.kneeBend * Math.max(0, -Math.sin(phase + 0.6 + Math.PI));
-#       if (kind === 'leftArm') return WALK.arm * Math.sin(phase + Math.PI);
-#       if (kind === 'rightArm') return WALK.arm * Math.sin(phase);
-#       if (kind === 'leftForearm') return WALK.elbowBend * Math.max(0, Math.sin(phase + Math.PI + 0.5));
-#       if (kind === 'rightForearm') return WALK.elbowBend * Math.max(0, Math.sin(phase + 0.5));
-#       if (kind === 'torso') return WALK.torsoRot * Math.sin(phase * 2);
-#       if (kind === 'head') return -WALK.torsoRot * 0.3 * Math.sin(phase * 2);
+#   // Procedural move presets - each drives the rig through `frames`
+#   // steps. A looping move (walk/dash) spans one full cycle, meant to
+#   // be played with Loop on. A one-shot move (punch/kick/block) plays
+#   // through once and holds its last pose for `holdLast` ticks (the
+#   // impact/guard frame), using the Hold feature so it reads with
+#   // actual weight instead of snapping straight back to neutral.
+#   // Amplitudes are in radians/pixels, tuned by eye, not biomechanics.
+#   const MOVES = {
+#     walk: { frames: 10, loop: true, holdLast: 1 },
+#     dash: { frames: 8, loop: true, holdLast: 1 },
+#     punch: { frames: 8, loop: false, holdLast: 3 },
+#     kick: { frames: 8, loop: false, holdLast: 3 },
+#     block: { frames: 6, loop: false, holdLast: 6 },
+#   };
+#   function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+#   // Fast snap out, then HOLD at full extension - this is the curve for
+#   // one-shot strikes, whose generated sequence ends on the frame that
+#   // gets frozen via holdLast, so it must read as impact, not neutral.
+#   // (A snap-out-then-retract shape would mean the "held" frame is the
+#   // pose AFTER the hit relaxes, which looks like nothing landed.)
+#   function strikeCurve(u) {
+#     const rise = 0.35;
+#     return u < rise ? easeOutCubic(u / rise) : 1;
+#   }
+#   function moveAngle(move, kind, u) {
+#     const phase = u * Math.PI * 2;
+#     if (move === 'walk' || move === 'dash') {
+#       const k = move === 'dash' ? 1.6 : 1; // dash swings bigger, reads as faster
+#       const lean = move === 'dash' ? 0.22 : 0; // constant forward lean while dashing
+#       if (kind === 'leftThigh') return 0.5 * k * Math.sin(phase);
+#       if (kind === 'rightThigh') return 0.5 * k * Math.sin(phase + Math.PI);
+#       if (kind === 'leftShin') return 0.55 * k * Math.max(0, -Math.sin(phase + 0.6));
+#       if (kind === 'rightShin') return 0.55 * k * Math.max(0, -Math.sin(phase + 0.6 + Math.PI));
+#       if (kind === 'leftArm') return 0.42 * k * Math.sin(phase + Math.PI);
+#       if (kind === 'rightArm') return 0.42 * k * Math.sin(phase);
+#       if (kind === 'leftForearm') return 0.32 * k * Math.max(0, Math.sin(phase + Math.PI + 0.5));
+#       if (kind === 'rightForearm') return 0.32 * k * Math.max(0, Math.sin(phase + 0.5));
+#       if (kind === 'torso') return lean + 0.05 * Math.sin(phase * 2);
+#       if (kind === 'head') return -lean * 0.4 - 0.015 * Math.sin(phase * 2);
 #       return 0;
-#     };
+#     }
+#     if (move === 'punch') {
+#       const p = strikeCurve(u);
+#       if (kind === 'rightArm') return -p * 1.3;
+#       if (kind === 'rightForearm') return -p * 0.9;
+#       if (kind === 'leftArm') return p * 0.25;
+#       if (kind === 'leftForearm') return p * 0.15;
+#       if (kind === 'leftThigh') return p * 0.1;
+#       if (kind === 'rightThigh') return p * 0.12;
+#       if (kind === 'torso') return p * 0.22;
+#       if (kind === 'head') return -p * 0.06;
+#       return 0;
+#     }
+#     if (move === 'kick') {
+#       const p = strikeCurve(u);
+#       if (kind === 'rightThigh') return -p * 1.1;
+#       if (kind === 'rightShin') return -p * 0.9;
+#       if (kind === 'leftThigh') return p * 0.12;
+#       if (kind === 'rightArm') return p * 0.35;
+#       if (kind === 'leftArm') return -p * 0.3;
+#       if (kind === 'torso') return -p * 0.28;
+#       if (kind === 'head') return p * 0.05;
+#       return 0;
+#     }
+#     if (move === 'block') {
+#       const e = easeOutCubic(Math.min(1, u / 0.5)); // snap up quickly, then hold
+#       if (kind === 'leftArm') return -e * 1.1;
+#       if (kind === 'rightArm') return e * 1.1;
+#       if (kind === 'leftForearm') return -e * 1.0;
+#       if (kind === 'rightForearm') return e * 1.0;
+#       if (kind === 'leftThigh') return e * 0.12;
+#       if (kind === 'rightThigh') return -e * 0.12;
+#       if (kind === 'torso') return e * 0.1;
+#       if (kind === 'head') return -e * 0.05;
+#       return 0;
+#     }
+#     return 0;
+#   }
+#   function moveBob(move, u) {
+#     const phase = u * Math.PI * 2;
+#     if (move === 'walk') return -Math.abs(Math.sin(phase)) * 5;
+#     if (move === 'dash') return -Math.abs(Math.sin(phase)) * 7 - 3; // lower stance while dashing
+#     if (move === 'punch') return strikeCurve(u) * 3;
+#     if (move === 'kick') return strikeCurve(u) * -4; // rises slightly onto the kick
+#     if (move === 'block') return Math.min(1, u / 0.5) * 6; // settles into a lower guard stance
+#     return 0;
 #   }
 #
 #   const rigLabel = document.createElement('label');
-#   rigLabel.className = 'flip-btn flip-btn-accent flip-file-btn'; rigLabel.textContent = 'Auto-Rig + Walk';
-#   rigLabel.title = 'Imports a picture, finds the subject AND its skeleton (shoulders/elbows/hips/knees/etc.), and auto-generates a walking loop. Works best on a clear photo of a person, mostly visible and roughly upright - needs internet the first time, to download the detection models.';
+#   rigLabel.className = 'flip-btn flip-btn-accent flip-file-btn';
+#   const rigLabelText = document.createElement('span'); rigLabelText.textContent = 'Auto-Rig';
+#   rigLabel.appendChild(rigLabelText);
+#   rigLabel.title = 'Imports a picture, finds the subject AND its skeleton (shoulders/elbows/hips/knees/etc.), and auto-generates the move picked below. Works best on a clear photo of a person, mostly visible and roughly upright - needs internet the first time, to download the detection models.';
+#   const rigMoveSelect = document.createElement('select');
+#   rigMoveSelect.className = 'flip-btn';
+#   [['walk', 'Walk'], ['dash', 'Dash'], ['punch', 'Punch'], ['kick', 'Kick'], ['block', 'Block']].forEach(([val, label]) => {
+#     const o = document.createElement('option'); o.value = val; o.textContent = label;
+#     rigMoveSelect.appendChild(o);
+#   });
 #   const rigInput = document.createElement('input');
 #   rigInput.type = 'file'; rigInput.accept = 'image/*';
 #   rigInput.onchange = () => {
@@ -601,11 +679,11 @@ title "Flipbook Studio"
 #     reader.onload = async () => {
 #       const img = new Image();
 #       img.onload = async () => {
-#         const originalLabel = rigLabel.textContent;
-#         rigLabel.textContent = 'Loading models...';
+#         const originalLabel = rigLabelText.textContent;
+#         rigLabelText.textContent = 'Loading models...';
 #         try {
 #           const [net, detector] = await Promise.all([ensureBodyPix(), ensurePoseDetector()]);
-#           rigLabel.textContent = 'Detecting...';
+#           rigLabelText.textContent = 'Detecting...';
 #           const natural = document.createElement('canvas');
 #           natural.width = img.width; natural.height = img.height;
 #           natural.getContext('2d').drawImage(img, 0, 0);
@@ -658,7 +736,7 @@ title "Flipbook Studio"
 #             stage.className = 'flip-stage flip-cursor-select';
 #             drawFloatingPreview();
 #             renderOnion(); renderStrip();
-#             alert('Found the subject, but not enough of a clear skeleton (shoulders + hips) to build a walk cycle - it\'s been dropped in as a normal movable selection instead. This works best on a photo of a person standing, mostly visible and upright.');
+#             alert('Found the subject, but not enough of a clear skeleton (shoulders + hips) to animate - it\'s been dropped in as a normal movable selection instead. This works best on a photo of a person standing, mostly visible and upright.');
 #             return;
 #           }
 #
@@ -673,23 +751,31 @@ title "Flipbook Studio"
 #           const torsoHeight = Math.max(20, hipC.y - shoulderC.y);
 #           const shoulderW = Math.hypot(rsh.x - lsh.x, rsh.y - lsh.y);
 #
-#           const torsoPad = Math.max(10, shoulderW * 0.25);
+#           const currentMove = rigMoveSelect.value || 'walk';
+#           const moveInfo = MOVES[currentMove] || MOVES.walk;
+#           function partAnim(kind) { return (u) => moveAngle(currentMove, kind, u); }
+#
+#           // Padding is generous on purpose - these are rigid, non-
+#           // deforming pieces, so adjacent parts only stay visually
+#           // connected through a rotation if they overlap well beyond
+#           // the bare joint-to-joint line.
+#           const torsoPad = Math.max(14, shoulderW * 0.35);
 #           const torso = makePart(hipC, cropRect(cutScaled, w, h,
-#             Math.min(lsh.x, rsh.x, lhip.x, rhip.x) - torsoPad, Math.min(lsh.y, rsh.y) - torsoPad * 0.5,
+#             Math.min(lsh.x, rsh.x, lhip.x, rhip.x) - torsoPad, Math.min(lsh.y, rsh.y) - torsoPad * 0.6,
 #             Math.max(lsh.x, rsh.x, lhip.x, rhip.x) + torsoPad, Math.max(lhip.y, rhip.y) + torsoPad,
-#           ), null, walkAnim('torso'));
+#           ), null, partAnim('torso'));
 #
 #           const headTop = nose ? nose.y - (shoulderC.y - nose.y) * 1.5 - 6 : shoulderC.y - torsoHeight * 0.6;
 #           const headCx = nose ? nose.x : shoulderC.x;
 #           const headHalfW = Math.max(14, shoulderW * 0.45);
-#           const head = makePart(shoulderC, cropRect(cutScaled, w, h, headCx - headHalfW, headTop, headCx + headHalfW, shoulderC.y + 6), hipC, walkAnim('head'));
+#           const head = makePart(shoulderC, cropRect(cutScaled, w, h, headCx - headHalfW, headTop, headCx + headHalfW, shoulderC.y + torsoPad * 0.6), hipC, partAnim('head'));
 #           torso.children.push(head);
 #
 #           function limb(shoulder, elbow, wrist, armKind, forearmKind) {
 #             if (!shoulder || !elbow) return;
-#             const upper = makePart(shoulder, cropBone(cutScaled, w, h, shoulder, elbow, 0.4, 10), hipC, walkAnim(armKind));
+#             const upper = makePart(shoulder, cropBone(cutScaled, w, h, shoulder, elbow, 0.55, 14), hipC, partAnim(armKind));
 #             torso.children.push(upper);
-#             if (wrist) upper.children.push(makePart(elbow, cropBone(cutScaled, w, h, elbow, wrist, 0.4, 9), shoulder, walkAnim(forearmKind)));
+#             if (wrist) upper.children.push(makePart(elbow, cropBone(cutScaled, w, h, elbow, wrist, 0.55, 13), shoulder, partAnim(forearmKind)));
 #           }
 #           limb(lsh, lel, lwr, 'leftArm', 'leftForearm');
 #           limb(rsh, rel, rwr, 'rightArm', 'rightForearm');
@@ -699,8 +785,8 @@ title "Flipbook Studio"
 #           const legs = [];
 #           function leg(hip, knee, ankle, thighKind, shinKind) {
 #             if (!hip || !knee) return;
-#             const thigh = makePart(hip, cropBone(cutScaled, w, h, hip, knee, 0.35, 11), hipC, walkAnim(thighKind));
-#             if (ankle) thigh.children.push(makePart(knee, cropBone(cutScaled, w, h, knee, ankle, 0.35, 10), hip, walkAnim(shinKind)));
+#             const thigh = makePart(hip, cropBone(cutScaled, w, h, hip, knee, 0.5, 16), hipC, partAnim(thighKind));
+#             if (ankle) thigh.children.push(makePart(knee, cropBone(cutScaled, w, h, knee, ankle, 0.5, 15), hip, partAnim(shinKind)));
 #             legs.push(thigh);
 #           }
 #           leg(lhip, lkn, lan, 'leftThigh', 'leftShin');
@@ -708,24 +794,28 @@ title "Flipbook Studio"
 #
 #           commitFloatingSelection();
 #           activeLayer = 'character';
-#           const steps = 10;
+#           const steps = moveInfo.frames;
 #           const insertAt = activeIndex < frames.length ? activeIndex + 1 : frames.length;
 #           const newIndices = [];
 #           for (let k = 0; k < steps; k++) {
-#             const phase = (Math.PI * 2 * k) / steps;
-#             const bob = -Math.abs(Math.sin(phase)) * WALK.bob;
+#             // Looping moves span a full cycle (k/steps never reaches a
+#             // repeated 1.0 - the loop wraps via Loop on playback).
+#             // One-shot moves run k/(steps-1) so the LAST generated frame
+#             // is exactly the held end pose (u=1), not short of it.
+#             const u = moveInfo.loop ? k / steps : (steps > 1 ? k / (steps - 1) : 1);
+#             const bob = moveBob(currentMove, u);
 #             const frameCanvas = document.createElement('canvas');
 #             frameCanvas.width = 560; frameCanvas.height = 400;
 #             const fctx = frameCanvas.getContext('2d');
 #             fctx.save();
 #             fctx.translate(x + hipC.x, y + hipC.y + bob);
-#             legs.forEach((part) => drawRigPart(fctx, part, phase));
-#             drawRigPart(fctx, torso, phase);
+#             legs.forEach((part) => drawRigPart(fctx, part, u));
+#             drawRigPart(fctx, torso, u);
 #             fctx.restore();
 #
 #             const idx = insertAt + k;
 #             frames.splice(idx, 0, frameCanvas.toDataURL('image/png'));
-#             holds.splice(idx, 0, 1);
+#             holds.splice(idx, 0, (!moveInfo.loop && k === steps - 1) ? moveInfo.holdLast : 1);
 #             newIndices.push(idx);
 #           }
 #           activeIndex = newIndices[newIndices.length - 1];
@@ -735,7 +825,7 @@ title "Flipbook Studio"
 #         } catch (err) {
 #           alert('Auto-Rig needs an internet connection (it downloads two small detection models the first time) and couldn\'t load them: ' + err.message + '. Import Image above works offline if you\'d rather place and animate the layers yourself.');
 #         } finally {
-#           rigLabel.textContent = originalLabel;
+#           rigLabelText.textContent = originalLabel;
 #         }
 #       };
 #       img.src = reader.result;
@@ -750,10 +840,10 @@ title "Flipbook Studio"
 #     bgVisibleBtn.classList.toggle('flip-active', bgVisible);
 #   }
 #   updateLayerButtons();
-#   layersRow.append(charLayerBtn, bgLayerBtn, bgVisibleBtn, clearLayerBtn, importLabel, autoLabel, rigLabel);
+#   layersRow.append(charLayerBtn, bgLayerBtn, bgVisibleBtn, clearLayerBtn, importLabel, autoLabel, rigMoveSelect, rigLabel);
 #   const layersHint = document.createElement('div');
 #   layersHint.className = 'flip-hint';
-#   layersHint.textContent = 'Background is one shared layer behind every frame. Character is the per-frame layer New/Save/Duplicate/Delete work on. Auto-Detect splits one picture into both automatically (needs internet the first time); Auto-Rig + Walk does the same but also finds the skeleton and generates a walking loop (best on a clear photo of a person); Import Image places a picture onto whichever layer is active, no internet needed.';
+#   layersHint.textContent = 'Background is one shared layer behind every frame. Character is the per-frame layer New/Save/Duplicate/Delete work on. Auto-Detect splits one picture into both automatically (needs internet the first time); Auto-Rig does the same but also finds the skeleton and generates the move picked in the dropdown - Walk, Dash, Punch, Kick or Block (best on a clear photo of a person); Import Image places a picture onto whichever layer is active, no internet needed.';
 #   layersContent.append(layersLabel, layersRow, layersHint);
 #
 #   // --- frame (exposure sheet) tab content -------------------------------
