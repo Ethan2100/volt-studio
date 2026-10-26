@@ -109,6 +109,14 @@ title "Flipbook Studio"
 ## .flip-file-btn input { display: none; }
 ## .flip-hint { font-size: 0.78em; color: var(--flip-muted); line-height: 1.4; }
 
+## .flip-tabbar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+## .flip-tab { font: inherit; font-size: 0.78em; font-weight: 700; padding: 7px 13px; border-radius: 8px; border: 2px solid transparent; background: #20232f; color: var(--flip-muted); cursor: pointer; }
+## .flip-tab:hover { color: var(--flip-text); }
+## .flip-tab.flip-active { border-color: var(--flip-accent); color: var(--flip-text); background: #3a1826; }
+## .flip-tabcontent { display: none; }
+## .flip-tabcontent.flip-tabcontent-active { display: block; }
+## .flip-tabcontent .flip-label:first-child { margin-top: 0; }
+
 ## .flip-strip { display: flex; gap: 8px; overflow-x: auto; width: 560px; padding: 8px; background: var(--flip-panel); border: 1px solid var(--flip-border); border-radius: 12px; min-height: 68px; }
 ## .flip-thumb { width: 60px; height: 45px; flex: none; border-radius: 6px; border: 2px solid var(--flip-border); background-size: cover; background-position: center; background-color: #e9e6da; cursor: pointer; }
 ## .flip-thumb.flip-thumb-active { border-color: var(--flip-accent); box-shadow: 0 0 0 2px var(--flip-accent); }
@@ -264,11 +272,41 @@ title "Flipbook Studio"
 #     smoothBtn.classList.toggle('flip-active', smooth);
 #   }
 #   updateActive();
-#   toolsPanel.append(toolsLabel, toolsRow, brushLabel, brushRow, shapesLabel, shapesRow);
+#   toolsPanel.append(toolsLabel, toolsRow, shapesLabel, shapesRow);
 #
-#   // --- layers panel ---------------------------------------------------
-#   const layersPanel = document.createElement('div');
-#   layersPanel.className = 'flip-panel';
+#   // --- tabbed secondary panels -----------------------------------------
+#   // Brush textures, Layers, Frame, Tween and Playback used to all sit
+#   // open at once as stacked panels - a wall of controls. They're used
+#   // far less often than color/tool/thickness above, so they're tabs
+#   // now: one visible at a time, switched with a small tab bar.
+#   const tabPanel = document.createElement('div');
+#   tabPanel.className = 'flip-panel';
+#   const tabBar = document.createElement('div');
+#   tabBar.className = 'flip-tabbar';
+#   tabPanel.appendChild(tabBar);
+#   const tabs = [];
+#   function addTab(id, label, contentEl) {
+#     contentEl.className = (contentEl.className ? contentEl.className + ' ' : '') + 'flip-tabcontent';
+#     const btn = document.createElement('button');
+#     btn.type = 'button'; btn.className = 'flip-tab'; btn.textContent = label;
+#     btn.onclick = () => showTab(id);
+#     tabBar.appendChild(btn);
+#     tabPanel.appendChild(contentEl);
+#     tabs.push({ id, btn, contentEl });
+#   }
+#   function showTab(id) {
+#     tabs.forEach((t) => {
+#       t.btn.classList.toggle('flip-active', t.id === id);
+#       t.contentEl.classList.toggle('flip-tabcontent-active', t.id === id);
+#     });
+#   }
+#
+#   // --- Brush texture tab content ---------------------------------------
+#   const brushContent = document.createElement('div');
+#   brushContent.append(brushLabel, brushRow);
+#
+#   // --- layers tab content -----------------------------------------------
+#   const layersContent = document.createElement('div');
 #   const layersLabel = document.createElement('div');
 #   layersLabel.className = 'flip-label'; layersLabel.textContent = 'Layers';
 #   const layersRow = document.createElement('div');
@@ -318,17 +356,15 @@ title "Flipbook Studio"
 #   const layersHint = document.createElement('div');
 #   layersHint.className = 'flip-hint';
 #   layersHint.textContent = 'Background is one shared layer behind every frame. Character is the per-frame layer New/Save/Duplicate/Delete work on.';
-#   layersPanel.append(layersLabel, layersRow, layersHint);
+#   layersContent.append(layersLabel, layersRow, layersHint);
 #
-#   // --- frame (exposure sheet) + playback + export toolbar ----------
-#   const actionsPanel = document.createElement('div');
-#   actionsPanel.className = 'flip-panel';
-#   const frameLabel = document.createElement('div');
-#   frameLabel.className = 'flip-label'; frameLabel.textContent = 'Frame';
+#   // --- frame (exposure sheet) tab content -------------------------------
+#   const frameContent = document.createElement('div');
 #   const frameRow = document.createElement('div');
 #   frameRow.className = 'flip-row';
-#   const playLabel = document.createElement('div');
-#   playLabel.className = 'flip-label'; playLabel.textContent = 'Playback & Export';
+#
+#   // --- playback + export tab content -------------------------------------
+#   const playContent = document.createElement('div');
 #   const playRow = document.createElement('div');
 #   playRow.className = 'flip-row';
 #
@@ -371,13 +407,11 @@ title "Flipbook Studio"
 #     mkBtn('Export', 'flip-btn-accent', () => FLIP.export()),
 #     mkBtn('Export Board', '', () => FLIP.exportBoard()),
 #   );
-#   actionsPanel.append(frameLabel, frameRow, playLabel, playRow);
+#   frameContent.appendChild(frameRow);
+#   playContent.appendChild(playRow);
 #
-#   // --- keyframe tween panel -------------------------------------------
-#   const tweenPanel = document.createElement('div');
-#   tweenPanel.className = 'flip-panel';
-#   const tweenLabel = document.createElement('div');
-#   tweenLabel.className = 'flip-label'; tweenLabel.textContent = 'Keyframe Tween (animates the active layer)';
+#   // --- keyframe tween tab content ---------------------------------------
+#   const tweenContent = document.createElement('div');
 #   const tweenRow = document.createElement('div');
 #   tweenRow.className = 'flip-row';
 #   function mkNum(labelText, value, min, max) {
@@ -401,8 +435,15 @@ title "Flipbook Studio"
 #   tweenRow.appendChild(tweenBtn);
 #   const tweenHint = document.createElement('div');
 #   tweenHint.className = 'flip-hint';
-#   tweenHint.textContent = 'Takes the active layer\'s current drawing (e.g. an imported character) and auto-generates that many in-between frames moving/scaling/rotating/fading it from its current spot to the amounts above, inserted right after the selected frame.';
-#   tweenPanel.append(tweenLabel, tweenRow, tweenHint);
+#   tweenHint.textContent = 'Takes the active layer\'s current drawing (e.g. an imported character) and auto-generates that many in-between frames moving/scaling/rotating/fading it from its current spot to the amounts above, inserted right after the selected frame. Works on the Character layer only.';
+#   tweenContent.append(tweenRow, tweenHint);
+#
+#   addTab('frame', 'Frame', frameContent);
+#   addTab('play', 'Play', playContent);
+#   addTab('layers', 'Layers', layersContent);
+#   addTab('brush', 'Brush', brushContent);
+#   addTab('tween', 'Tween', tweenContent);
+#   showTab('frame');
 #
 #   // --- frame strip (exposure sheet) - click a thumbnail to reopen it
 #   // for editing, instead of frames only ever being appended ----------
@@ -932,7 +973,7 @@ title "Flipbook Studio"
 #
 #   window.addEventListener('DOMContentLoaded', () => {
 #     const volt = document.getElementById('volt');
-#     volt.append(stage, toolsPanel, layersPanel, actionsPanel, tweenPanel, strip);
+#     volt.append(stage, toolsPanel, tabPanel, strip);
 #     renderFps();
 #     renderOnion();
 #     updateFrameToggles();
