@@ -86,6 +86,7 @@ title "Flipbook Studio"
 ## canvas#flip-onion { background: #e9e6da; }
 ## canvas#flip-bg { background: transparent; }
 ## canvas#flip-draw { background: transparent; }
+## canvas#flip-draw2 { background: transparent; }
 ## canvas#flip-overlay { background: transparent; pointer-events: none; }
 ## .flip-stage.flip-cursor-draw { cursor: crosshair; }
 ## .flip-stage.flip-cursor-select { cursor: cell; }
@@ -150,15 +151,24 @@ title "Flipbook Studio"
 #   bg.id = 'flip-bg'; bg.width = 560; bg.height = 400;
 #   const draw = document.createElement('canvas');
 #   draw.id = 'flip-draw'; draw.width = 560; draw.height = 400;
+#   // Second, independently-animatable character - stacked in front of
+#   // the first so a character brought in later (or just drawn second)
+#   // reads as being in front, the usual front-to-back order for a two-
+#   // person shot. Its own per-frame array (frames2) keeps it on the
+#   // same shared timeline as Character 1.
+#   const draw2 = document.createElement('canvas');
+#   draw2.id = 'flip-draw2'; draw2.width = 560; draw2.height = 400;
 #   const overlay = document.createElement('canvas');
 #   overlay.id = 'flip-overlay'; overlay.width = 560; overlay.height = 400;
-#   stage.append(onion, bg, draw, overlay);
+#   stage.append(onion, bg, draw, draw2, overlay);
 #
 #   const onionCtx = onion.getContext('2d');
 #   const bgCtx = bg.getContext('2d');
 #   const ctx = draw.getContext('2d');
+#   const ctx2 = draw2.getContext('2d');
 #   const overlayCtx = overlay.getContext('2d');
 #   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+#   ctx2.lineCap = 'round'; ctx2.lineJoin = 'round';
 #   bgCtx.lineCap = 'round'; bgCtx.lineJoin = 'round';
 #
 #   let color = COLORS[0];
@@ -167,11 +177,11 @@ title "Flipbook Studio"
 #   let tool = 'pen';       // 'pen' | 'line' | 'rect' | 'circle' | 'eraser' | 'fill' | 'select'
 #   let smooth = true;      // stabilizer: the drawn line eases toward the pointer instead of jumping straight to it
 #   let aaIndex = 0;        // index into AA_LEVELS
-#   let activeLayer = 'character'; // 'character' | 'background'
+#   let activeLayer = 'character'; // 'character' | 'character2' | 'background'
 #   let bgVisible = true;
 #
-#   function activeCanvas() { return activeLayer === 'background' ? bg : draw; }
-#   function activeCtx() { return activeLayer === 'background' ? bgCtx : ctx; }
+#   function activeCanvas() { return activeLayer === 'background' ? bg : activeLayer === 'character2' ? draw2 : draw; }
+#   function activeCtx() { return activeLayer === 'background' ? bgCtx : activeLayer === 'character2' ? ctx2 : ctx; }
 #
 #   function applyBrush(targetCtx) {
 #     const c = targetCtx || activeCtx();
@@ -188,7 +198,7 @@ title "Flipbook Studio"
 #
 #   function applyAA() {
 #     const mode = AA_LEVELS[aaIndex];
-#     [ctx, bgCtx, onionCtx].forEach((c) => {
+#     [ctx, ctx2, bgCtx, onionCtx].forEach((c) => {
 #       c.imageSmoothingEnabled = mode !== 'none';
 #       if (mode !== 'none') c.imageSmoothingQuality = mode;
 #     });
@@ -338,9 +348,13 @@ title "Flipbook Studio"
 #   layersRow.className = 'flip-row';
 #   const charLayerBtn = document.createElement('button');
 #   charLayerBtn.type = 'button'; charLayerBtn.className = 'flip-tool'; charLayerBtn.textContent = 'Draw on: Character';
+#   const char2LayerBtn = document.createElement('button');
+#   char2LayerBtn.type = 'button'; char2LayerBtn.className = 'flip-tool'; char2LayerBtn.textContent = 'Draw on: Character 2';
+#   char2LayerBtn.title = 'A second, independently-posed figure sharing the same frames - for two-character shots (sparring, a duel, a reaction shot). Drawn in front of Character. New/Save/Duplicate/Delete move both characters together on the one shared timeline; Import/Auto-Detect/Auto-Rig target whichever of the two is active here.';
 #   const bgLayerBtn = document.createElement('button');
 #   bgLayerBtn.type = 'button'; bgLayerBtn.className = 'flip-tool'; bgLayerBtn.textContent = 'Draw on: Background';
 #   charLayerBtn.onclick = () => { commitFloatingSelection(); activeLayer = 'character'; applyBrush(); updateLayerButtons(); };
+#   char2LayerBtn.onclick = () => { commitFloatingSelection(); activeLayer = 'character2'; applyBrush(); updateLayerButtons(); };
 #   bgLayerBtn.onclick = () => { commitFloatingSelection(); activeLayer = 'background'; applyBrush(); updateLayerButtons(); };
 #   const bgVisibleBtn = document.createElement('button');
 #   bgVisibleBtn.type = 'button'; bgVisibleBtn.className = 'flip-tool'; bgVisibleBtn.textContent = 'Background visible';
@@ -423,13 +437,18 @@ title "Flipbook Studio"
 #   autoLabel.className = 'flip-btn flip-btn-accent flip-file-btn';
 #   const autoLabelText = document.createElement('span'); autoLabelText.textContent = 'Auto-Detect';
 #   autoLabel.appendChild(autoLabelText);
-#   autoLabel.title = 'Splits one picture into Background (the whole image) and Character (just the detected subject, cut out and dropped in as a movable selection) automatically. Needs internet the first time, to download the detection model.';
+#   autoLabel.title = 'Splits one picture into Background (the whole image) and whichever Character layer is active below (just the detected subject, cut out and dropped in as a movable selection) automatically. Needs internet the first time, to download the detection model.';
 #   const autoInput = document.createElement('input');
 #   autoInput.type = 'file'; autoInput.accept = 'image/*';
 #   autoInput.onchange = () => {
 #     const file = autoInput.files && autoInput.files[0];
 #     autoInput.value = '';
 #     if (!file) return;
+#     // Captured at file-pick time: whichever Character layer was active
+#     // ("Draw on") when Auto-Detect was clicked is where the cutout
+#     // lands, so running it twice can target Character then Character 2.
+#     const targetLayer = activeLayer === 'character2' ? 'character2' : 'character';
+#     const targetCtx = targetLayer === 'character2' ? ctx2 : ctx;
 #     const reader = new FileReader();
 #     reader.onload = async () => {
 #       const img = new Image();
@@ -480,9 +499,9 @@ title "Flipbook Studio"
 #             cutScaled.getContext('2d').drawImage(cutCanvasNatural, 0, 0, w, h);
 #
 #             commitFloatingSelection();
-#             activeLayer = 'character';
+#             activeLayer = targetLayer;
 #             const x = Math.round((560 - w) / 2), y = Math.round((400 - h) / 2);
-#             selectState = { phase: 'floating', canvas: cutScaled, x, y, w, h, dragging: false, dragOffset: [0, 0], srcCtx: ctx };
+#             selectState = { phase: 'floating', canvas: cutScaled, x, y, w, h, dragging: false, dragOffset: [0, 0], srcCtx: targetCtx };
 #             tool = 'select';
 #             applyBrush();
 #             updateActive();
@@ -662,7 +681,7 @@ title "Flipbook Studio"
 #   rigLabel.className = 'flip-btn flip-btn-accent flip-file-btn';
 #   const rigLabelText = document.createElement('span'); rigLabelText.textContent = 'Auto-Rig';
 #   rigLabel.appendChild(rigLabelText);
-#   rigLabel.title = 'Imports a picture, finds the subject AND its skeleton (shoulders/elbows/hips/knees/etc.), and auto-generates the move picked below. Works best on a clear photo of a person, mostly visible and roughly upright - needs internet the first time, to download the detection models.';
+#   rigLabel.title = 'Imports a picture, finds the subject AND its skeleton (shoulders/elbows/hips/knees/etc.), and auto-generates the move picked below onto whichever Character layer is active - run it once per character for a two-person scene. Works best on a clear photo of a person, mostly visible and roughly upright - needs internet the first time, to download the detection models.';
 #   const rigMoveSelect = document.createElement('select');
 #   rigMoveSelect.className = 'flip-btn';
 #   [['walk', 'Walk'], ['dash', 'Dash'], ['punch', 'Punch'], ['kick', 'Kick'], ['block', 'Block']].forEach(([val, label]) => {
@@ -675,6 +694,12 @@ title "Flipbook Studio"
 #     const file = rigInput.files && rigInput.files[0];
 #     rigInput.value = '';
 #     if (!file) return;
+#     // Captured at file-pick time, same as Auto-Detect: whichever
+#     // Character layer is active ("Draw on") is the one Auto-Rig
+#     // builds the skeleton and generated move onto - run it once per
+#     // character to rig a two-person scene.
+#     const targetLayer = activeLayer === 'character2' ? 'character2' : 'character';
+#     const targetCtx = targetLayer === 'character2' ? ctx2 : ctx;
 #     const reader = new FileReader();
 #     reader.onload = async () => {
 #       const img = new Image();
@@ -729,8 +754,8 @@ title "Flipbook Studio"
 #             // to dropping the cutout in as a normal movable selection,
 #             // same as Auto-Detect, so the import still isn't wasted.
 #             commitFloatingSelection();
-#             activeLayer = 'character';
-#             selectState = { phase: 'floating', canvas: cutScaled, x, y, w, h, dragging: false, dragOffset: [0, 0], srcCtx: ctx };
+#             activeLayer = targetLayer;
+#             selectState = { phase: 'floating', canvas: cutScaled, x, y, w, h, dragging: false, dragOffset: [0, 0], srcCtx: targetCtx };
 #             tool = 'select';
 #             applyBrush(); updateActive(); updateLayerButtons();
 #             stage.className = 'flip-stage flip-cursor-select';
@@ -793,10 +818,15 @@ title "Flipbook Studio"
 #           leg(rhip, rkn, ran, 'rightThigh', 'rightShin');
 #
 #           commitFloatingSelection();
-#           activeLayer = 'character';
+#           activeLayer = targetLayer;
 #           const steps = moveInfo.frames;
 #           const insertAt = activeIndex < frames.length ? activeIndex + 1 : frames.length;
 #           const newIndices = [];
+#           // The other Character layer isn't part of this generation -
+#           // freeze its current pose into every newly-inserted frame so
+#           // it doesn't vanish while this one gets its move (same
+#           // approach as Keyframe Tween).
+#           const otherFrozen = (targetLayer === 'character2' ? draw : draw2).toDataURL('image/png');
 #           for (let k = 0; k < steps; k++) {
 #             // Looping moves span a full cycle (k/steps never reaches a
 #             // repeated 1.0 - the loop wraps via Loop on playback).
@@ -814,7 +844,9 @@ title "Flipbook Studio"
 #             fctx.restore();
 #
 #             const idx = insertAt + k;
-#             frames.splice(idx, 0, frameCanvas.toDataURL('image/png'));
+#             const data = frameCanvas.toDataURL('image/png');
+#             if (targetLayer === 'character2') { frames2.splice(idx, 0, data); frames.splice(idx, 0, otherFrozen); }
+#             else { frames.splice(idx, 0, data); frames2.splice(idx, 0, otherFrozen); }
 #             holds.splice(idx, 0, (!moveInfo.loop && k === steps - 1) ? moveInfo.holdLast : 1);
 #             newIndices.push(idx);
 #           }
@@ -836,14 +868,15 @@ title "Flipbook Studio"
 #
 #   function updateLayerButtons() {
 #     charLayerBtn.classList.toggle('flip-active', activeLayer === 'character');
+#     char2LayerBtn.classList.toggle('flip-active', activeLayer === 'character2');
 #     bgLayerBtn.classList.toggle('flip-active', activeLayer === 'background');
 #     bgVisibleBtn.classList.toggle('flip-active', bgVisible);
 #   }
 #   updateLayerButtons();
-#   layersRow.append(charLayerBtn, bgLayerBtn, bgVisibleBtn, clearLayerBtn, importLabel, autoLabel, rigMoveSelect, rigLabel);
+#   layersRow.append(charLayerBtn, char2LayerBtn, bgLayerBtn, bgVisibleBtn, clearLayerBtn, importLabel, autoLabel, rigMoveSelect, rigLabel);
 #   const layersHint = document.createElement('div');
 #   layersHint.className = 'flip-hint';
-#   layersHint.textContent = 'Background is one shared layer behind every frame. Character is the per-frame layer New/Save/Duplicate/Delete work on. Auto-Detect splits one picture into both automatically (needs internet the first time); Auto-Rig does the same but also finds the skeleton and generates the move picked in the dropdown - Walk, Dash, Punch, Kick or Block (best on a clear photo of a person); Import Image places a picture onto whichever layer is active, no internet needed.';
+#   layersHint.textContent = 'Background is one shared layer behind every frame. Character and Character 2 are two independent per-frame layers on the same timeline - New/Save/Duplicate/Delete move both together, so draw/pose one, switch "Draw on" to the other, and pose it for the same frames (a two-character shot). Auto-Detect splits one picture into Background + whichever Character layer is active (needs internet the first time); Auto-Rig does the same but also finds the skeleton and generates the move picked in the dropdown - Walk, Dash, Punch, Kick or Block - onto whichever Character layer is active (best on a clear photo of a person); Import Image places a picture onto whichever layer is active, no internet needed.';
 #   layersContent.append(layersLabel, layersRow, layersHint);
 #
 #   // --- frame (exposure sheet) tab content -------------------------------
@@ -941,7 +974,7 @@ title "Flipbook Studio"
 #   tweenRow.append(easeBtn, tweenBtn);
 #   const tweenHint = document.createElement('div');
 #   tweenHint.className = 'flip-hint';
-#   tweenHint.textContent = 'Takes the active layer\'s current drawing (e.g. an imported character) and auto-generates that many in-between frames moving/scaling/rotating/fading it from its current spot to the amounts above, inserted right after the selected frame. Works on the Character layer only.';
+#   tweenHint.textContent = 'Takes the active layer\'s current drawing (e.g. an imported character) and auto-generates that many in-between frames moving/scaling/rotating/fading it from its current spot to the amounts above, inserted right after the selected frame. Works on Character or Character 2, whichever is active - the other one keeps its current pose through the new frames.';
 #   tweenContent.append(tweenRow, tweenHint);
 #   function renderEaseBtn() { easeBtn.textContent = 'Ease: ' + EASE_LABELS[easeMode]; }
 #
@@ -958,7 +991,8 @@ title "Flipbook Studio"
 #   strip.className = 'flip-strip';
 #
 #   // --- drawing --------------------------------------------------------
-#   const frames = [];     // character-layer-only dataURLs, one per frame slot
+#   const frames = [];     // Character-layer dataURLs, one per frame slot
+#   const frames2 = [];    // Character 2-layer dataURLs - always kept the same length as `frames`, same index = same point in time, so the two characters share one timeline
 #   const holds = [];      // exposure count per frame (how many ticks it's held) - "on 1s/2s/3s" timing, parallel to frames
 #   let activeIndex = 0;   // index into frames, or === frames.length for a blank unsaved draft
 #   let easeMode = 'linear'; // 'linear' | 'in' | 'out' | 'inout' - shapes Tween's interpolation curve
@@ -1243,22 +1277,42 @@ title "Flipbook Studio"
 #   stage.addEventListener('pointerleave', (e) => { if (tool !== 'select') endStroke(e); });
 #
 #   function clearCanvas() { ctx.clearRect(0, 0, 560, 400); }
+#   function clearCanvas2() { ctx2.clearRect(0, 0, 560, 400); }
+#
+#   // Loads a dataURL into an <img>, resolving null for a missing/blank
+#   // source instead of rejecting - used everywhere two character layers
+#   // need to be fetched in parallel (one of the two is very often empty
+#   // for a given frame) without one missing layer breaking the other.
+#   function loadImg(src) {
+#     return new Promise((resolve) => {
+#       if (!src) { resolve(null); return; }
+#       const img = new Image();
+#       img.onload = () => resolve(img);
+#       img.onerror = () => resolve(null);
+#       img.src = src;
+#     });
+#   }
 #
 #   function loadFrame(idx) {
-#     clearCanvas();
-#     if (idx >= 0 && idx < frames.length) {
+#     clearCanvas(); clearCanvas2();
+#     if (idx >= 0 && idx < frames.length && frames[idx]) {
 #       const img = new Image();
 #       img.onload = () => ctx.drawImage(img, 0, 0, 560, 400);
 #       img.src = frames[idx];
 #     }
+#     if (idx >= 0 && idx < frames2.length && frames2[idx]) {
+#       const img2 = new Image();
+#       img2.onload = () => ctx2.drawImage(img2, 0, 0, 560, 400);
+#       img2.src = frames2[idx];
+#     }
 #   }
 #
-#   // Composites the background layer (if visible) with a given
-#   // character-layer image onto a fresh canvas and returns its PNG
-#   // data URL - used for the onion ghost, thumbnails, playback and
-#   // export, all of which need the two layers flattened into one
-#   // picture.
-#   function compositeWith(characterImg) {
+#   // Composites the background layer (if visible) with the two
+#   // character-layer images onto a fresh canvas and returns it - used
+#   // for the onion ghost, thumbnails, playback and export, all of which
+#   // need every layer flattened into one picture. Character 2 is drawn
+#   // on top of Character, matching their front-to-back stacking live.
+#   function compositeWith(characterImg, character2Img) {
 #     const c = document.createElement('canvas');
 #     c.width = 560; c.height = 400;
 #     const cx = c.getContext('2d');
@@ -1266,13 +1320,12 @@ title "Flipbook Studio"
 #     cx.fillRect(0, 0, 560, 400);
 #     if (bgVisible) cx.drawImage(bg, 0, 0);
 #     if (characterImg) cx.drawImage(characterImg, 0, 0, 560, 400);
+#     if (character2Img) cx.drawImage(character2Img, 0, 0, 560, 400);
 #     return c;
 #   }
 #   function compositeFrame(idx, cb) {
-#     if (idx < 0 || idx >= frames.length) { cb(compositeWith(null)); return; }
-#     const img = new Image();
-#     img.onload = () => cb(compositeWith(img));
-#     img.src = frames[idx];
+#     if (idx < 0 || idx >= frames.length) { cb(compositeWith(null, null)); return; }
+#     Promise.all([loadImg(frames[idx]), loadImg(frames2[idx])]).then(([img1, img2]) => cb(compositeWith(img1, img2)));
 #   }
 #
 #   function renderOnion() {
@@ -1281,9 +1334,12 @@ title "Flipbook Studio"
 #     onionCtx.fillRect(0, 0, 560, 400);
 #     const prevIdx = activeIndex - 1;
 #     if (onionOn && prevIdx >= 0 && prevIdx < frames.length) {
-#       const img = new Image();
-#       img.onload = () => { onionCtx.globalAlpha = 0.3; onionCtx.drawImage(img, 0, 0, 560, 400); onionCtx.globalAlpha = 1; };
-#       img.src = frames[prevIdx];
+#       Promise.all([loadImg(frames[prevIdx]), loadImg(frames2[prevIdx])]).then(([img1, img2]) => {
+#         onionCtx.globalAlpha = 0.3;
+#         if (img1) onionCtx.drawImage(img1, 0, 0, 560, 400);
+#         if (img2) onionCtx.drawImage(img2, 0, 0, 560, 400);
+#         onionCtx.globalAlpha = 1;
+#       });
 #     }
 #   }
 #   function renderStrip() {
@@ -1307,18 +1363,24 @@ title "Flipbook Studio"
 #       if (playing) return;
 #       commitFloatingSelection();
 #       activeIndex = frames.length;
-#       clearCanvas();
+#       clearCanvas(); clearCanvas2();
 #       renderOnion();
 #       renderStrip();
 #       renderHold();
 #     },
+#     // Snapshots BOTH character canvases together into this frame slot -
+#     // draw/pose Character, switch "Draw on" to Character 2, pose it too,
+#     // then one Save captures both for this point in the timeline.
 #     saveFrame() {
 #       commitFloatingSelection();
 #       const data = draw.toDataURL('image/png');
+#       const data2 = draw2.toDataURL('image/png');
 #       if (activeIndex < frames.length) {
 #         frames[activeIndex] = data;
+#         frames2[activeIndex] = data2;
 #       } else {
 #         frames.push(data);
+#         frames2.push(data2);
 #         holds.push(1);
 #         activeIndex = frames.length - 1;
 #       }
@@ -1331,6 +1393,7 @@ title "Flipbook Studio"
 #       commitFloatingSelection();
 #       const srcIdx = Math.min(activeIndex, frames.length - 1);
 #       frames.splice(srcIdx + 1, 0, frames[srcIdx]);
+#       frames2.splice(srcIdx + 1, 0, frames2[srcIdx]);
 #       holds.splice(srcIdx + 1, 0, holds[srcIdx]);
 #       activeIndex = srcIdx + 1;
 #       loadFrame(activeIndex);
@@ -1342,10 +1405,11 @@ title "Flipbook Studio"
 #       if (!frames.length || activeIndex >= frames.length) return;
 #       commitFloatingSelection();
 #       frames.splice(activeIndex, 1);
+#       frames2.splice(activeIndex, 1);
 #       holds.splice(activeIndex, 1);
 #       if (!frames.length) {
 #         activeIndex = 0;
-#         clearCanvas();
+#         clearCanvas(); clearCanvas2();
 #       } else {
 #         if (activeIndex >= frames.length) activeIndex = frames.length - 1;
 #         loadFrame(activeIndex);
@@ -1378,20 +1442,27 @@ title "Flipbook Studio"
 #       if (playing) { this.stop(); this.play(); }
 #       return fps;
 #     },
-#     // Reads the Character layer's CURRENT bitmap as a single "object"
-#     // (e.g. an imported character image) and auto-generates `steps` new
-#     // frames right after the selected one, each redrawing that bitmap
-#     // at a linearly interpolated position/scale/rotation/opacity between
-#     // where it is now and the amounts entered in the panel. Only the
-#     // Character layer can be tweened this way - Background is one
-#     // layer shared by every frame, so it has no "per frame" version to
-#     // animate between.
+#     // Reads whichever Character layer is active's CURRENT bitmap as a
+#     // single "object" (e.g. an imported character image) and
+#     // auto-generates `steps` new frames right after the selected one,
+#     // each redrawing that bitmap at a linearly interpolated position/
+#     // scale/rotation/opacity between where it is now and the amounts
+#     // entered in the panel. Only a Character layer can be tweened this
+#     // way - Background is one layer shared by every frame, so it has
+#     // no "per frame" version to animate between. The OTHER character
+#     // layer isn't being tweened here, so each new frame slot just
+#     // repeats its current pose, instead of going blank, while this one
+#     // moves - switch layers afterward to animate it through the same
+#     // stretch.
 #     generateTween() {
 #       commitFloatingSelection();
 #       if (activeLayer === 'background') {
-#         alert('Keyframe Tween animates the Character layer. Background is shared by every frame, so it can\'t be tweened per frame - switch "Draw on" to Character first.');
+#         alert('Keyframe Tween animates a Character layer. Background is shared by every frame, so it can\'t be tweened per frame - switch "Draw on" to Character or Character 2 first.');
 #         return;
 #       }
+#       const onChar2 = activeLayer === 'character2';
+#       const movingCanvas = onChar2 ? draw2 : draw;
+#       const otherFrozen = (onChar2 ? draw : draw2).toDataURL('image/png');
 #       const dx = Number(tweenDx.value) || 0;
 #       const dy = Number(tweenDy.value) || 0;
 #       const scalePct = Number(tweenScale.value) || 100;
@@ -1401,7 +1472,7 @@ title "Flipbook Studio"
 #
 #       const movingSrc = document.createElement('canvas');
 #       movingSrc.width = 560; movingSrc.height = 400;
-#       movingSrc.getContext('2d').drawImage(draw, 0, 0);
+#       movingSrc.getContext('2d').drawImage(movingCanvas, 0, 0);
 #
 #       const insertAt = activeIndex < frames.length ? activeIndex + 1 : frames.length;
 #       const newIndices = [];
@@ -1426,7 +1497,9 @@ title "Flipbook Studio"
 #         fctx.restore();
 #
 #         const idx = insertAt + step - 1;
-#         frames.splice(idx, 0, frameCanvas.toDataURL('image/png'));
+#         const data = frameCanvas.toDataURL('image/png');
+#         if (onChar2) { frames2.splice(idx, 0, data); frames.splice(idx, 0, otherFrozen); }
+#         else { frames.splice(idx, 0, data); frames2.splice(idx, 0, otherFrozen); }
 #         holds.splice(idx, 0, 1);
 #         newIndices.push(idx);
 #       }
@@ -1439,9 +1512,12 @@ title "Flipbook Studio"
 #     },
 #     // Inserts a single, fully opaque near-white frame right after the
 #     // selected one - a classic anime "impact flash" cut. It's stored
-#     // just like any other Character-layer frame (so it fully covers
-#     // the Background too, which is what sells the flash), and starts
-#     // with hold 1 - bump the hold if you want the white to linger.
+#     // on the Character layer (so it fully covers the Background too,
+#     // which is what sells the flash) with Character 2 left blank at
+#     // that index - the opaque white frame already covers the whole
+#     // picture, so there's nothing for a second layer to add there -
+#     // and starts with hold 1 - bump the hold if you want the white to
+#     // linger.
 #     insertFlash() {
 #       commitFloatingSelection();
 #       const flashCanvas = document.createElement('canvas');
@@ -1451,6 +1527,7 @@ title "Flipbook Studio"
 #       fctx.fillRect(0, 0, 560, 400);
 #       const idx = activeIndex < frames.length ? activeIndex + 1 : frames.length;
 #       frames.splice(idx, 0, flashCanvas.toDataURL('image/png'));
+#       frames2.splice(idx, 0, '');
 #       holds.splice(idx, 0, 1);
 #       activeIndex = idx;
 #       loadFrame(activeIndex);
@@ -1473,6 +1550,7 @@ title "Flipbook Studio"
 #       if (!frames.length || playing) return;
 #       playing = true;
 #       draw.style.visibility = 'hidden';
+#       draw2.style.visibility = 'hidden';
 #       bg.style.visibility = 'hidden';
 #       let i = 0;
 #       onionCtx.clearRect(0, 0, 560, 400);
@@ -1494,6 +1572,7 @@ title "Flipbook Studio"
 #       playing = false;
 #       clearTimeout(playTimer);
 #       draw.style.visibility = 'visible';
+#       draw2.style.visibility = 'visible';
 #       bg.style.visibility = bgVisible ? 'visible' : 'hidden';
 #       renderOnion();
 #     },
