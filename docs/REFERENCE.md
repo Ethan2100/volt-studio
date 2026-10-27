@@ -308,13 +308,16 @@ every frame {                         // 60 times a second
 | `touchpad "x", "z"` | On phones and tablets: an arrow pad plus a button for each key |
 | `music "e5 g5 a5 _ -", "a2 - e2 -" tempo 140` | A looping chiptune: a melody and an optional bass line. Each word is one step: a note like `c4` or `f#5`, `-` for a rest, `_` to hold the note before. Starting the song that's already playing does nothing, so it's safe inside `every frame` |
 | `music off` | Stops the music |
+| `audio hit = "hit1.mp3", "hit2.mp3"` | Loads sound files (`.mp3`, `.ogg`, `.wav`, `.m4a`) from beside your .volt file. Top level only. With several files, each play picks one at random, so repeated hits don't sound the same. Packed into the page like pictures |
+| `sound hit` | Plays a sound. Add `volume 40` (0-100) to make it quieter |
+| `volume 50` | How loud everything is: sounds, beeps and music. `volume 0` mutes the game |
 | `save "best", score` | Keeps a value (a number, text or a list) in this browser, even after the page is closed |
 | `saved("best", 0)` | Reads a saved value back, or the default if nothing is saved yet |
 
 Things to know:
 
 - `draw`, `box` and `write` all follow the camera. Positions are whole pixels.
-- Browsers only play sound after the player presses a key or clicks, so start the music from a title screen's "press X".
+- Browsers only play sound after the player presses a key or clicks, so start the music from a title screen's "press X". `.mp3` files work in every browser.
 - Volt numbers are whole numbers. For smooth slow movement, keep positions times 10 (`x10 += speed`) and draw at `x10 / 10`.
 - `examples/dungeon/moonwell.volt` is a full dungeon crawler written this way: three floors, monsters and bosses, keys, weapons, a shop, music and a saved journey.
 
@@ -904,6 +907,9 @@ touchpad "x", "z"
 music "c5 e5 g5 _", "c3 - g2 -" tempo 150
 music off
 save "best", score   saved("best", 0)
+audio hit = "hit1.mp3", "hit2.mp3"
+sound hit volume 60
+volume 0
 
 random(1, 6)  map(x, 0, 1023, 0, 100)  constrain(x, 0, 100)
 min(a, b)  max(a, b)  abs(x)

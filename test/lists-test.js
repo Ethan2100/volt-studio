@@ -79,6 +79,9 @@ const errors = [
   ['#c++\ntone 440 for 100ms\n', 'needs the buzzer'],
   ['#python\nsave "best", 3\n', 'only works in #html'],
   ['#js\nmusic "c4 e4", "c2" tempo 120\n', 'only works in #html'],
+  ['#html\naudio boom = "missing.mp3"\n', "Can't find the sound"],
+  ['#html\naudio boom = "boom.txt"\n', "isn't a sound"],
+  ['#html\nsound boom\n', "no sound called 'boom'"],
 ];
 for (const [src, msg] of errors) {
   try {

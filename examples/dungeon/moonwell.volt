@@ -20,6 +20,31 @@ touchpad "x", "z", "c"
 
 image tiles = "dungeon.png"
 
+// ---------- sounds (Kenney.nl, CC0): several files = a random pick each time ----------
+audio sndSwing = "sounds/swing1.mp3", "sounds/swing2.mp3"
+audio sndHit = "sounds/hit1.mp3", "sounds/hit2.mp3", "sounds/hit3.mp3"
+audio sndHeavy = "sounds/heavy1.mp3", "sounds/heavy2.mp3"
+audio sndHurt = "sounds/hurt1.mp3", "sounds/hurt2.mp3"
+audio sndSlam = "sounds/slam1.mp3", "sounds/slam2.mp3"
+audio sndStep = "sounds/step1.mp3", "sounds/step2.mp3", "sounds/step3.mp3"
+audio sndCoin = "sounds/coin.mp3"
+audio sndChest = "sounds/chest.mp3"
+audio sndDoor = "sounds/door.mp3"
+audio sndLocked = "sounds/locked.mp3"
+audio sndDash = "sounds/dash.mp3"
+audio sndSwitch = "sounds/switch.mp3"
+audio sndSpikes = "sounds/spikes.mp3"
+audio sndTick = "sounds/tick.mp3"
+audio sndBuy = "sounds/buy.mp3"
+audio sndNope = "sounds/nope.mp3"
+audio sndHeal = "sounds/heal.mp3"
+audio jingleKey = "sounds/key.mp3"
+audio jingleTreasure = "sounds/treasure.mp3"
+audio jingleFallen = "sounds/fallen.mp3"
+audio jingleFloor = "sounds/floor.mp3"
+audio jingleBoss = "sounds/bossdown.mp3"
+audio jingleWin = "sounds/victory.mp3"
+
 // ---------- sprites: rectangles cut out of dungeon.png ----------
 // floors (frames are the different cracked versions)
 sprite floorA = tiles at 16, 64 size 16, 16 frames 3
@@ -400,6 +425,7 @@ let seenSpikes = false
 let seenRest = false
 let healedAt = -1000
 let muted = false
+let winAt = 0
 let shopNear = -1
 let bestTime = 0
 let save0 = []
@@ -664,6 +690,7 @@ fn enterFloor(f) {
   fadeIn = 30
   mode = 1
   saveGame()
+  sound jingleFloor volume 80
   if floor == 0 {
     say("THE REST CAMP\nA quiet cave between the floors.")
     say("MAGE:\nAh, a knight! Gold for steel. Have a look.")
@@ -713,9 +740,10 @@ fn continueJourney() {
 }
 
 fn useLadder() {
-  tone 523 to 1046 for 300ms
   if floor == 3 {
     mode = 3
+    winAt = tick
+    sound jingleWin
     save "moonwell", []
     if bestTime == 0 or playTime < bestTime {
       bestTime = playTime
@@ -853,12 +881,12 @@ fn hurtHero(amount, fromX, fromY) {
   freeze = 4
   kbx = sign(hx + 5 - fromX) * 4
   kby = sign(hy + 4 - fromY) * 4
-  tone 240 to 70 for 160ms
+  sound sndHurt
   burst(hx + 5, hy - 4, 10, "#ff4d6d", 25)
   if hp <= 0 {
     hp = 0
     dying = 70
-    tone 300 to 40 for 600ms
+    sound jingleFallen
   }
 }
 
@@ -920,6 +948,9 @@ fn updateHero() {
     }
   } else {
     moveHero(mx * speed, my * speed)
+  }
+  if moving and dash == 0 and tick % 18 == 0 {
+    sound sndStep volume 22
   }
   if dashCool > 0 {
     dashCool -= 1
@@ -1011,7 +1042,11 @@ fn hitEnemy(n, dmg, pushX, pushY) {
   }
   freeze = 3
   shake = max(shake, 4)
-  tone 180 to 60 for 70ms
+  if weapon == 3 {
+    sound sndHeavy
+  } else {
+    sound sndHit
+  }
   burst(ex[n] + enemyW(k) / 2, ey[n] + enemyH(k) - kindTall[k] / 2, 8, "#ffffff", 22)
 }
 
@@ -1083,7 +1118,7 @@ fn switchWeapon() {
   }
   weapon = pick
   weaponShow = 90
-  tone 400 to 600 for 60ms
+  sound sndSwitch
 }
 
 fn giveWeapon(wid) {
@@ -1165,9 +1200,10 @@ fn pressX() {
           checkY = dry[n] * 16 - 10
         }
         shake = 6
-        tone 110 to 55 for 300ms
+        sound sndDoor
         burst(drx[n] * 16 + 16, dry[n] * 16 + 8, 18, "#c9a27e", 20)
       } else {
+        sound sndLocked
         say("The door is locked tight.\nThere must be a key somewhere on this floor.")
       }
       return 0
@@ -1185,7 +1221,7 @@ fn pressX() {
     checkX = hx
     checkY = hy
     burst(cx, cy - 10, 20, "#9bd3ff", 18)
-    tone 500 to 1200 for 300ms
+    sound sndHeal
     if tick - healedAt > 600 {
       say("The cold moonwater fills you with strength.\nYour hearts are restored.")
     }
@@ -1197,9 +1233,10 @@ fn pressX() {
     swing = wLen[weapon]
     swingHit = false
     if weapon == 3 {
-      tone 160 to 70 for 90ms
-    } else {
-      tone 320 to 140 for 50ms
+      sound sndSwing
+      tone 120 to 60 for 120ms
+    } else if weapon != 5 {
+      sound sndSwing volume 70
     }
   }
 }
@@ -1207,23 +1244,27 @@ fn pressX() {
 fn buy(item) {
   let cost = shopCost[item]
   if item >= 3 and contains(owned, item - 1) {
+    sound sndNope
     say("You already own the " + shopName[item] + ".\nPress C to switch to it.")
     return 0
   }
   if item == 2 and maxHp >= 10 {
+    sound sndNope
     say("Five hearts is as strong as a knight gets.")
     return 0
   }
   if item == 1 and hp >= maxHp {
+    sound sndNope
     say("Your hearts are already full.")
     return 0
   }
   if coins < cost {
+    sound sndNope
     say("MAGE:\nThat's " + cost + " gold. You have " + coins + ". Come back richer!")
     return 0
   }
   coins -= cost
-  tone 880 to 1320 for 160ms
+  sound sndBuy
   burst(hx + 5, hy - 8, 14, "#ffd23f", 16)
   if item == 1 {
     hp = min(maxHp, hp + 4)
@@ -1245,7 +1286,7 @@ fn pressZ() {
   if dashCool == 0 and swing == 0 {
     dash = 9
     dashCool = 36
-    tone 200 to 500 for 80ms
+    sound sndDash
     if faceX == 0 and faceY == 0 {
       faceY = 1
     }
@@ -1254,13 +1295,13 @@ fn pressZ() {
 
 fn openChest(n) {
   chOpen[n] = 1
-  tone 400 to 800 for 120ms
+  sound sndChest
   let px = chx[n] * 16 + 8
   let py = chy[n] * 16 + 4
   burst(px, py, 14, "#ffd23f", 16)
   if chWhat[n] == 1 {
     keys += 1
-    tone 660 to 1320 for 250ms
+    sound jingleKey
     say("You found a KEY!\nIt opens one locked door. Press X beside it.")
   } else if chWhat[n] == 3 {
     let wid = floor + 1
@@ -1269,11 +1310,12 @@ fn openChest(n) {
       say("A " + wName[wid] + "... you already have one.\nYou sell the spare for 25 gold.")
     } else {
       giveWeapon(wid)
-      tone 523 to 1568 for 400ms
+      sound jingleTreasure
       say("You found the " + upper(wName[wid]) + "!\n" + wInfo[wid] + "  (C switches weapons)")
     }
   } else {
     coins += 10
+    sound sndCoin
     add px to ix
     add py + 14 to iy
     add 2 to ikind
@@ -1421,7 +1463,7 @@ fn killEnemy(n) {
   let py = ey[n] + enemyH(k) / 2
   burst(px, py - 6, 22, "#ff8a3d", 28)
   burst(px, py - 6, 10, "#6b5b55", 16)
-  tone 300 to 40 for 200ms
+  sound sndHeavy volume 70
   shake = max(shake, 6)
   let roll = random(1, 100)
   if k != 12 or roll <= 25 {
@@ -1446,7 +1488,8 @@ fn killEnemy(n) {
     bcol = []
     burst(px, py - 10, 60, "#ffd23f", 45)
     burst(px, py - 10, 40, "#e8f4ff", 35)
-    tone 80 to 30 for 1200ms
+    sound sndSlam
+    sound jingleBoss
     // a pile of gold
     repeat 8 {
       add px + random(-20, 20) to ix
@@ -1532,7 +1575,7 @@ fn updateBoss(n, dx, dy, far) {
       }
       if bossRush == 0 {
         shake = 10
-        tone 90 to 40 for 200ms
+        sound sndSlam
         if bossAngry {
           ring(px, py + 6, tick % 2 == 0, "#c9a27e")
         }
@@ -1651,12 +1694,12 @@ fn updateItems() {
     if abs(ix[n] - (hx + 5)) < 11 and abs(iy[n] - (hy + 2)) < 12 {
       if ikind[n] == 1 {
         coins += 2
-        tone 988 to 1480 for 70ms
+        sound sndCoin volume 60
         burst(ix[n], iy[n], 5, "#ffd23f", 12)
         took = true
       } else if hp < maxHp {
         hp = min(maxHp, hp + 2)
-        tone 440 to 880 for 200ms
+        sound sndHeal
         burst(ix[n], iy[n], 10, "#ff4d6d", 14)
         took = true
       }
@@ -1695,6 +1738,23 @@ fn updateSparks() {
       remove qcol[n]
     } else {
       n += 1
+    }
+  }
+}
+
+// spikes start to rise: a warning clank if any are near the hero
+fn spikeWarning() {
+  if tick % 150 != 80 {
+    return 0
+  }
+  let tx = (hx + 5) / 16
+  let ty = (hy + 4) / 16
+  for sy from ty - 5 to ty + 5 {
+    for sx from tx - 8 to tx + 8 {
+      if cell(sx, sy) == "^" {
+        sound sndSpikes volume 45
+        return 0
+      }
     }
   }
 }
@@ -1746,10 +1806,11 @@ fn update() {
   updateFlames()
   updateItems()
   checkRooms()
+  spikeWarning()
 }
 
 fn pickMusic() {
-  if muted {
+  if dying > 0 or mode == 2 or (mode == 3 and tick - winAt < 110) {
     music off
   } else if mode == 0 {
     music songTitle, bassTitle tempo 110
@@ -2245,7 +2306,7 @@ fn drawTalk() {
   if tick % 2 == 0 and shown < length(words) {
     shown += 1
     if shown % 3 == 0 {
-      tone 640 for 12ms
+      sound sndTick volume 30
     }
   }
   box 8, 124, 304, 50 color "#05040acc"
@@ -2364,6 +2425,11 @@ when key "q" pressed {
 }
 when key "m" pressed {
   muted = not muted
+  if muted {
+    volume 0
+  } else {
+    volume 100
+  }
 }
 when key "n" pressed {
   if mode == 0 and length(msgs) == 0 {

@@ -168,7 +168,7 @@ const PIN_MODES = ['input', 'output', 'analog', 'pwm', 'servo', 'stepper'];
 const PAGE_WORDS = ['button', 'title', 'html'];
 // Game commands (#html canvas games) and list commands. Like the page words they
 // aren't keywords, so 'let box = 3' or 'fn draw()' in older programs still work.
-const GAME_WORDS = ['canvas', 'image', 'sprite', 'draw', 'paint', 'box', 'write', 'camera', 'touchpad', 'music', 'save'];
+const GAME_WORDS = ['canvas', 'image', 'sprite', 'draw', 'paint', 'box', 'write', 'camera', 'touchpad', 'music', 'save', 'audio', 'sound', 'volume'];
 const LIST_WORDS = ['add', 'remove'];
 const NOT_A_COMMAND = ['=', '(', '[', '+=', '-=', '*=', '/=', 'eof'];
 
@@ -628,6 +628,25 @@ function parse(tokens) {
         const [x, y] = pair();
         return { kind: 'Camera', x, y, line };
       }
+      // audio hit = "hit1.mp3", "hit2.mp3"      (several files: one is picked at random each time)
+      case 'audio': {
+        if (!topLevel) topLevelOnly(t);
+        const name = expect('ident', 'a name for the sound').value;
+        expect('=', "'='");
+        const files = [expect('string', 'the sound file in quotes, like "hit.mp3"').value];
+        while (match(',')) files.push(expect('string', 'another sound file in quotes').value);
+        return { kind: 'Audio', name, files, line };
+      }
+      // sound hit      sound hit volume 40
+      case 'sound': {
+        const name = expect('ident', 'the name of a sound (made with audio)').value;
+        let volume = null;
+        if (isWord('volume')) { next(); volume = expression(); }
+        return { kind: 'Sound', name, volume, line };
+      }
+      // volume 50      (how loud everything is, 0 to 100)
+      case 'volume':
+        return { kind: 'Volume', value: expression(), line };
       // touchpad "x", "z"      (on phones: arrow pad plus buttons for these keys)
       case 'touchpad': {
         const keys = [expect('string', 'a key in quotes, like "x"').value];
@@ -1086,7 +1105,7 @@ const GAME_RUNTIME = [
   "    if (f2 != null) o.frequency.exponentialRampToValueAtTime(Math.max(20, f2), t + d);",
   "    g.gain.setValueAtTime(0.05, t);",
   "    g.gain.exponentialRampToValueAtTime(0.0001, t + d);",
-  "    o.connect(g); g.connect(__ac.destination);",
+  "    o.connect(g); g.connect(__dest());",
   "    o.start(t); o.stop(t + d + 0.02);",
   "  } catch (e) { /* no sound card: stay quiet */ }",
   "}",
@@ -1113,6 +1132,45 @@ const GAME_RUNTIME = [
   "  pad.append(dpad, acts);",
   "  document.body.appendChild(pad);",
   "}",
+  "// volume 50: loudness of everything (0 is silent). audio/sound: sound files, picked at random when there are several",
+  "let __vol = 1, __master = null;",
+  "function __dest() {",
+  "  if (!__master) { __master = __ac.createGain(); __master.gain.value = __vol; __master.connect(__ac.destination); }",
+  "  return __master;",
+  "}",
+  "function __volume(v) { __vol = Math.max(0, Math.min(1, v / 100)); if (__master) __master.gain.value = __vol; }",
+  "const __sounds = [];",
+  "function __audio(srcs, name) { const a = { srcs, name, bufs: null, busy: false }; __sounds.push(a); return a; }",
+  "function __bytes(src) {",
+  "  if (src.startsWith('data:')) {",
+  "    const bin = atob(src.slice(src.indexOf(',') + 1)), out = new Uint8Array(bin.length);",
+  "    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);",
+  "    return Promise.resolve(out.buffer);",
+  "  }",
+  "  return fetch(src).then((r) => r.arrayBuffer());",
+  "}",
+  "function __decode(buf) { return new Promise((ok, fail) => { const p = __ac.decodeAudioData(buf, ok, fail); if (p && p.catch) p.catch(fail); }); }",
+  "function __loadSounds() {",
+  "  if (!__ac) return;",
+  "  __sounds.forEach((a) => {",
+  "    if (a.busy) return;",
+  "    a.busy = true;",
+  "    Promise.all(a.srcs.map((s) => __bytes(s).then(__decode)))",
+  "      .then((bufs) => { a.bufs = bufs; })",
+  "      .catch(() => { a.bufs = []; console.warn(\"Couldn't play the sound '\" + a.name + \"'. Try an .mp3 file\"); });",
+  "  });",
+  "}",
+  "function __sound(a, vol) {",
+  "  if (!__gesture) return;",
+  "  try { __ac = __ac || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }",
+  "  if (!a.busy) __loadSounds();",
+  "  if (!a.bufs || !a.bufs.length) return;",
+  "  const s = __ac.createBufferSource(), g = __ac.createGain();",
+  "  s.buffer = a.bufs[Math.floor(Math.random() * a.bufs.length)];",
+  "  g.gain.value = vol == null ? 1 : Math.max(0, vol / 100);",
+  "  s.connect(g); g.connect(__dest());",
+  "  s.start();",
+  "}",
   "// save \"best\", 120 and saved(\"best\", 0): values kept in this browser between visits",
   "function __saveKey(k) { return 'volt:' + location.pathname + ':' + String(k); }",
   "function __save(k, v) { try { localStorage.setItem(__saveKey(k), JSON.stringify(v)); } catch (e) { /* storage blocked: skip */ } }",
@@ -1129,7 +1187,7 @@ const GAME_RUNTIME = [
   "  return 440 * Math.pow(2, (semis - 9) / 12 + (Number(m[3]) - 4));",
   "}",
   "let __song = null, __wantSong = null, __gesture = false;",
-  "['keydown', 'pointerdown'].forEach((t) => document.addEventListener(t, () => { if (__gesture) return; __gesture = true; if (__wantSong) { const w = __wantSong; __wantSong = null; __music(w[0], w[1], w[2]); } }, true));",
+  "['keydown', 'pointerdown'].forEach((t) => document.addEventListener(t, () => { if (__gesture) return; __gesture = true; try { __ac = __ac || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; } __loadSounds(); if (__wantSong) { const w = __wantSong; __wantSong = null; __music(w[0], w[1], w[2]); } }, true));",
   "function __music(mel, bass, tempo) {",
   "  if (!__gesture) { __wantSong = mel == null ? null : [mel, bass, tempo]; return; }  // browsers need a key press or click first",
   "  const key = mel == null ? '' : String(mel) + '|' + String(bass) + '|' + tempo;",
@@ -1143,7 +1201,7 @@ const GAME_RUNTIME = [
   "  try { __ac = __ac || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }",
   "  const words = (t) => String(t == null ? '' : t).trim().toLowerCase().split(/\\s+/).filter(Boolean);",
   "  const voices = [words(mel), words(bass)];",
-  "  const out = __ac.createGain(); out.connect(__ac.destination);",
+  "  const out = __ac.createGain(); out.connect(__dest());",
   "  const s = { key, out, step: 0, next: __ac.currentTime + 0.08, dur: 60 / Math.max(30, tempo || 140) / 2 };",
   "  s.timer = setInterval(() => {",
   "    if (__stopped) { clearInterval(s.timer); return; }",
@@ -1249,6 +1307,7 @@ function generate(ast, target = 'cpp', options = {}) {
   let usesGame = false;         // canvas, sprites, held keys ... (#html)
   const images = new Map();     // name -> Image node
   const sprites = new Map();    // name -> Sprite node
+  const audios = new Map();     // name -> Audio node
   let uid = 0;                  // makes hidden helper names unique
   let loopDepth = 0;            // inside repeat/while?
   let inFunction = false;       // inside fn?
@@ -1294,18 +1353,20 @@ function generate(ast, target = 'cpp', options = {}) {
   // Run/Build and the command line), the picture is packed into the page itself,
   // so the finished index.html works anywhere - even uploaded on its own.
   const MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml' };
-  function imageSource(node) {
-    const f = node.file;
+  const SOUND_MIME = { mp3: 'audio/mpeg', ogg: 'audio/ogg', wav: 'audio/wav', m4a: 'audio/mp4' };
+  function imageSource(node) { return embedFile(node.file, node.line, MIME, "a picture", '.png, .jpg, .gif, .webp or .svg'); }
+  function soundSource(f, line) { return embedFile(f, line, SOUND_MIME, "a sound", '.mp3, .ogg, .wav or .m4a'); }
+  function embedFile(f, line, types, what, list) {
     if (/^(https?:|data:)/.test(f)) return f;
     const ext = (f.split('.').pop() || '').toLowerCase();
-    if (!MIME[ext]) throw new VoltError(`'${f}' isn't a picture Volt knows. Use a .png, .jpg, .gif, .webp or .svg file`, node.line);
+    if (!types[ext]) throw new VoltError(`'${f}' isn't ${what} Volt knows. Use a ${list} file`, line);
     // options.baseDir is the .volt file's folder; options.extraDirs are other places to look
     // (Volt Studio passes an example's own folder, so a saved copy still finds its pictures)
     const dirs = [options.baseDir, ...(options.extraDirs || [])].filter(Boolean);
     if (dirs.length) {
       const full = dirs.map((d) => path.resolve(d, f)).find((x) => fs.existsSync(x));
-      if (!full) throw new VoltError(`Can't find the image '${f}'. Put it in the same folder as your .volt file`, node.line);
-      return `data:${MIME[ext]};base64,${fs.readFileSync(full).toString('base64')}`;
+      if (!full) throw new VoltError(`Can't find the ${what === 'a sound' ? 'sound' : 'image'} '${f}'. Put it in the same folder as your .volt file`, line);
+      return `data:${types[ext]};base64,${fs.readFileSync(full).toString('base64')}`;
     }
     return `../${f.replace(/\\/g, '/')}`;   // the page sits one folder down, in name/index.html
   }
@@ -1332,7 +1393,7 @@ function generate(ast, target = 'cpp', options = {}) {
       throw new VoltError(`In #ruby, names must start with a lowercase letter ('${name}' would be a Ruby constant)`, line);
     }
     // (a function parameter may share its name with a top-level variable; inside the function it means the parameter)
-    if (pins.has(name) || funcs.has(name) || images.has(name) || sprites.has(name) || (!isParam && lookupVar(name))) {
+    if (pins.has(name) || funcs.has(name) || images.has(name) || sprites.has(name) || audios.has(name) || (!isParam && lookupVar(name))) {
       throw new VoltError(`'${name}' already exists`, line);
     }
   }
@@ -1425,6 +1486,11 @@ function generate(ast, target = 'cpp', options = {}) {
       checkName(node.name, node.line);
       images.set(node.name, node);
       globals.push(`const ${node.name} = __image(${strLit(imageSource(node))}, ${strLit(node.file)});`);
+    } else if (node.kind === 'Audio') {
+      gameOnly("'audio'", node.line);
+      checkName(node.name, node.line);
+      audios.set(node.name, node);
+      globals.push(`const ${node.name} = __audio([${node.files.map((f) => strLit(soundSource(f, node.line))).join(', ')}], ${strLit(node.name)});`);
     } else if (node.kind === 'Sprite') {
       gameOnly("'sprite'", node.line);
       checkName(node.name, node.line);
@@ -1495,6 +1561,7 @@ function generate(ast, target = 'cpp', options = {}) {
           throw new VoltError(`'${e.name}' is a function. Call it with ${e.name}(...)`, e.line);
         }
         if (sprites.has(e.name)) throw new VoltError(`'${e.name}' is a sprite. Show it with: draw ${e.name} at x, y`, e.line);
+        if (audios.has(e.name)) throw new VoltError(`'${e.name}' is a sound. Play it with: sound ${e.name}`, e.line);
         if (images.has(e.name)) throw new VoltError(`'${e.name}' is an image. Cut sprites out of it with: sprite name = ${e.name} at x, y size w, h`, e.line);
         const v = lookupVar(e.name);
         if (!v) throw new VoltError(`Unknown variable '${e.name}'. Did you forget 'let ${e.name} = ...'?`, e.line);
@@ -2298,7 +2365,19 @@ function generate(ast, target = 'cpp', options = {}) {
         return [`${p}__canvas(${bare(genNumber(s.w, "'canvas'"))}, ${bare(genNumber(s.h, "'canvas'"))});`];
 
       case 'Image':
+      case 'Audio':
         return [];  // loaded in pass 1
+
+      case 'Sound': {
+        gameOnly("'sound'", s.line);
+        if (!audios.has(s.name)) throw new VoltError(`There is no sound called '${s.name}'. Load it first, like: audio ${s.name} = "${s.name}.mp3"`, s.line);
+        const vol = s.volume ? `, ${bare(genNumber(s.volume, "'volume'"))}` : '';
+        return [`${p}__sound(${s.name}${vol});`];
+      }
+
+      case 'Volume':
+        gameOnly("'volume'", s.line);
+        return [`${p}__volume(${bare(genNumber(s.value, "'volume'"))});`];
 
       case 'Sprite': {
         const n = (e, what) => bare(genNumber(e, `The sprite's ${what}`));
