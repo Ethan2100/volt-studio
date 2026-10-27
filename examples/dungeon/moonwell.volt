@@ -1,16 +1,18 @@
-// Dungeon crawler game: six floors, a shop, weapons, music and saves (pictures: dungeon.png)
+// Dungeon crawler game: eleven floors, bosses, quests, a shop, weapons, music and saves (pictures: dungeon.png)
 // =====================================================================
 //  MOONWELL - a top-down dungeon crawler, written in Volt
 //
-//  Go down six floors, find the keys, buy better weapons at the
-//  Rest Camp, and defeat the Ember King so the Moonwell can shine.
+//  Go down eleven floors, find the keys, buy better weapons at the
+//  Rest Camp, and defeat the Ember King... then follow the
+//  silver light deeper, to the Cinder God. Three travellers at the
+//  camp give quests, and one of them opens the way to floor 9.
 //
 //  Arrows / WASD  move          X (or space)  swing, open, talk, buy
-//  Z              dash          C             switch weapon
+//  Z              dash          C             switch weapon (on the title: enter a code)
 //  V              summon skeletons (Necromancer look only)
 //                 Celestial Knight: Z leaves a comet trail of stars that hurt monsters
 //  B              potion pack (1 2 3 drink straight away)
-//  M              music on/off  On phones, use the on-screen pad.
+//  M              music on/off  On phones: stick + five buttons; PACK then SWITCH shows the controls.
 //
 //  Your journey is saved at every floor, so you can continue later.
 //  Art: 16x16 DungeonTileset II by 0x72 (CC0) - dungeon.png
