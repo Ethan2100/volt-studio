@@ -469,7 +469,7 @@ let shopName = ["", "Healing Potion", "Heart Vessel", "Knight Sword", "Big Hamme
 let shopCost = [0, 8, 35, 25, 45, 70, 60, 750, 850]
 // skins (yours forever, across every journey)
 let skinName = ["Knight", "Lady Knight", "Elf Ranger", "Lizardfolk", "Sorceress", "Celestial Knight", "Ember Knight", "Necromancer"]
-let skinInfo = ["The classic.", "Same armour, better hair.", "Light on her feet.", "Scales, claws, attitude.", "Robes that crackle with magic.", "Comet Dash: your dash leaves stars that hurt.", "A secret, born in the campfire.", "Commands the dead: press V to summon."]
+let skinInfo = ["Steadfast: a longer breather after every hit.", "Swift: dash again almost twice as fast.", "Eagle Eye: every 3rd swing looses a piercing arrow.", "Regrowth: slowly heals while you fight on.", "Gold Touch: coins are worth half again as much.", "Comet Dash: your dash leaves stars that hurt.", "Burning Aura: scorches monsters that get close.", "Commands the dead: press V to summon."]
 let skinCost = [0, 250, 350, 450, 600, 1000, 0, 800]
 let skinTall = [22, 22, 22, 19, 28, 22, 22, 20]
 // the vault (and the Celestial Knight) open once you've reached this floor
@@ -648,7 +648,8 @@ let ulife = []
 let uatk = []
 let uleft = []
 let summonCool = 0
-let summonWait = 1200      // 20 seconds between summons
+let summonWait = 600       // 10 seconds between summons
+let swingCount = 0         // counts swings, for the Elf Ranger's arrows
 let deepest = 1
 let fireTaps = 0
 // the Starfall Staff's falling stars (positions x10)
@@ -1493,6 +1494,9 @@ fn hurtHero(amount, fromX, fromY) {
   }
   hp -= amount
   hurt = 70
+  if skin == 0 {
+    hurt = 105
+  }
   shake = 10
   freeze = 4
   kbx = sign(hx + 5 - fromX) * 4
@@ -1504,6 +1508,20 @@ fn hurtHero(amount, fromX, fromY) {
     hp = 0
     dying = 70
     sound jingleFallen
+  }
+}
+
+fn scorch() {
+  let e2 = 0
+  while e2 < length(ex) {
+    let k = ekind[e2]
+    let far = abs(ex[e2] + enemyW(k) / 2 - (hx + 5)) + abs(ey[e2] + enemyH(k) / 2 - (hy + 4))
+    if far < 30 and (not isBoss(k) or bossAwake) {
+      ehp[e2] -= 1
+      ehurt[e2] = 6
+      burst(ex[e2] + enemyW(k) / 2, ey[e2] + enemyH(k) / 2, 3, "#ff8a3d", 10)
+    }
+    e2 += 1
   }
 }
 
@@ -1584,6 +1602,16 @@ fn updateHero() {
   if hurt > 0 {
     hurt -= 1
   }
+  // Lizardfolk Regrowth: half a heart every 8 seconds
+  if skin == 3 and hp > 0 and hp < maxHp and dying == 0 and tick % 480 == 0 {
+    hp += 1
+    sound sndHeal volume 40
+    burst(hx + 5, hy - 6, 6, "#7be07b", 12)
+  }
+  // Ember Knight Burning Aura: scorches whatever stands close
+  if skin == 6 and dying == 0 and floor > 0 and tick % 30 == 0 {
+    scorch()
+  }
   if weaponShow > 0 {
     weaponShow -= 1
   }
@@ -1604,6 +1632,18 @@ fn updateHero() {
         shootStar()
       } else {
         swordHits()
+        if skin == 2 {
+          swingCount += 1
+          if swingCount % 3 == 0 {
+            let ax = faceX
+            let ay = faceY
+            if ax == 0 and ay == 0 {
+              ay = 1
+            }
+            launch(2, hx + 5 + ax * 10, hy - 4 + ay * 10, ax * 38, ay * 38, 30, 3)
+            tone 1400 to 900 for 80ms
+          }
+        }
         if weapon == 6 {
           let wx = faceX
           let wy = faceY
@@ -2187,6 +2227,9 @@ fn pressZ() {
   if dashCool == 0 and swing == 0 {
     dash = 9
     dashCool = 36
+    if skin == 1 {
+      dashCool = 20
+    }
     sound sndDash
     if skin == 5 {
       cometHit = ","
@@ -2734,6 +2777,9 @@ fn updateItems() {
     if abs(ix[n] - (hx + 5)) < 11 and abs(iy[n] - (hy + 2)) < 12 {
       if ikind[n] == 1 {
         coins += 1 + max(1, floor)
+        if skin == 4 {
+          coins += max(1, (1 + max(1, floor)) / 2)
+        }
         sound sndCoin volume 60
         burst(ix[n], iy[n], 5, "#ffd23f", 12)
         effect(2, ix[n], iy[n] - 4, 10, "#ffd23f", 70, 20, 0, 9)
