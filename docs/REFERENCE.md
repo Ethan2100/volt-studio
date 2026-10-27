@@ -320,7 +320,7 @@ Things to know:
 - `draw`, `box` and `write` all follow the camera. Positions are whole pixels.
 - Browsers only play sound after the player presses a key or clicks, so start the music from a title screen's "press X". `.mp3` files work in every browser.
 - Volt numbers are whole numbers. For smooth slow movement, keep positions times 10 (`x10 += speed`) and draw at `x10 / 10`.
-- `examples/dungeon/moonwell.volt` is a full dungeon crawler written this way: three floors, monsters and bosses, keys, weapons, a shop, music and a saved journey.
+- `examples/dungeon/moonwell.volt` is a full dungeon crawler written this way: six floors with six bosses, keys, weapons, a shop, music, sound effects and a saved journey.
 
 ## How a Volt program runs
 

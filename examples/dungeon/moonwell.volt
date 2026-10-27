@@ -1,8 +1,8 @@
-// Dungeon crawler game: three floors, a shop, weapons, music and saves (pictures: dungeon.png)
+// Dungeon crawler game: six floors, a shop, weapons, music and saves (pictures: dungeon.png)
 // =====================================================================
 //  MOONWELL - a top-down dungeon crawler, written in Volt
 //
-//  Go down three floors, find the keys, buy better weapons at the
+//  Go down six floors, find the keys, buy better weapons at the
 //  Rest Camp, and defeat the Ember King so the Moonwell can shine.
 //
 //  Arrows / WASD  move          X (or space)  swing, open, talk, buy
@@ -246,6 +246,138 @@ let rows2 = [
   "############################################",
 ]
 let rows3 = [
+  "################################################",
+  "################b##############b################",
+  "##########............................##########",
+  "##########.x..L.....................x.##########",
+  "##########............................##########",
+  "##########.............B..............##########",
+  "##########............................##########",
+  "##########............................##########",
+  "##########............................##########",
+  "##########.x........................x.##########",
+  "#######################..#######################",
+  "#######################..#######################",
+  "#######################..#######################",
+  "#######################..#######################",
+  "##################f####DD####b##################",
+  "################..u.............################",
+  "################...........m....################",
+  "################........s.......################",
+  "################...#........#...################",
+  "################...#$.$.$.$.#...################",
+  "################..s.............################",
+  "################.............s..################",
+  "################...#........#...################",
+  "################...#........#...################",
+  "################.....m..........################",
+  "################...............h################",
+  "#######################..#######################",
+  "######b####b###########..############b####b#####",
+  "###k...........########..########...........w###",
+  "###............########..########............###",
+  "###...i.....s..######b#..#b######...t........###",
+  "###............####..........####.......N....###",
+  "###............####..........####............###",
+  "###.....i...........................^^^^^^...###",
+  "###..........................................###",
+  "###........i...####....P.....####........t...###",
+  "###.s..........####..........####............###",
+  "###..$$.......h####..........####$$..........###",
+  "################################################",
+  "################################################",
+]
+let rows4 = [
+  "##################################################",
+  "##################################################",
+  "###############b##############b###################",
+  "##########..........................##############",
+  "##########.xL.....................x.##############",
+  "##########..........................##############",
+  "##########..........................##############",
+  "##########............B.............##############",
+  "##########..........................##############",
+  "##########..........................##############",
+  "##########..........................##############",
+  "##########..........................##############",
+  "##########..........................##############",
+  "##########..........................##############",
+  "##########.x......................x.##############",
+  "######################..##########################",
+  "######################..##########################",
+  "######################..################b###b#####",
+  "######################..#############..........w##",
+  "##################b###DD###b#########.........S.##",
+  "###############..............$$######...........##",
+  "###############.........o......######...M.......##",
+  "###############...M............######...........##",
+  "###############.................................##",
+  "###############.....^^^...............^^^^^^^^..##",
+  "###############.....^^^.....S..######...........##",
+  "###############.....^^^........######...........##",
+  "###############c...............######.......M...##",
+  "######################..#############..I........##",
+  "######################..#############...........##",
+  "######################..#############...........##",
+  "######################..#################..#######",
+  "######################..#################..#######",
+  "####################b#..#b###############..#######",
+  "##################..........#############..#######",
+  "#####b############........g.########f####..#######",
+  "###........#######...o......#####...u...........##",
+  "###......g.#######..........#####.......g.......##",
+  "###.........................#####...o...........##",
+  "###...P..................o..#####...............##",
+  "###........#######.g........#####...........o...##",
+  "###.$......#######.........h#####$$............k##",
+  "##################################################",
+  "##################################################",
+]
+let rows5 = [
+  "##############################################",
+  "##############r########b########r#############",
+  "######........v.................v........#####",
+  "######.x.L.............................x.#####",
+  "######...................................#####",
+  "######.................B.................#####",
+  "######...................................#####",
+  "######...................................#####",
+  "######.x...............................x.#####",
+  "###################################..#########",
+  "###################################..#########",
+  "###################################..#########",
+  "##############################r##b#DD####r####",
+  "#########f####b#############..v..........v..##",
+  "###w.....u...........#######................##",
+  "###...............S..#######..............M.##",
+  "###..................#######...z............##",
+  "###...m..............#######................##",
+  "###.........................................##",
+  "###.......m.................................##",
+  "###..................#######.......z........##",
+  "###............m.....#######................##",
+  "###.I................#######....^^^^^^^^....##",
+  "###.................h#######................##",
+  "##########..################............z...##",
+  "##########..################.S..............##",
+  "##########..################................##",
+  "##########..################...............c##",
+  "##########..##################################",
+  "##########..##################################",
+  "#####r##b#..######r###########################",
+  "####kv............v.##########################",
+  "####.........^^^^...###############b####b#####",
+  "####....I....^^^^...#############..........###",
+  "####.........^^^^...#############.......I..###",
+  "####........I^^^^...#############..........###",
+  "####.........^^^^....................P.....###",
+  "####.........^^^^..........................###",
+  "####..z......^^^^...#############..........###",
+  "####.$$............h#############.........$###",
+  "##############################################",
+  "##############################################",
+]
+let rows6 = [
   "##############################################",
   "######r#####b#####r###########################",
   "##....v...........v....########r#######r######",
@@ -289,19 +421,21 @@ let rows3 = [
   "##############################################",
   "##############################################",
 ]
-let maps = [shopRows, rows1, rows2, rows3]
-let floorNames = ["THE REST CAMP", "THE UPPER HALLS", "THE DROWNED CRYPT", "THE EMBER THRONE"]
-let floorBoss = [0, 14, 15, 5]
+let maps = [shopRows, rows1, rows2, rows3, rows4, rows5, rows6]
+let floorNames = ["THE REST CAMP", "THE UPPER HALLS", "THE DROWNED CRYPT", "THE FROZEN OSSUARY", "THE ORC WARRENS", "THE IMP FURNACE", "THE EMBER THRONE"]
+let floorBoss = [0, 14, 15, 16, 17, 18, 5]
+let lastFloor = 6
 
 // ---------- monsters: one entry per kind ----------
 // kinds: 1 goblin, 2 skeleton, 3 orc, 4 chort, 5 Ember King, 6 zombie, 7 ice zombie,
 //        8 slime, 9 masked orc, 10 shaman, 11 necromancer, 12 tiny zombie, 13 imp,
-//        14 Grukk the ogre, 15 the Rotting Warden
+//        14 Grukk the ogre, 15 the Rotting Warden, 16 Vael the necromancer lord,
+//        17 Warlord Krag, 18 Ignis the chort queen
 let kindLetters = "-gsozBZimMSNtI"
-let kindLife = [0, 2, 3, 5, 3, 44, 4, 7, 3, 7, 4, 5, 1, 2, 34, 38]
-let kindTall = [0, 11, 16, 20, 24, 36, 16, 16, 16, 20, 20, 20, 12, 16, 32, 34]
-let kindHit = [0, 1, 1, 2, 1, 2, 1, 2, 1, 2, 1, 1, 1, 1, 2, 2]
-let kindPace = [0, 1, 3, 2, 1, 2, 2, 3, 2, 2, 2, 3, 1, 1, 2, 3]
+let kindLife = [0, 2, 3, 5, 3, 52, 4, 7, 3, 7, 4, 5, 1, 2, 20, 38, 42, 46, 46]
+let kindTall = [0, 11, 16, 20, 24, 36, 16, 16, 16, 20, 20, 20, 12, 16, 32, 34, 40, 40, 48]
+let kindHit = [0, 1, 1, 2, 1, 2, 1, 2, 1, 2, 1, 1, 1, 1, 2, 2, 2, 2, 2]
+let kindPace = [0, 1, 3, 2, 1, 2, 2, 3, 2, 2, 2, 3, 1, 1, 2, 3, 2, 2, 1]
 
 // ---------- weapons ----------
 let wName = ["", "Rusty Sword", "Knight Sword", "Big Hammer", "Golden Sword", "Ember Staff"]
@@ -328,6 +462,12 @@ let songBoss = "a4 a5 g5 a5 e5 a5 d5 a5 c5 a5 b4 a5 g#4 _ e5 _ a4 a5 g5 a5 e5 a5
 let bassBoss = "a2 - a2 a2 - a2 a2 - f2 - f2 f2 - f2 f2 - g2 - g2 g2 - g2 g2 - e2 - e2 e2 - e2 g#2 -"
 let songCamp = "e5 g5 c6 _ g5 e5 f5 a5 c6 _ a5 f5 g5 _ e5 c5 d5 _ g4 b4 d5 _ c5 _ e5 g5 c6 _ b5 g5 c6 _ _ -"
 let bassCamp = "c3 _ g3 _ c3 _ g3 _ f3 _ c4 _ f3 _ c4 _ g2 _ d3 _ g2 _ d3 _ c3 _ g3 _ c3 _ g2 _"
+let songOssuary = "b4 _ d5 _ f#5 _ e5 d5 c#5 _ _ - a4 _ c#5 e5 d5 _ c#5 b4 a#4 _ b4 _ _ _ - - - -"
+let bassOssuary = "b2 _ _ _ f#2 _ _ _ g2 _ _ _ f#2 _ _ _ b2 _ _ _ e2 _ _ _ f#2 _ _ _ b1 _ _ _"
+let songWarrens = "e4 e4 - e4 g4 - e4 - d4 d4 - d4 f#4 - d4 - c4 c4 - c4 e4 - g4 - b3 - b3 - d#4 _ _ -"
+let bassWarrens = "e2 - e2 e2 - e2 b2 - d2 - d2 d2 - d2 a2 - c2 - c2 c2 - c2 g2 - b1 - b1 b1 - b1 f#2 -"
+let songFurnace = "g5 f5 d#5 f5 g5 - g5 a#5 c6 - a#5 g5 f5 - d#5 - g5 f5 d#5 f5 g5 - c6 d6 d#6 - d6 c6 a#5 _ g5 _"
+let bassFurnace = "g2 g3 g2 g3 g2 g3 g2 g3 d#2 d#3 d#2 d#3 d#2 d#3 d#2 d#3 c2 c3 c2 c3 c2 c3 c2 c3 d2 d3 d2 d3 d2 d3 d2 d3"
 let songWin = "c5 e5 g5 c6 _ g5 c6 _ e6 _ _ _ d6 _ c6 _ a5 c6 f6 _ e6 _ d6 _ c6 _ _ _ _ _ - -"
 let bassWin = "c3 _ g3 _ c3 _ e3 _ f3 _ g3 _ c3 _ _ _ f2 _ c3 _ g2 _ d3 _ c3 _ _ _ _ _ - -"
 
@@ -510,7 +650,11 @@ fn spawnEnemy(kind, tx, ty) {
   add tx * 16 + 8 - w / 2 to ex
   add ty * 16 + 14 - h to ey
   add kind to ekind
-  add kindLife[kind] to ehp
+  if isBoss(kind) {
+    add kindLife[kind] to ehp
+  } else {
+    add kindLife[kind] + (floor - 1) / 2 to ehp
+  }
   add 0 to ehurt
   add 0 to ekx
   add 0 to eky
@@ -751,7 +895,16 @@ fn enterFloor(f) {
     say("FLOOR 2: THE DROWNED CRYPT\nCold water drips. Something shuffles in the dark.")
     say("One key opens the crypt's great door.\nThe Warden waits beyond it.")
   } else if floor == 3 {
-    say("FLOOR 3: THE EMBER THRONE\nThe walls glow red. He is close now.")
+    say("FLOOR 3: THE FROZEN OSSUARY\nBones and frost. Your breath hangs in the air.")
+    say("Vael, the Necromancer Lord, guards the way\ndown. The key lies somewhere in the cold.")
+  } else if floor == 4 {
+    say("FLOOR 4: THE ORC WARRENS\nDrums echo through the tunnels.")
+    say("Warlord Krag rules here. Find the key\nto his war hall... and watch for his charge.")
+  } else if floor == 5 {
+    say("FLOOR 5: THE IMP FURNACE\nThe air shimmers with heat.")
+    say("Ignis, the Chort Queen, vanishes and\nreappears. Keep moving.")
+  } else if floor == 6 {
+    say("FLOOR 6: THE EMBER THRONE\nThe walls glow red. He is close now.")
     say("Two keys, two doors. Then the throne.")
   }
 }
@@ -793,7 +946,7 @@ fn continueJourney() {
 }
 
 fn useLadder() {
-  if floor == 3 {
+  if floor == lastFloor {
     mode = 3
     winAt = tick
     sound jingleWin
@@ -1537,7 +1690,7 @@ fn openChest(n) {
     sound jingleKey
     say("You found a KEY!\nIt opens one locked door. Press X beside it.")
   } else if chWhat[n] == 3 {
-    let wid = floor + 1
+    let wid = min(5, floor + 1)
     if contains(owned, wid) {
       coins += 25
       say("A " + wName[wid] + "... you already have one.\nYou sell the spare for 25 gold.")
@@ -1748,7 +1901,16 @@ fn killEnemy(n) {
       say("A ladder leads down to the next floor.\nStand on it and press X.")
     } else if k == 15 {
       say("THE ROTTING WARDEN:\nThe dead... will rest... at last.")
-      say("The ladder leads down. Heat rises from\nbelow. Only the Ember Throne remains.")
+      say("The ladder leads deeper. A cold wind\nblows up from below.")
+    } else if k == 16 {
+      say("VAEL:\nMy bones... were meant... to last forever...")
+      say("The ladder leads deeper. You hear drums.")
+    } else if k == 17 {
+      say("WARLORD KRAG:\nKrag... beaten... by a tin can?!")
+      say("The ladder leads deeper. Heat rises.")
+    } else if k == 18 {
+      say("IGNIS:\nMy king... will... avenge me...")
+      say("The ladder leads down to the Ember Throne.\nThis is it, knight.")
     } else {
       say("The Ember King crumbles into cinders...")
       say("Silver light floods the halls once more.\nThe ladder leads home, to the surface.")
@@ -1777,6 +1939,12 @@ fn wakeBoss() {
     say("GRUKK THE GATEKEEPER:\nNobody passes Grukk! Grukk SMASH!")
   } else if bossKind == 15 {
     say("THE ROTTING WARDEN:\nThe dead do not sleep here, knight.\nNeither will you.")
+  } else if bossKind == 16 {
+    say("VAEL, THE NECROMANCER LORD:\nWarm blood! How rare. You'll make\na fine skeleton.")
+  } else if bossKind == 17 {
+    say("WARLORD KRAG:\nWAAAGH! Krag eats knights for breakfast!")
+  } else if bossKind == 18 {
+    say("IGNIS, THE CHORT QUEEN:\nCatch me if you can, little knight!")
   } else {
     say("THE EMBER KING:\nAnother little knight, come to be ash?")
     say("THE EMBER KING:\nThe Moonwell is MINE. Burn!")
@@ -1799,6 +1967,19 @@ fn updateBoss(n, dx, dy, far) {
     shake = 16
     if k == 14 {
       say("GRUKK THE GATEKEEPER:\nGrukk ANGRY now!")
+    } else if k == 16 {
+      say("VAEL:\nMy servants! Bring me his bones!")
+      spawnNear(2, ex[n] / 16 - 3, ey[n] / 16)
+      spawnNear(2, ex[n] / 16 + 4, ey[n] / 16)
+      spawnNear(7, ex[n] / 16, ey[n] / 16 + 3)
+    } else if k == 17 {
+      say("WARLORD KRAG:\nBOYS! GET IN HERE!")
+      spawnNear(9, ex[n] / 16 - 3, ey[n] / 16)
+      spawnNear(3, ex[n] / 16 + 4, ey[n] / 16)
+    } else if k == 18 {
+      say("IGNIS:\nNow you've made me ANGRY!")
+      spawnNear(13, ex[n] / 16 - 3, ey[n] / 16)
+      spawnNear(13, ex[n] / 16 + 4, ey[n] / 16)
     } else if k == 15 {
       say("THE ROTTING WARDEN:\nRise, all of you. RISE!")
       spawnNear(12, ex[n] / 16 - 3, ey[n] / 16)
@@ -1811,12 +1992,15 @@ fn updateBoss(n, dx, dy, far) {
       spawnNear(4, ex[n] / 16, ey[n] / 16 + 4)
     }
   }
-  // Grukk: winds up, then charges
-  if k == 14 {
+  // Grukk and Krag: wind up, then charge (Krag is faster)
+  if k == 14 or k == 17 {
     if bossRush > 0 {
       bossRush -= 1
       moveEnemy(n, bossRushX, bossRushY)
       moveEnemy(n, bossRushX, bossRushY)
+      if k == 17 {
+        moveEnemy(n, bossRushX, bossRushY)
+      }
       if tick % 3 == 0 {
         burst(px, py + 16, 2, "#8a7a6a", 10)
       }
@@ -1827,8 +2011,11 @@ fn updateBoss(n, dx, dy, far) {
         }
         shake = 10
         sound sndSlam
-        if bossAngry {
+        if bossAngry or k == 17 {
           ring(px, py + 6, tick % 2 == 0, "#c9a27e")
+        }
+        if k == 17 and bossAngry {
+          aimAt(px, py, 20, 3, "#ff8a3d")
         }
       }
       return 0
@@ -1854,13 +2041,91 @@ fn updateBoss(n, dx, dy, far) {
     }
     bossShot += 1
     let gap = 150
+    if k == 17 {
+      gap = 110
+    }
     if bossAngry {
-      gap = 100
+      gap = gap * 2 / 3
     }
     if bossShot >= gap {
       bossShot = 0
       bossWind = 30
       ehurt[n] = 0
+    }
+    return 0
+  }
+  // Vael: keeps his distance, throws rings of cold fire and raises skeletons
+  if k == 16 {
+    if tick % 2 == 0 {
+      if far < 90 {
+        moveEnemy(n, 0 - sign(dx), 0 - sign(dy))
+      } else if far > 150 {
+        moveEnemy(n, sign(dx), sign(dy))
+      } else {
+        moveEnemy(n, sign(dy), 0 - sign(dx))
+      }
+    }
+    bossShot += 1
+    let gap = 100
+    if bossAngry {
+      gap = 70
+    }
+    if bossShot >= gap {
+      bossShot = 0
+      bossWind += 1
+      if bossWind % 2 == 0 {
+        ring(px, py, bossWind % 4 == 0, "#9bd3ff")
+        effect(14, px, py, 22, "#9bd3ff", 20, 170, 0, 0)
+      } else {
+        aimAt(px, py, 18, 3, "#c77dff")
+      }
+      effect(9, px, py, 24, "#c77dff", 50, 120, 0, 8)
+      tone 420 to 160 for 160ms
+      if bossWind % 3 == 0 and countKind(2) < 4 {
+        spawnNear(2, ex[n] / 16 + random(-3, 3), ey[n] / 16 + random(1, 3))
+      }
+    }
+    return 0
+  }
+  // Ignis: fades out, appears beside the knight and fires a fan
+  if k == 18 {
+    if bossWind > 0 {
+      bossWind -= 1
+      if bossWind == 12 {
+        // jump to a free spot near the knight
+        let tries = 0
+        while tries < 12 {
+          let nx = hx + 5 - 12 + random(-70, 70)
+          let ny = hy + 4 - 7 + random(-55, 55)
+          if abs(nx - hx) + abs(ny - hy) > 45 and not blocked(nx, ny, 24, 14) {
+            effect(16, px, py, 20, "#ff5a1f", 80, 10, 0, 6)
+            ex[n] = nx
+            ey[n] = ny
+            effect(16, nx + 12, ny - 8, 20, "#ff5a1f", 10, 90, 0, -6)
+            tries = 99
+          }
+          tries += 1
+        }
+        tone 900 to 300 for 120ms
+      }
+      if bossWind == 0 {
+        aimAt(ex[n] + 12, ey[n] - 8, 20, 5, "#ff8a3d")
+        if bossAngry {
+          ring(ex[n] + 12, ey[n] - 8, tick % 2 == 0, "#ff5a1f")
+        }
+        tone 500 to 180 for 120ms
+      }
+      return 0
+    }
+    moveEnemy(n, sign(dx), sign(dy))
+    bossShot += 1
+    let gap = 130
+    if bossAngry {
+      gap = 85
+    }
+    if bossShot >= gap {
+      bossShot = 0
+      bossWind = 24
     }
     return 0
   }
@@ -2079,6 +2344,12 @@ fn pickMusic() {
     music songHalls, bassHalls tempo 140
   } else if floor == 2 {
     music songCrypt, bassCrypt tempo 100
+  } else if floor == 3 {
+    music songOssuary, bassOssuary tempo 96
+  } else if floor == 4 {
+    music songWarrens, bassWarrens tempo 150
+  } else if floor == 5 {
+    music songFurnace, bassFurnace tempo 170
   } else {
     music songThrone, bassThrone tempo 160
   }
@@ -2239,6 +2510,34 @@ fn drawEnemy(n) {
       draw wardenRun at x, y frame f flip left flash hit
     } else {
       draw wardenIdle at x, y frame f flip left flash hit
+    }
+  } else if k == 16 {
+    // the new bosses are ordinary monsters drawn twice as big
+    draw fxGlow at x - 16, y - 12 tint "#c77dff" alpha 25 scale 110 glow
+    draw necro at x, y frame f flip left flash hit size 2
+  } else if k == 17 {
+    let rage = bossWind > 0 and tick % 6 < 3
+    if bossWind > 0 {
+      draw fxGlow at x - 16, y - 12 tint "#ff4d4d" alpha 30 + (30 - bossWind) * 2 scale 90 glow
+    }
+    if run {
+      draw maskRun at x, y frame f flip left flash hit or rage size 2
+    } else {
+      draw maskIdle at x, y frame f flip left flash hit size 2
+    }
+  } else if k == 18 {
+    // Ignis fades while she teleports
+    let see = 100
+    if bossWind > 12 {
+      see = (bossWind - 12) * 8
+    } else if bossWind > 0 {
+      see = (12 - bossWind) * 8
+    }
+    draw fxGlow at x - 16, y - 8 tint "#ff5a1f" alpha see / 3 scale 100 glow
+    if run {
+      draw chortRun at x, y frame f flip left flash hit size 2 alpha see
+    } else {
+      draw chortIdle at x, y frame f flip left flash hit size 2 alpha see
     }
   } else {
     if run {
@@ -2517,6 +2816,15 @@ fn bossTitle() {
   }
   if bossKind == 15 {
     return "THE ROTTING WARDEN"
+  }
+  if bossKind == 16 {
+    return "VAEL, THE NECROMANCER LORD"
+  }
+  if bossKind == 17 {
+    return "WARLORD KRAG"
+  }
+  if bossKind == 18 {
+    return "IGNIS, THE CHORT QUEEN"
   }
   return "THE EMBER KING"
 }
