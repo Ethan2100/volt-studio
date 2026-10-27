@@ -82,6 +82,7 @@ const errors = [
   ['#html\naudio boom = "missing.mp3"\n', "Can't find the sound"],
   ['#html\naudio boom = "boom.txt"\n', "isn't a sound"],
   ['#html\nsound boom\n', "no sound called 'boom'"],
+  ['#html\ntouchpad "x", "z" icons "a.png"\n', 'one icon per key'],
 ];
 for (const [src, msg] of errors) {
   try {

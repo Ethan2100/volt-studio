@@ -588,7 +588,8 @@ function parse(tokens) {
         const opts = {};
         for (;;) {
           if (isWord('flipped')) { next(); opts.flip = { kind: 'Bool', value: true, line }; continue; }
-          const o = ['frame', 'flip', 'angle', 'size', 'alpha', 'flash'].find(isWord);
+          if (isWord('glow')) { next(); opts.glow = true; continue; }
+          const o = ['frame', 'flip', 'angle', 'size', 'alpha', 'flash', 'tint', 'scale'].find(isWord);
           if (!o) break;
           next();
           opts[o] = expression();
@@ -651,7 +652,23 @@ function parse(tokens) {
       case 'touchpad': {
         const keys = [expect('string', 'a key in quotes, like "x"').value];
         while (match(',')) keys.push(expect('string', 'a key in quotes, like "x"').value);
-        return { kind: 'Touchpad', keys, line };
+        // optional pictures: stick "pad.png", "nub.png"   button "button.png"   icons "a.png", "b.png"
+        const art = {};
+        const files = () => {
+          const list = [expect('string', 'a picture file in quotes').value];
+          while (match(',')) list.push(expect('string', 'a picture file in quotes').value);
+          return list;
+        };
+        for (;;) {
+          const o = ['stick', 'button', 'icons'].find(isWord);
+          if (!o) break;
+          next();
+          art[o] = files();
+        }
+        if (art.icons && art.icons.length !== keys.length) {
+          throw new VoltError(`Give one icon per key: ${keys.length} key${keys.length === 1 ? '' : 's'}, ${art.icons.length} icon${art.icons.length === 1 ? '' : 's'}`, line);
+        }
+        return { kind: 'Touchpad', keys, art, line };
       }
       // music "e5 g5 a5 _", "a2 - e2 -" tempo 140      music off
       case 'music': {
@@ -1041,26 +1058,38 @@ const GAME_RUNTIME = [
   "  return im;",
   "}",
   "function __sprite(img, x, y, w, h, n) { return { img, x, y, w, h, n: Math.max(1, n | 0) }; }",
-  "let __tmp = null;",
-  "function __draw(s, x, y, f, flip, ang, size, alpha, flash) {",
+  "// draw options: frame, flip, angle, size (whole times), scale (percent, around the centre),",
+  "// alpha, flash (pure white), tint (a colour, for white sprites like glows and smoke), glow (adds light)",
+  "function __tinted(s, sx, sy, color) {",
+  "  const cache = s.img.__tints || (s.img.__tints = new Map());",
+  "  const key = sx + ',' + sy + ',' + s.w + ',' + s.h + ',' + color;",
+  "  let t = cache.get(key);",
+  "  if (!t) {",
+  "    t = document.createElement('canvas'); t.width = s.w; t.height = s.h;",
+  "    const g = t.getContext('2d');",
+  "    g.drawImage(s.img, sx, sy, s.w, s.h, 0, 0, s.w, s.h);",
+  "    g.globalCompositeOperation = 'source-atop'; g.fillStyle = color; g.fillRect(0, 0, s.w, s.h);",
+  "    if (cache.size > 400) cache.clear();",
+  "    cache.set(key, t);",
+  "  }",
+  "  return t;",
+  "}",
+  "function __draw(s, x, y, f, flip, ang, size, alpha, flash, tint, glow, scale) {",
   "  __need();",
-  "  const sc = size == null ? 1 : Math.max(0, size), w = s.w * sc, h = s.h * sc;",
-  "  const dx = Math.round(x) - __camX, dy = Math.round(y) - __camY, m = Math.max(w, h);",
-  "  if (dx > __W + m || dy > __H + m || dx + w < -m || dy + h < -m) return;",
+  "  const sz = size == null ? 1 : Math.max(0, size);",
+  "  const w0 = s.w * sz, h0 = s.h * sz, sc = scale == null ? 1 : Math.max(0, scale / 100);",
+  "  const w = w0 * sc, h = h0 * sc;",
+  "  const cx = Math.round(x) - __camX + w0 / 2, cy = Math.round(y) - __camY + h0 / 2, m = Math.max(w, h);",
+  "  if (cx - m > __W || cy - m > __H || cx + m < 0 || cy + m < 0) return;",
   "  const k = (((f | 0) % s.n) + s.n) % s.n;",
   "  let src = s.img, sx = s.x + k * s.w, sy = s.y;",
-  "  if (flash) {",
-  "    __tmp = __tmp || document.createElement('canvas');",
-  "    __tmp.width = s.w; __tmp.height = s.h;",
-  "    const t = __tmp.getContext('2d');",
-  "    t.drawImage(s.img, sx, sy, s.w, s.h, 0, 0, s.w, s.h);",
-  "    t.globalCompositeOperation = 'source-atop'; t.fillStyle = '#fff'; t.fillRect(0, 0, s.w, s.h);",
-  "    src = __tmp; sx = 0; sy = 0;",
-  "  }",
+  "  const color = flash ? '#fff' : tint;",
+  "  if (color != null) { src = __tinted(s, sx, sy, String(color)); sx = 0; sy = 0; }",
   "  const c = __cx;",
   "  c.save();",
   "  if (alpha != null) c.globalAlpha = Math.max(0, Math.min(1, alpha / 100));",
-  "  c.translate(dx + w / 2, dy + h / 2);",
+  "  if (glow) c.globalCompositeOperation = 'lighter';",
+  "  c.translate(cx, cy);",
   "  if (ang) c.rotate(ang * Math.PI / 180);",
   "  if (flip) c.scale(-1, 1);",
   "  c.drawImage(src, sx, sy, s.w, s.h, -w / 2, -h / 2, w, h);",
@@ -1109,27 +1138,62 @@ const GAME_RUNTIME = [
   "    o.start(t); o.stop(t + d + 0.02);",
   "  } catch (e) { /* no sound card: stay quiet */ }",
   "}",
-  "// touchpad \"x\", \"z\": on touch screens, an arrow pad plus a button for each key",
-  "function __touchpad(keys) {",
+  "// touchpad \"x\", \"z\": on touch screens, an arrow pad (or a joystick) plus a button for each key",
+  "// art (optional): { pad, nub } for a joystick, button for the button background, icons for each key",
+  "function __touchpad(keys, art) {",
   "  if (!window.matchMedia('(pointer: coarse)').matches) return;",
+  "  art = art || {};",
   "  const pad = document.createElement('div'); pad.className = 'volt-touch';",
-  "  const btn = (label, key, cls) => {",
-  "    const b = document.createElement('button'); b.textContent = label; b.className = cls;",
+  "  const press = (k) => {",
+  "    if (__down.has(k)) return;",
+  "    __down.add(k);",
+  "    if (!__stopped) __keys.filter((h) => h.key === k || h.key === 'any').forEach((h) => h.fn().catch(__error));",
+  "  };",
+  "  const btn = (label, key, cls, icon) => {",
+  "    const b = document.createElement('button'); b.className = cls;",
+  "    if (art.button) { b.classList.add('volt-art'); b.style.backgroundImage = 'url(\"' + art.button + '\")'; }",
+  "    if (icon) { const i = document.createElement('img'); i.src = icon; i.alt = label; b.append(i); } else b.textContent = label;",
   "    const k = __keyOf(key);",
-  "    const press = (e) => {",
-  "      e.preventDefault(); if (__down.has(k)) return; __down.add(k);",
-  "      if (!__stopped) __keys.filter((h) => h.key === k || h.key === 'any').forEach((h) => h.fn().catch(__error));",
-  "    };",
-  "    const release = (e) => { e.preventDefault(); __down.delete(k); };",
-  "    b.addEventListener('pointerdown', press); b.addEventListener('pointerup', release);",
-  "    b.addEventListener('pointercancel', release); b.addEventListener('pointerleave', release);",
+  "    const down = (e) => { e.preventDefault(); b.classList.add('volt-down'); press(k); };",
+  "    const up = (e) => { e.preventDefault(); b.classList.remove('volt-down'); __down.delete(k); };",
+  "    b.addEventListener('pointerdown', down); b.addEventListener('pointerup', up);",
+  "    b.addEventListener('pointercancel', up); b.addEventListener('pointerleave', up);",
   "    return b;",
   "  };",
-  "  const dpad = document.createElement('div'); dpad.className = 'volt-dpad';",
-  "  dpad.append(btn('\u25b2', 'up', 'u'), btn('\u25c0', 'left', 'l'), btn('\u25b6', 'right', 'r'), btn('\u25bc', 'down', 'd'));",
+  "  let left;",
+  "  if (art.pad) {",
+  "    // a joystick: drag the nub; it holds the arrow keys for that direction (8 ways)",
+  "    left = document.createElement('div'); left.className = 'volt-stick';",
+  "    left.style.backgroundImage = 'url(\"' + art.pad + '\")';",
+  "    const nub = document.createElement('img'); nub.className = 'volt-nub'; nub.src = art.nub || art.pad; nub.alt = '';",
+  "    left.append(nub);",
+  "    const dirs = ['arrowleft', 'arrowright', 'arrowup', 'arrowdown'];",
+  "    let id = null;",
+  "    const move = (e) => {",
+  "      const r = left.getBoundingClientRect(), rad = r.width / 2;",
+  "      let dx = e.clientX - (r.left + rad), dy = e.clientY - (r.top + rad);",
+  "      const len = Math.hypot(dx, dy), max = rad * 0.55;",
+  "      if (len > max) { dx = dx * max / len; dy = dy * max / len; }",
+  "      nub.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';",
+  "      const t = max * 0.4, want = new Set();",
+  "      if (dx < -t) want.add('arrowleft'); if (dx > t) want.add('arrowright');",
+  "      if (dy < -t) want.add('arrowup'); if (dy > t) want.add('arrowdown');",
+  "      dirs.forEach((d) => { if (want.has(d)) press(d); else __down.delete(d); });",
+  "    };",
+  "    const end = (e) => {",
+  "      if (e.pointerId !== id) return;",
+  "      id = null; nub.style.transform = ''; dirs.forEach((d) => __down.delete(d));",
+  "    };",
+  "    left.addEventListener('pointerdown', (e) => { e.preventDefault(); id = e.pointerId; left.setPointerCapture(id); move(e); });",
+  "    left.addEventListener('pointermove', (e) => { if (e.pointerId === id) move(e); });",
+  "    left.addEventListener('pointerup', end); left.addEventListener('pointercancel', end);",
+  "  } else {",
+  "    left = document.createElement('div'); left.className = 'volt-dpad';",
+  "    left.append(btn('\u25b2', 'up', 'u'), btn('\u25c0', 'left', 'l'), btn('\u25b6', 'right', 'r'), btn('\u25bc', 'down', 'd'));",
+  "  }",
   "  const acts = document.createElement('div'); acts.className = 'volt-acts';",
-  "  keys.forEach((k) => acts.append(btn(String(k).toUpperCase(), k, 'a')));",
-  "  pad.append(dpad, acts);",
+  "  keys.forEach((k, i) => acts.append(btn(String(k).toUpperCase(), k, 'a', art.icons && art.icons[i])));",
+  "  pad.append(left, acts);",
   "  document.body.appendChild(pad);",
   "}",
   "// volume 50: loudness of everything (0 is silent). audio/sound: sound files, picked at random when there are several",
@@ -1240,7 +1304,7 @@ const GAME_CSS = `  body.volt-game { background: #000; overflow: hidden; }
   body.volt-game #volt > h1 { display: none; }
   body.volt-game .volt-error { position: fixed; top: 10px; left: 10px; right: 10px; z-index: 5; }
   .volt-canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; outline: none; touch-action: none; }
-  .volt-touch { position: fixed; inset: auto 0 0 0; display: flex; justify-content: space-between; align-items: end; padding: 18px; pointer-events: none; z-index: 4; user-select: none; -webkit-user-select: none; }
+  .volt-touch { position: fixed; inset: auto 0 0 0; display: flex; justify-content: space-between; align-items: end; padding: 18px max(18px, env(safe-area-inset-right, 0px)) max(18px, env(safe-area-inset-bottom, 0px)) max(18px, env(safe-area-inset-left, 0px)); pointer-events: none; z-index: 4; user-select: none; -webkit-user-select: none; }
   .volt-touch button { pointer-events: auto; margin: 0; padding: 0; border-radius: 50%; background: rgba(255,255,255,0.10); color: rgba(255,255,255,0.75); font: 700 18px system-ui, sans-serif; touch-action: none; border: 2px solid rgba(255,255,255,0.25); }
   .volt-touch button:active { background: rgba(255,255,255,0.35); transform: none; }
   .volt-dpad { display: grid; grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 44px); }
@@ -1248,7 +1312,12 @@ const GAME_CSS = `  body.volt-game { background: #000; overflow: hidden; }
   .volt-dpad button { border-radius: 12px; }
   .volt-acts { display: flex; gap: 14px; align-items: end; }
   .volt-acts button { width: 56px; height: 56px; }
-  .volt-acts button:nth-child(2) { margin-bottom: 34px; }`;
+  .volt-acts button:nth-child(2) { margin-bottom: 34px; }
+  .volt-touch button.volt-art { background: center / contain no-repeat; border: 0; display: grid; place-items: center; }
+  .volt-touch button img { width: 46%; height: 46%; pointer-events: none; }
+  .volt-touch button.volt-down { transform: scale(0.92); filter: brightness(1.35); }
+  .volt-stick { position: relative; width: 132px; height: 132px; display: grid; place-items: center; background: center / contain no-repeat; pointer-events: auto; touch-action: none; }
+  .volt-nub { width: 48%; height: 48%; pointer-events: none; }`;
 
 // Removes one pair of outer brackets: "(a + b)" -> "a + b" (but not "(a) + (b)")
 function bare(code) {
@@ -2396,6 +2465,7 @@ function generate(ast, target = 'cpp', options = {}) {
         const args = [
           s.sprite, bare(genNumber(s.x, "'draw'")), bare(genNumber(s.y, "'draw'")),
           num(o.frame, "'frame'"), cond(o.flip), num(o.angle, "'angle'"), num(o.size, "'size'"), num(o.alpha, "'alpha'"), cond(o.flash),
+          o.tint ? bare(genExpr(o.tint).code) : 'null', String(!!o.glow), num(o.scale, "'scale'"),
         ];
         while (args.length > 3 && (args[args.length - 1] === 'null' || args[args.length - 1] === 'false')) args.pop();
         return [`${p}__draw(${args.join(', ')});`];
@@ -2440,9 +2510,19 @@ function generate(ast, target = 'cpp', options = {}) {
         gameOnly("'save'", s.line);
         return [`${p}__save(${bare(genExpr(s.key).code)}, ${bare(genExpr(s.value).code)});`];
 
-      case 'Touchpad':
+      case 'Touchpad': {
         gameOnly("'touchpad'", s.line);
-        return [`${p}__touchpad([${s.keys.map(strLit).join(', ')}]);`];
+        const pic = (f) => strLit(embedFile(f, s.line, MIME, 'a picture', '.png, .jpg, .gif, .webp or .svg'));
+        const parts = [];
+        if (s.art.stick) {
+          parts.push(`pad: ${pic(s.art.stick[0])}`);
+          if (s.art.stick[1]) parts.push(`nub: ${pic(s.art.stick[1])}`);
+        }
+        if (s.art.button) parts.push(`button: ${pic(s.art.button[0])}`);
+        if (s.art.icons) parts.push(`icons: [${s.art.icons.map(pic).join(', ')}]`);
+        const art = parts.length ? `, { ${parts.join(', ')} }` : '';
+        return [`${p}__touchpad([${s.keys.map(strLit).join(', ')}]${art});`];
+      }
 
       case 'EveryFrame': {
         if (!html) {

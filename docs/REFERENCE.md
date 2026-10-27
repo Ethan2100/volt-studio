@@ -297,7 +297,7 @@ every frame {                         // 60 times a second
 | `canvas 320, 180` | Makes the pixel screen. Run it once, before drawing |
 | `image tiles = "tiles.png"` | Loads a picture (`.png`, `.jpg`, `.gif`, `.webp`, `.svg`). Top level only. When you Run or Build, Volt packs it into the page, so `index.html` works on its own |
 | `sprite hero = tiles at x, y size w, h` | Cuts a rectangle out of a picture. Add `frames 4` when the animation frames sit side by side |
-| `draw hero at x, y` | Draws a sprite. Options, in any order: `frame n`, `flipped` or `flip (condition)`, `angle 90`, `size 2`, `alpha 50` (0-100), `flash (condition)` (draws it pure white, for hits) |
+| `draw hero at x, y` | Draws a sprite. Options, in any order: `frame n`, `flipped` or `flip (condition)`, `angle 90`, `size 2` (whole times bigger), `scale 150` (percent, grows from the middle), `alpha 50` (0-100), `flash (condition)` (pure white, for hits), `tint "#ff8a3d"` (recolours it; great for white glow and smoke pictures), `glow` (adds its light to what's underneath, for fire, magic and lamps) |
 | `paint "#14111a"` | Fills the whole screen with a colour |
 | `box x, y, w, h color "#ff4d6d"` | A filled rectangle. Colours like `"#00000080"` are see-through |
 | `write "text" at x, y` | Pixel-font text. Options: `color "#ffd23f"`, `size 2`, `centered`, `shadow`. `\n` starts a new line |
@@ -306,6 +306,7 @@ every frame {                         // 60 times a second
 | `held("left")` | `true` while a key is down (`when key "x" pressed` still runs once per press) |
 | `tone 440 for 80ms` | A retro beep. `tone 880 to 220 for 150ms` slides the pitch. On pages it doesn't wait |
 | `touchpad "x", "z"` | On phones and tablets: an arrow pad plus a button for each key |
+| `touchpad "x", "z" stick "pad.png", "nub.png" button "button.png" icons "sword.png", "dash.png"` | The same with your own pictures: `stick` swaps the arrow pad for a joystick you drag, `button` is the picture behind every button, `icons` gives each key's button a picture (one per key). All three are optional |
 | `music "e5 g5 a5 _ -", "a2 - e2 -" tempo 140` | A looping chiptune: a melody and an optional bass line. Each word is one step: a note like `c4` or `f#5`, `-` for a rest, `_` to hold the note before. Starting the song that's already playing does nothing, so it's safe inside `every frame` |
 | `music off` | Stops the music |
 | `audio hit = "hit1.mp3", "hit2.mp3"` | Loads sound files (`.mp3`, `.ogg`, `.wav`, `.m4a`) from beside your .volt file. Top level only. With several files, each play picks one at random, so repeated hits don't sound the same. Packed into the page like pictures |
@@ -898,6 +899,7 @@ sprite hero = tiles at 0, 0 size 16, 16 frames 4
 every frame { }
 paint "#000"
 draw hero at x, y frame f flipped
+draw spark at x, y tint "#ffd23f" glow scale 150 alpha 60
 box x, y, 10, 10 color "#f00"
 write "Hi" at 10, 10 size 2 centered shadow
 camera x, y

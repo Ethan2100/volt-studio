@@ -8,5 +8,9 @@ License: CC0 1.0 Universal (public domain). Credit isn't required, but it's a gr
 https://kenney.nl  
 License: CC0 1.0 Universal (see sounds/LICENSE-kenney.txt). Converted to small mono MP3s.
 
+**fx.png** is built from Kenney's *Particle Pack*, and **controls/** (the phone joystick, buttons and icons) from Kenney's *Mobile Controls*  
+https://kenney.nl  
+License: CC0 1.0 Universal (see controls/LICENSE-kenney.txt).
+
 The in-game text uses the classic 5x7 bitmap font from Adafruit-GFX-Library
 (Copyright (c) 2012 Adafruit Industries, BSD license), built into Volt's `#html` game runtime.

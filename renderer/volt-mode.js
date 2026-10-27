@@ -20,7 +20,7 @@
       { regex: /(\s*)(canvas|image|sprite|draw|paint|box|write|camera|touchpad|music|save|audio|sound|volume|add|remove)(?=\s+[^=\s(\[+\-*\/])/, token: [null, 'keyword'], sol: true },
       { regex: /(every)(\s+)(frame)\b/, token: ['keyword', null, 'qualifier'] },
       { regex: /(for)(\s+)(each)(\s+)([A-Za-z_]\w*)(\s+)(in)\b/, token: ['keyword', null, 'qualifier', null, 'variable', null, 'qualifier'] },
-      { regex: /\b(?:at|size|frames|frame|flip|flipped|angle|alpha|flash|color|centered|shadow|tempo|volume)\b(?=\s)/, token: 'qualifier' },
+      { regex: /\b(?:at|size|frames|frame|flip|flipped|angle|alpha|flash|color|centered|shadow|tempo|volume|tint|glow|scale|stick|icons)\b(?=\s)/, token: 'qualifier' },
       { regex: /(when)(\s+)(key)(?=\s+")/, token: ['keyword', null, 'qualifier'] },
       { regex: /(set)(\s+)([A-Za-z_]\w*)(\s+)(speed)\b/, token: ['builtin', null, 'variable', null, 'qualifier'] },
       { regex: /(for)(\s+)([A-Za-z_]\w*)(\s+)(from)\b/, token: ['keyword', null, 'variable', null, 'qualifier'], sol: false },

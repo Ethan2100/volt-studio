@@ -16,9 +16,11 @@
 title "Moonwell"
 
 canvas 320, 180
-touchpad "x", "z", "c"
+// on phones: a joystick and three buttons (Kenney's Mobile Controls, CC0)
+touchpad "x", "z", "c" stick "controls/stick.png", "controls/nub.png" button "controls/button.png" icons "controls/sword.png", "controls/dash.png", "controls/switch.png"
 
 image tiles = "dungeon.png"
+image fxSheet = "fx.png"
 
 // ---------- sounds (Kenney.nl, CC0): several files = a random pick each time ----------
 audio sndSwing = "sounds/swing1.mp3", "sounds/swing2.mp3"
@@ -110,6 +112,26 @@ sprite ogreIdle = tiles at 16, 320 size 32, 32 frames 4
 sprite ogreRun = tiles at 144, 320 size 32, 32 frames 4
 sprite wardenIdle = tiles at 16, 270 size 32, 34 frames 4
 sprite wardenRun = tiles at 144, 270 size 32, 34 frames 4
+
+// effects: white glows and puffs (Kenney's Particle Pack, CC0), coloured with tint
+sprite fxSlash = fxSheet at 0, 0 size 32, 32
+sprite fxStar = fxSheet at 32, 0 size 32, 32
+sprite fxCross = fxSheet at 64, 0 size 32, 32
+sprite fxFlare = fxSheet at 96, 0 size 32, 32
+sprite fxSpark = fxSheet at 128, 0 size 32, 32
+sprite fxSmoke = fxSheet at 160, 0 size 32, 32 frames 2
+sprite fxFire = fxSheet at 224, 0 size 32, 32
+sprite fxFlame = fxSheet at 256, 0 size 32, 32
+sprite fxRune = fxSheet at 288, 0 size 32, 32
+sprite fxDot = fxSheet at 320, 0 size 32, 32
+sprite fxBolt = fxSheet at 352, 0 size 32, 32
+sprite fxTwirl = fxSheet at 384, 0 size 32, 32
+sprite fxClaw = fxSheet at 416, 0 size 32, 32
+sprite fxRing = fxSheet at 0, 32 size 64, 64
+sprite fxGlow = fxSheet at 64, 32 size 64, 64
+sprite fxCircle = fxSheet at 128, 32 size 64, 64
+sprite fxLight = fxSheet at 192, 32 size 64, 64
+sprite fxVortex = fxSheet at 256, 32 size 64, 64
 
 // ---------- the maps ----------
 // #  wall          .  floor        P  start      ^  spikes
@@ -412,6 +434,24 @@ let qvy = []
 let qlife = []
 let qcol = []
 
+// effects: kind, centre (x10), age, life, colour, scale from/to (%), angle, spin, drift (x10)
+let efk = []
+let efx = []
+let efy = []
+let efage = []
+let eflife = []
+let efcol = []
+let efs0 = []
+let efs1 = []
+let efang = []
+let efspin = []
+let efvx = []
+let efvy = []
+// little lights that glow on lava and moonwater
+let lightX = []
+let lightY = []
+let lightCol = []
+
 // talking: a queue of messages, typed out letter by letter
 let msgs = []
 let shown = 0
@@ -486,10 +526,15 @@ fn spawnNear(kind, tx, ty) {
   if not solidCell(tx, ty) and cell(tx, ty) != "^" {
     spawnEnemy(kind, tx, ty)
     burst(tx * 16 + 8, ty * 16 + 8, 10, "#c77dff", 14)
+    effect(16, tx * 16 + 8, ty * 16 + 8, 26, "#c77dff", 20, 90, 0, -6)
   }
 }
 
 fn clearLists() {
+  clearEffects()
+  lightX = []
+  lightY = []
+  lightCol = []
   grid = []
   look = []
   edge = []
@@ -588,6 +633,14 @@ fn buildLevel() {
         ladX = tx
         ladY = ty
         keep = "."
+      } else if ch == "u" or ch == "v" {
+        add tx * 16 + 8 to lightX
+        add ty * 16 + 8 to lightY
+        if ch == "u" {
+          add "#6fc3ff" to lightCol
+        } else {
+          add "#ff6a1f" to lightCol
+        }
       } else if ch == "K" {
         mageX = tx
         mageY = ty
@@ -869,6 +922,153 @@ fn ring(px, py, turned, color) {
 }
 
 // =====================================================================
+//  Effects: glowing sprites that grow, spin, drift and fade
+// =====================================================================
+// kinds: 1 slash  2 star  3 cross  4 flare  5 spark  6 smoke  7 fire  8 flame
+//        9 rune  10 dot  11 bolt  12 twirl  13 claw  14 ring  15 glow  16 circle
+fn effect(kind, px, py, life, color, s0, s1, ang, spin) {
+  if length(efk) > 160 {
+    return 0
+  }
+  add kind to efk
+  add px * 10 to efx
+  add py * 10 to efy
+  add 0 to efage
+  add life to eflife
+  add color to efcol
+  add s0 to efs0
+  add s1 to efs1
+  add ang to efang
+  add spin to efspin
+  add 0 to efvx
+  add 0 to efvy
+}
+
+// the same, drifting by (dx, dy) tenths of a pixel each frame
+fn drift(dx, dy) {
+  let last = length(efk) - 1
+  if last >= 0 {
+    efvx[last] = dx
+    efvy[last] = dy
+  }
+}
+
+fn clearEffects() {
+  efk = []
+  efx = []
+  efy = []
+  efage = []
+  eflife = []
+  efcol = []
+  efs0 = []
+  efs1 = []
+  efang = []
+  efspin = []
+  efvx = []
+  efvy = []
+}
+
+fn updateEffects() {
+  let n = 0
+  while n < length(efk) {
+    efage[n] += 1
+    efx[n] += efvx[n]
+    efy[n] += efvy[n]
+    efang[n] += efspin[n]
+    if efage[n] >= eflife[n] {
+      remove efk[n]
+      remove efx[n]
+      remove efy[n]
+      remove efage[n]
+      remove eflife[n]
+      remove efcol[n]
+      remove efs0[n]
+      remove efs1[n]
+      remove efang[n]
+      remove efspin[n]
+      remove efvx[n]
+      remove efvy[n]
+    } else {
+      n += 1
+    }
+  }
+}
+
+fn drawEffects() {
+  let n = 0
+  while n < length(efk) {
+    let t = efage[n] * 100 / eflife[n]
+    let sc = efs0[n] + (efs1[n] - efs0[n]) * t / 100
+    let see = 100 - t
+    drawFx(efk[n], efx[n] / 10, efy[n] / 10, efang[n], efcol[n], see, sc)
+    n += 1
+  }
+}
+
+// one effect sprite centred on (cx, cy)
+fn drawFx(kind, cx, cy, ang, color, see, sc) {
+  let x = cx - 16
+  let y = cy - 16
+  if kind >= 14 {
+    x = cx - 32
+    y = cy - 32
+  }
+  if kind == 1 {
+    draw fxSlash at x, y angle ang tint color alpha see scale sc glow
+  } else if kind == 2 {
+    draw fxStar at x, y angle ang tint color alpha see scale sc glow
+  } else if kind == 3 {
+    draw fxCross at x, y angle ang tint color alpha see scale sc glow
+  } else if kind == 4 {
+    draw fxFlare at x, y angle ang tint color alpha see scale sc glow
+  } else if kind == 5 {
+    draw fxSpark at x, y angle ang tint color alpha see scale sc glow
+  } else if kind == 6 {
+    draw fxSmoke at x, y frame ang / 180 angle ang tint color alpha see * 7 / 10 scale sc
+  } else if kind == 7 {
+    draw fxFire at x, y angle ang tint color alpha see scale sc glow
+  } else if kind == 8 {
+    draw fxFlame at x, y angle ang tint color alpha see scale sc glow
+  } else if kind == 9 {
+    draw fxRune at x, y angle ang tint color alpha see scale sc glow
+  } else if kind == 10 {
+    draw fxDot at x, y angle ang tint color alpha see scale sc glow
+  } else if kind == 11 {
+    draw fxBolt at x, y angle ang tint color alpha see scale sc glow
+  } else if kind == 12 {
+    draw fxTwirl at x, y angle ang tint color alpha see scale sc glow
+  } else if kind == 13 {
+    draw fxClaw at x, y angle ang tint color alpha see scale sc glow
+  } else if kind == 14 {
+    draw fxRing at x, y angle ang tint color alpha see scale sc
+  } else if kind == 15 {
+    draw fxGlow at x, y angle ang tint color alpha see scale sc glow
+  } else {
+    draw fxCircle at x, y angle ang tint color alpha see scale sc glow
+  }
+}
+
+// a soft puff of smoke that rises
+fn puff(px, py, color) {
+  effect(6, px + random(-4, 4), py + random(-3, 3), random(22, 34), color, 50, 130, random(0, 359), random(-3, 3))
+  drift(random(-3, 3), -4)
+}
+
+// glows on lava and moonwater, flickering a little
+fn drawLights() {
+  let n = 0
+  while n < length(lightX) {
+    let lx = lightX[n]
+    let ly = lightY[n]
+    if lx > camX - 60 and lx < camX + 380 and ly > camY - 60 and ly < camY + 240 {
+      let flick = 30 + (tick / 4 + n * 5) % 7
+      draw fxLight at lx - 32, ly - 32 tint lightCol[n] alpha flick scale 150 glow
+    }
+    n += 1
+  }
+}
+
+// =====================================================================
 //  The hero
 // =====================================================================
 fn hurtHero(amount, fromX, fromY) {
@@ -883,6 +1083,7 @@ fn hurtHero(amount, fromX, fromY) {
   kby = sign(hy + 4 - fromY) * 4
   sound sndHurt
   burst(hx + 5, hy - 4, 10, "#ff4d6d", 25)
+  effect(13, hx + 5, hy - 6, 12, "#ff4d6d", 90, 120, random(0, 90), 0)
   if hp <= 0 {
     hp = 0
     dying = 70
@@ -1024,9 +1225,28 @@ fn swordHits() {
     }
     n += 1
   }
+  // the slash arc, pointing the way the hero faces
+  let arc = 0
+  if faceX > 0 {
+    arc = 270
+  } else if faceX < 0 {
+    arc = 90
+  } else if faceY < 0 {
+    arc = 180
+  }
+  let slashCol = "#ffffff"
+  if weapon == 4 {
+    slashCol = "#ffd23f"
+  } else if weapon == 1 {
+    slashCol = "#c9d3dd"
+  }
   if weapon == 3 {
     shake = max(shake, 5)
     burst(ax + aw / 2, ay + ah / 2, 6, "#c9a27e", 14)
+    effect(14, ax + aw / 2, ay + ah / 2, 16, "#c9a27e", 20, 80, 0, 0)
+    effect(1, ax + aw / 2, ay + ah / 2, 12, "#ffe6c4", 220, 300, arc, 0)
+  } else {
+    effect(1, ax + aw / 2, ay + ah / 2, 10, slashCol, 170, 230, arc, 0)
   }
 }
 
@@ -1047,7 +1267,11 @@ fn hitEnemy(n, dmg, pushX, pushY) {
   } else {
     sound sndHit
   }
-  burst(ex[n] + enemyW(k) / 2, ey[n] + enemyH(k) - kindTall[k] / 2, 8, "#ffffff", 22)
+  let mx = ex[n] + enemyW(k) / 2
+  let my = ey[n] + enemyH(k) - kindTall[k] / 2
+  burst(mx, my, 8, "#ffffff", 22)
+  effect(2, mx, my, 10, "#fff4c2", 120, 30, random(0, 90), 6)
+  effect(4, mx, my, 8, "#ffffff", 140, 60, 0, 0)
 }
 
 // the Ember Staff throws a flame that passes through monsters
@@ -1066,6 +1290,7 @@ fn shootFlame() {
   add 40 to flife
   add "," to fhit
   tone 700 to 300 for 90ms
+  effect(4, startX, startY, 8, "#ffb34a", 120, 40, 0, 0)
 }
 
 fn updateFlames() {
@@ -1221,6 +1446,9 @@ fn pressX() {
     checkX = hx
     checkY = hy
     burst(cx, cy - 10, 20, "#9bd3ff", 18)
+    effect(16, cx, cy - 8, 40, "#9bd3ff", 30, 140, 0, 3)
+    effect(9, cx, cy - 8, 36, "#e8f4ff", 60, 100, 0, 5)
+    drift(0, -6)
     sound sndHeal
     if tick - healedAt > 600 {
       say("The cold moonwater fills you with strength.\nYour hearts are restored.")
@@ -1266,6 +1494,7 @@ fn buy(item) {
   coins -= cost
   sound sndBuy
   burst(hx + 5, hy - 8, 14, "#ffd23f", 16)
+  effect(16, hx + 5, hy - 6, 30, "#ffd23f", 30, 110, 0, 4)
   if item == 1 {
     hp = min(maxHp, hp + 4)
   } else if item == 2 {
@@ -1287,6 +1516,8 @@ fn pressZ() {
     dash = 9
     dashCool = 36
     sound sndDash
+    puff(hx + 5, hy + 6, "#b9a8a0")
+    puff(hx + 5, hy + 6, "#b9a8a0")
     if faceX == 0 and faceY == 0 {
       faceY = 1
     }
@@ -1299,6 +1530,8 @@ fn openChest(n) {
   let px = chx[n] * 16 + 8
   let py = chy[n] * 16 + 4
   burst(px, py, 14, "#ffd23f", 16)
+  effect(16, px, py, 30, "#ffd23f", 40, 120, 0, 3)
+  effect(2, px, py - 6, 20, "#ffffff", 150, 40, 0, 4)
   if chWhat[n] == 1 {
     keys += 1
     sound jingleKey
@@ -1422,6 +1655,11 @@ fn updateEnemies() {
           }
         }
         tone 520 to 260 for 90ms
+        if k == 10 {
+          effect(9, ex[n] + 6, ey[n] - 8, 18, "#ff8a3d", 40, 90, 0, 8)
+        } else {
+          effect(9, ex[n] + 6, ey[n] - 8, 22, "#c77dff", 40, 110, 0, -8)
+        }
       }
     } else if far < 120 and dying == 0 {
       if go {
@@ -1463,6 +1701,10 @@ fn killEnemy(n) {
   let py = ey[n] + enemyH(k) / 2
   burst(px, py - 6, 22, "#ff8a3d", 28)
   burst(px, py - 6, 10, "#6b5b55", 16)
+  repeat 3 {
+    puff(px, py - 8, "#8a7c86")
+  }
+  effect(15, px, py - 6, 14, "#ff8a3d", 70, 10, 0, 0)
   sound sndHeavy volume 70
   shake = max(shake, 6)
   let roll = random(1, 100)
@@ -1488,6 +1730,11 @@ fn killEnemy(n) {
     bcol = []
     burst(px, py - 10, 60, "#ffd23f", 45)
     burst(px, py - 10, 40, "#e8f4ff", 35)
+    effect(14, px, py - 10, 40, "#ffd23f", 30, 400, 0, 0)
+    effect(16, px, py - 10, 50, "#e8f4ff", 60, 220, 0, 4)
+    repeat 8 {
+      puff(px + random(-20, 20), py - random(0, 20), "#6b5b55")
+    }
     sound sndSlam
     sound jingleBoss
     // a pile of gold
@@ -1574,6 +1821,10 @@ fn updateBoss(n, dx, dy, far) {
         burst(px, py + 16, 2, "#8a7a6a", 10)
       }
       if bossRush == 0 {
+        effect(14, px, py + 16, 26, "#c9a27e", 30, 260, 0, 0)
+        repeat 5 {
+          puff(px, py + 14, "#8a7a6a")
+        }
         shake = 10
         sound sndSlam
         if bossAngry {
@@ -1649,6 +1900,7 @@ fn updateBoss(n, dx, dy, far) {
   if bossShot >= gap {
     bossShot = 0
     ring(px, py, bossAngry and tick % 2 == 0, "#ff5a1f")
+    effect(14, px, py, 22, "#ff5a1f", 20, 180, 0, 0)
     if bossAngry {
       aimAt(px, py, 22, 3, "#ffd23f")
     }
@@ -1696,11 +1948,14 @@ fn updateItems() {
         coins += 2
         sound sndCoin volume 60
         burst(ix[n], iy[n], 5, "#ffd23f", 12)
+        effect(2, ix[n], iy[n] - 4, 10, "#ffd23f", 70, 20, 0, 9)
         took = true
       } else if hp < maxHp {
         hp = min(maxHp, hp + 2)
         sound sndHeal
         burst(ix[n], iy[n], 10, "#ff4d6d", 14)
+        effect(9, hx + 5, hy - 6, 30, "#ff6b8a", 40, 90, 0, 6)
+        drift(0, -5)
         took = true
       }
     }
@@ -1971,6 +2226,9 @@ fn drawEnemy(n) {
   } else if k == 14 {
     // Grukk glows white while winding up a charge
     let windup = bossWind > 0 and tick % 6 < 3
+    if bossWind > 0 {
+      draw fxGlow at ex[n] + 12 - 32, ey[n] - 10 - 32 tint "#ff4d4d" alpha 30 + (30 - bossWind) * 2 scale 90 glow
+    }
     if run {
       draw ogreRun at x, y frame f flip left flash hit or windup
     } else {
@@ -2071,9 +2329,6 @@ fn drawHeld() {
     oy = reach
   }
   drawWeapon(weapon, cx + ox, cy + oy, base + sweep)
-  if swing > total - 7 and weapon != 5 {
-    box cx + ox * 3 / 2 - 2, cy + oy * 3 / 2 - 2, 4, 4 color "#ffffffcc"
-  }
 }
 
 fn drawShop() {
@@ -2144,6 +2399,14 @@ fn drawWorld() {
       drawCell(tx, ty)
     }
   }
+  drawLights()
+  // the way down shimmers once the boss is gone
+  if bossDead and floor > 0 {
+    let lx = ladX * 16 + 8
+    let ly = ladY * 16 + 8
+    draw fxLight at lx - 32, ly - 32 tint "#9bd3ff" alpha 45 scale 120 glow
+    draw fxVortex at lx - 32, ly - 32 tint "#9bd3ff" alpha 55 scale 60 angle tick * 4 glow
+  }
   let n = 0
   while n < length(drx) {
     if drOpen[n] {
@@ -2192,7 +2455,7 @@ fn drawWorld() {
   while n < length(bx) {
     let px = bx[n] / 10
     let py = by[n] / 10
-    box px - 4, py - 4, 8, 8 color bcol[n] + "55"
+    draw fxGlow at px - 32, py - 32 tint bcol[n] alpha 55 scale 35 glow
     box px - 3, py - 3, 6, 6 color bcol[n]
     box px - 1, py - 2, 3, 3 color "#fff4d0"
     n += 1
@@ -2201,9 +2464,16 @@ fn drawWorld() {
   while n < length(fx) {
     let px = fx[n] / 10
     let py = fy[n] / 10
-    box px - 5, py - 5, 10, 10 color "#ff8a3d44"
-    box px - 3, py - 3, 6, 6 color "#ffb34a"
-    box px - 1, py - 1, 3, 3 color "#ffffff"
+    let fang = 0
+    if fvx[n] > 0 {
+      fang = 90
+    } else if fvx[n] < 0 {
+      fang = 270
+    } else if fvy[n] > 0 {
+      fang = 180
+    }
+    draw fxGlow at px - 32, py - 32 tint "#ff8a3d" alpha 60 scale 45 glow
+    draw fxFlame at px - 16, py - 16 tint "#ffb34a" angle fang + 180 scale 80 glow
     n += 1
   }
   n = 0
@@ -2215,6 +2485,7 @@ fn drawWorld() {
     box qx[n] / 10, qy[n] / 10, size, size color qcol[n]
     n += 1
   }
+  drawEffects()
   if floor == 0 {
     drawShop()
   }
@@ -2447,6 +2718,7 @@ every frame {
       update()
     }
     updateSparks()
+    updateEffects()
     updateCamera()
     drawWorld()
     drawVignette()
