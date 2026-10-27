@@ -168,7 +168,7 @@ const PIN_MODES = ['input', 'output', 'analog', 'pwm', 'servo', 'stepper'];
 const PAGE_WORDS = ['button', 'title', 'html'];
 // Game commands (#html canvas games) and list commands. Like the page words they
 // aren't keywords, so 'let box = 3' or 'fn draw()' in older programs still work.
-const GAME_WORDS = ['canvas', 'image', 'sprite', 'draw', 'paint', 'box', 'write', 'camera', 'touchpad'];
+const GAME_WORDS = ['canvas', 'image', 'sprite', 'draw', 'paint', 'box', 'write', 'camera', 'touchpad', 'music', 'save'];
 const LIST_WORDS = ['add', 'remove'];
 const NOT_A_COMMAND = ['=', '(', '[', '+=', '-=', '*=', '/=', 'eof'];
 
@@ -634,6 +634,21 @@ function parse(tokens) {
         while (match(',')) keys.push(expect('string', 'a key in quotes, like "x"').value);
         return { kind: 'Touchpad', keys, line };
       }
+      // music "e5 g5 a5 _", "a2 - e2 -" tempo 140      music off
+      case 'music': {
+        if (match('off')) return { kind: 'Music', melody: null, line };
+        const melody = expression();
+        const bass = match(',') ? expression() : null;
+        let tempo = { kind: 'Number', value: '140', line };
+        if (isWord('tempo')) { next(); tempo = expression(); }
+        return { kind: 'Music', melody, bass, tempo, line };
+      }
+      // save "best", score      (kept in this browser; read it back with saved("best", 0))
+      case 'save': {
+        const key = expression();
+        expect(',', "',' between the name and the value, like: save \"best\", score");
+        return { kind: 'Save', key, value: expression(), line };
+      }
       // add 5 to scores
       case 'add': {
         const value = expression();
@@ -802,7 +817,7 @@ const TARGET_NAMES = {
 };
 
 // Built-in functions: name -> number of values they take
-const BUILTINS = { random: 2, abs: 1, min: 2, max: 2, constrain: 3, map: 5, number: 1, text: 1, length: 1, upper: 1, lower: 1, contains: 2, part: 3, sign: 1, held: 1 };
+const BUILTINS = { random: 2, abs: 1, min: 2, max: 2, constrain: 3, map: 5, number: 1, text: 1, length: 1, upper: 1, lower: 1, contains: 2, part: 3, sign: 1, held: 1, saved: 2 };
 
 // Names that would clash with Volt, C++, Python, Ruby or JavaScript.
 // All of them are checked for every program, so a Volt file can switch languages freely.
@@ -907,6 +922,7 @@ const RB_HELPERS = {
 const JS_HELPERS = {
   random: ['function __random(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }'],
   len: ['function __len(v) { return Array.isArray(v) ? v.length : String(v).length; }'],
+  has: ['function __has(v, x) { return Array.isArray(v) ? v.includes(x) : String(v).includes(String(x)); }'],
   ask: [
     "const __rl = require('readline').createInterface({ input: process.stdin });",
     'const __lines = __rl[Symbol.asyncIterator]();',
@@ -1060,6 +1076,7 @@ const GAME_RUNTIME = [
   "// tone 440 for 100ms (and tone 880 to 220 for 150ms): a little square-wave beep",
   "let __ac = null;",
   "function __beep(f1, f2, ms) {",
+  "  if (!__gesture) return;",
   "  try {",
   "    __ac = __ac || new (window.AudioContext || window.webkitAudioContext)();",
   "    if (__ac.state === 'suspended') __ac.resume();",
@@ -1095,6 +1112,67 @@ const GAME_RUNTIME = [
   "  keys.forEach((k) => acts.append(btn(String(k).toUpperCase(), k, 'a')));",
   "  pad.append(dpad, acts);",
   "  document.body.appendChild(pad);",
+  "}",
+  "// save \"best\", 120 and saved(\"best\", 0): values kept in this browser between visits",
+  "function __saveKey(k) { return 'volt:' + location.pathname + ':' + String(k); }",
+  "function __save(k, v) { try { localStorage.setItem(__saveKey(k), JSON.stringify(v)); } catch (e) { /* storage blocked: skip */ } }",
+  "function __saved(k, d) {",
+  "  try { const s = localStorage.getItem(__saveKey(k)); return s == null ? d : JSON.parse(s); } catch (e) { return d; }",
+  "}",
+  "// music \"e5 g5 a5 _ -\", \"a2 - e2 -\" tempo 140: a looping chiptune (square melody, triangle bass)",
+  "// each word is one step (an eighth note): a note like c4 or f#5, - for a rest, _ to hold the note before",
+  "const __NOTE = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 };",
+  "function __freq(n) {",
+  "  const m = /^([a-g])(#|b)?(\\d)$/.exec(n);",
+  "  if (!m) return 0;",
+  "  const semis = __NOTE[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0);",
+  "  return 440 * Math.pow(2, (semis - 9) / 12 + (Number(m[3]) - 4));",
+  "}",
+  "let __song = null, __wantSong = null, __gesture = false;",
+  "['keydown', 'pointerdown'].forEach((t) => document.addEventListener(t, () => { if (__gesture) return; __gesture = true; if (__wantSong) { const w = __wantSong; __wantSong = null; __music(w[0], w[1], w[2]); } }, true));",
+  "function __music(mel, bass, tempo) {",
+  "  if (!__gesture) { __wantSong = mel == null ? null : [mel, bass, tempo]; return; }  // browsers need a key press or click first",
+  "  const key = mel == null ? '' : String(mel) + '|' + String(bass) + '|' + tempo;",
+  "  if (__song && __song.key === key) return;",
+  "  if (__song) {",
+  "    clearInterval(__song.timer);",
+  "    try { __song.out.gain.setTargetAtTime(0, __ac.currentTime, 0.05); } catch (e) { /* ignore */ }",
+  "    __song = null;",
+  "  }",
+  "  if (mel == null) return;",
+  "  try { __ac = __ac || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }",
+  "  const words = (t) => String(t == null ? '' : t).trim().toLowerCase().split(/\\s+/).filter(Boolean);",
+  "  const voices = [words(mel), words(bass)];",
+  "  const out = __ac.createGain(); out.connect(__ac.destination);",
+  "  const s = { key, out, step: 0, next: __ac.currentTime + 0.08, dur: 60 / Math.max(30, tempo || 140) / 2 };",
+  "  s.timer = setInterval(() => {",
+  "    if (__stopped) { clearInterval(s.timer); return; }",
+  "    if (__ac.state === 'suspended') __ac.resume();",
+  "    if (s.next < __ac.currentTime - 0.1) s.next = __ac.currentTime + 0.05;",
+  "    while (s.next < __ac.currentTime + 0.25) {",
+  "      voices.forEach((v, vi) => {",
+  "        if (!v.length) return;",
+  "        const n = v[s.step % v.length];",
+  "        const f = __freq(n);",
+  "        if (!f) return;",
+  "        let len = 1;",
+  "        while (len < v.length && v[(s.step + len) % v.length] === '_') len++;",
+  "        const o = __ac.createOscillator(), g = __ac.createGain();",
+  "        const t = s.next, d = s.dur * len * 0.9, vol = vi === 0 ? 0.022 : 0.05;",
+  "        o.type = vi === 0 ? 'square' : 'triangle';",
+  "        o.frequency.value = f;",
+  "        g.gain.setValueAtTime(0, t);",
+  "        g.gain.linearRampToValueAtTime(vol, t + 0.01);",
+  "        g.gain.setValueAtTime(vol, t + d * 0.6);",
+  "        g.gain.linearRampToValueAtTime(0, t + d);",
+  "        o.connect(g); g.connect(out);",
+  "        o.start(t); o.stop(t + d + 0.02);",
+  "      });",
+  "      s.step++;",
+  "      s.next += s.dur;",
+  "    }",
+  "  }, 50);",
+  "  __song = s;",
   "}",
 ];
 
@@ -1282,6 +1360,7 @@ function generate(ast, target = 'cpp', options = {}) {
       case 'Index': return 'any';
       case 'Call':
         if (['text', 'upper', 'lower', 'part'].includes(e.name)) return 'text';
+        if (e.name === 'saved') return e.args[1] && e.args[1].kind === 'List' ? 'list' : 'any';
         if (BUILTINS[e.name] !== undefined) return 'num';
         return cpp ? 'num' : 'any';
       case 'Var': { const v = lookupVar(e.name); return v ? v.type : 'any'; }
@@ -1630,6 +1709,7 @@ function generate(ast, target = 'cpp', options = {}) {
             if (rb) return { code: `${a}.include?(${b})`, type: 'bool' };
             return { code: `${a}.includes(${b})`, type: 'bool' };
           }
+          if (args[0].type === 'any' && js) { help('has'); return { code: `__has(${a}, ${b})`, type: 'bool' }; }
           if (py) return { code: `(str(${b}) in str(${a}))`, type: 'bool' };
           if (rb) return { code: `(${a}).to_s.include?((${b}).to_s)`, type: 'bool' };
           if (js) return { code: `String(${a}).includes(String(${b}))`, type: 'bool' };
@@ -1662,6 +1742,10 @@ function generate(ast, target = 'cpp', options = {}) {
           if (rb) return { code: `((${a}) <=> 0)`, type: 'num' };
           if (js) return { code: `Math.sign(${a})`, type: 'num' };
           return { code: `(((${a}) > 0) - ((${a}) < 0))`, type: 'num' };
+        // saved("best", 0) -> what 'save' stored, or the default      (#html)
+        case 'saved':
+          gameOnly("'saved'", e.line);
+          return { code: `__saved(${a}, ${b})`, type: args[1].type === 'list' ? 'list' : 'any' };
         // held("left") -> true while the key is down      (#html)
         case 'held':
           gameOnly("'held'", e.line);
@@ -2265,6 +2349,17 @@ function generate(ast, target = 'cpp', options = {}) {
       case 'Camera':
         gameOnly("'camera'", s.line);
         return [`${p}__camera(${bare(genNumber(s.x, "'camera'"))}, ${bare(genNumber(s.y, "'camera'"))});`];
+
+      case 'Music': {
+        gameOnly("'music'", s.line);
+        if (!s.melody) return [`${p}__music(null);`];
+        const bass = s.bass ? bare(genExpr(s.bass).code) : 'null';
+        return [`${p}__music(${bare(genExpr(s.melody).code)}, ${bass}, ${bare(genNumber(s.tempo, "'tempo'"))});`];
+      }
+
+      case 'Save':
+        gameOnly("'save'", s.line);
+        return [`${p}__save(${bare(genExpr(s.key).code)}, ${bare(genExpr(s.value).code)});`];
 
       case 'Touchpad':
         gameOnly("'touchpad'", s.line);

@@ -77,6 +77,8 @@ const errors = [
   ['#html\ncanvas 10, 10\ndraw ghost at 0, 0\n', "no sprite called 'ghost'"],
   ['#js\nevery frame { }\n', "'every frame' is for #html"],
   ['#c++\ntone 440 for 100ms\n', 'needs the buzzer'],
+  ['#python\nsave "best", 3\n', 'only works in #html'],
+  ['#js\nmusic "c4 e4", "c2" tempo 120\n', 'only works in #html'],
 ];
 for (const [src, msg] of errors) {
   try {
@@ -90,7 +92,7 @@ for (const [src, msg] of errors) {
 }
 
 // Old programs that use the new command words as names still compile
-for (const src of ['#js\nlet box = 2\nbox += 1\nprint box\n', '#python\nfn draw(n) { return n }\nprint draw(3)\n', '#c++\npin buzzer = 8\ntone buzzer 440 for 100ms\n']) {
+for (const src of ['#html\nlet best = saved("best", 0)\nsave "best", best + 1\nlet song = "c5 e5 g5 _ - e5"\nmusic song, "c3 - g2 -" tempo 150\nmusic off\nlet save = 4\nsave += 1\n', '#js\nlet box = 2\nbox += 1\nprint box\n', '#python\nfn draw(n) { return n }\nprint draw(3)\n', '#c++\npin buzzer = 8\ntone buzzer 440 for 100ms\n']) {
   try { volt.compile(src); console.log('pass  still compiles: ' + src.split('\n')[1]); } catch (e) { failed++; console.log('FAIL  ' + e.message); }
 }
 process.exitCode = failed ? 1 : 0;
