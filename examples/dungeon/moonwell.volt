@@ -3951,9 +3951,23 @@ fn drawEnemy(n) {
       draw wardenIdle at x, y frame f flip left flash hit
     }
   } else if k == 16 {
-    // the new bosses are ordinary monsters drawn twice as big
+    // Vael: a skeleton lord in violet, crowned with three drifting soul-orbs
     draw fxGlow at x - 16, y - 12 tint "#c77dff" alpha 25 scale 110 glow
-    draw necro at x, y frame f flip left flash hit size 2
+    if run {
+      draw skelRun at x, y + 2 frame f flip left flash hit size 2
+      draw skelRun at x, y + 2 frame f flip left alpha 45 tint "#7a3fd0" size 2
+    } else {
+      draw skelIdle at x, y + 2 frame f flip left flash hit size 2
+      draw skelIdle at x, y + 2 frame f flip left alpha 45 tint "#7a3fd0" size 2
+    }
+    let so = 0
+    while so < 3 {
+      let sx0 = x + 6 + so * 10
+      let sy0 = y - 4 - (tick / 6 + so * 2) % 4
+      box sx0, sy0, 4, 4 color "#c77dff"
+      box sx0 + 1, sy0 + 1, 2, 2 color "#f4e8ff"
+      so += 1
+    }
   } else if k == 17 {
     let rage = bossWind > 0 and tick % 6 < 3
     if bossWind > 0 {
@@ -4011,54 +4025,70 @@ fn drawEnemy(n) {
       bk += 1
     }
   } else if k == 20 {
-    // the Bone Colossus winds up like Grukk
+    // the Bone Colossus: a bigger, bone-white ogre with antlers of bone
     let windup = bossWind > 0 and tick % 6 < 3
     if bossWind > 0 {
       draw fxGlow at ex[n] + 12 - 32, ey[n] - 10 - 32 tint "#e8e0c8" alpha 30 + (30 - bossWind) * 2 scale 90 glow
     }
     if run {
-      draw ogreRun at x, y frame f flip left flash hit or windup
-      draw ogreRun at x, y frame f flip left alpha 55 tint "#e8e0c8"
+      draw ogreRun at x, y frame f flip left flash hit or windup scale 140
+      draw ogreRun at x, y frame f flip left alpha 80 tint "#efe6cc" scale 140
     } else {
-      draw ogreIdle at x, y frame f flip left flash hit
-      draw ogreIdle at x, y frame f flip left alpha 55 tint "#e8e0c8"
+      draw ogreIdle at x, y frame f flip left flash hit scale 140
+      draw ogreIdle at x, y frame f flip left alpha 80 tint "#efe6cc" scale 140
     }
+    box x + 8, y - 4, 2, 9 color "#efe6cc"
+    box x + 6, y - 6, 2, 4 color "#efe6cc"
+    box x + 22, y - 4, 2, 9 color "#efe6cc"
+    box x + 24, y - 6, 2, 4 color "#efe6cc"
   } else if k == 21 {
-    draw fxGlow at x - 16, y - 12 tint "#bcd8ff" alpha 22 scale 110 glow
+    // the Hollow Moon: a ghostly warden with a pale moon for a head
+    let hover = (tick / 12) % 3
+    draw fxGlow at x - 8, y - 38 tint "#bcd8ff" alpha 30 scale 100 glow
+    drawMoon(x + 16, y - 6 - hover)
+    box x + 8, y - 14 - hover, 4, 6 color "#8fa6c8"
+    box x + 20, y - 14 - hover, 4, 6 color "#8fa6c8"
     if run {
-      draw wardenRun at x, y frame f flip left flash hit
-      draw wardenRun at x, y frame f flip left alpha 50 tint "#bcd8ff"
+      draw wardenRun at x, y frame f flip left flash hit alpha 70
+      draw wardenRun at x, y frame f flip left alpha 55 tint "#bcd8ff"
     } else {
-      draw wardenIdle at x, y frame f flip left flash hit
-      draw wardenIdle at x, y frame f flip left alpha 50 tint "#bcd8ff"
+      draw wardenIdle at x, y frame f flip left flash hit alpha 70
+      draw wardenIdle at x, y frame f flip left alpha 55 tint "#bcd8ff"
     }
   } else if k == 22 {
+    // Warlord Zorn: a horned orc in black iron
     let rage = bossWind > 0 and tick % 6 < 3
     if bossWind > 0 {
       draw fxGlow at x - 16, y - 12 tint "#ff4d4d" alpha 30 + (30 - bossWind) * 2 scale 90 glow
     }
     if run {
-      draw maskRun at x, y frame f flip left flash hit or rage size 2
-      draw maskRun at x, y frame f flip left alpha 55 tint "#241830" size 2
+      draw orcRun at x, y frame f flip left flash hit or rage size 2
+      draw orcRun at x, y frame f flip left alpha 60 tint "#20182c" size 2
     } else {
-      draw maskIdle at x, y frame f flip left flash hit size 2
-      draw maskIdle at x, y frame f flip left alpha 55 tint "#241830" size 2
+      draw orcIdle at x, y frame f flip left flash hit size 2
+      draw orcIdle at x, y frame f flip left alpha 60 tint "#20182c" size 2
     }
+    box x + 6, y + 1, 3, 7 color "#cfc8b8"
+    box x + 4, y - 3, 3, 5 color "#cfc8b8"
+    box x + 23, y + 1, 3, 7 color "#cfc8b8"
+    box x + 25, y - 3, 3, 5 color "#cfc8b8"
+    box x + 11, y + 12, 3, 2 color "#ff4d4d"
+    box x + 19, y + 12, 3, 2 color "#ff4d4d"
   } else if k == 23 {
-    // the Cinder God fades while he jumps, like Ignis
+    // the Cinder God: a spark that grew, a huge blue-white imp that fades while it jumps
     let see = 100
     if bossWind > 12 {
       see = (bossWind - 12) * 8
     } else if bossWind > 0 {
       see = (12 - bossWind) * 8
     }
-    draw fxGlow at x - 16, y - 8 tint "#9bd3ff" alpha see / 3 scale 120 glow
+    draw fxGlow at x - 24, y - 20 tint "#9bd3ff" alpha see / 3 scale 130 glow
     if run {
-      draw kingRun at x, y frame f flip left flash hit alpha see
-      draw kingRun at x, y frame f flip left alpha see / 3 tint "#9bd3ff" glow
+      draw impRun at x - 8, y - 12 frame f flip left flash hit alpha see size 3
+      draw impRun at x - 8, y - 12 frame f flip left alpha see * 6 / 10 tint "#5fc8ff" size 3
     } else {
-      draw kingIdle at x, y frame f flip left flash hit alpha see
-      draw kingIdle at x, y frame f flip left alpha see / 3 tint "#9bd3ff" glow
+      draw impIdle at x - 8, y - 12 frame f flip left flash hit alpha see size 3
+      draw impIdle at x - 8, y - 12 frame f flip left alpha see * 6 / 10 tint "#5fc8ff" size 3
     }
   } else if k == 24 {
     // a moon wisp bobs as it floats
