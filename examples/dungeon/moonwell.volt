@@ -466,10 +466,12 @@ let wH = [0, 21, 23, 37, 22, 30, 30, 30]
 let shopName = ["", "Healing Potion", "Heart Vessel", "Knight Sword", "Big Hammer", "Golden Sword", "Ember Staff", "Moonblade", "Starfall Staff"]
 let shopCost = [0, 8, 35, 25, 45, 70, 60, 750, 850]
 // skins (yours forever, across every journey)
-let skinName = ["Knight", "Lady Knight", "Elf Ranger", "Lizardfolk", "Sorceress", "Celestial Knight"]
-let skinInfo = ["The classic.", "Same armour, better hair.", "Light on her feet.", "Scales, claws, attitude.", "Robes that crackle with magic.", "Starlight follows wherever you go."]
-let skinCost = [0, 250, 350, 450, 600, 1000]
-let skinTall = [22, 22, 22, 19, 28, 22]
+let skinName = ["Knight", "Lady Knight", "Elf Ranger", "Lizardfolk", "Sorceress", "Celestial Knight", "Ember Knight"]
+let skinInfo = ["The classic.", "Same armour, better hair.", "Light on her feet.", "Scales, claws, attitude.", "Robes that crackle with magic.", "Starlight follows wherever you go.", "A secret, born in the campfire."]
+let skinCost = [0, 250, 350, 450, 600, 1000, 0]
+let skinTall = [22, 22, 22, 19, 28, 22, 22]
+// the vault (and the Celestial Knight) open once you've reached this floor
+let vaultFloor = 3
 
 // ---------- music (each word is one step: a note, - for rest, _ to hold) ----------
 let songTitle = "a4 _ c5 e5 a5 _ g5 e5 f5 _ e5 c5 d5 _ b4 _ a4 _ c5 e5 a5 _ b5 c6 b5 _ g5 e5 e5 _ _ _"
@@ -634,6 +636,8 @@ let skx = []
 let sky = []
 let skinNear = -1
 let whiteT = 0
+let deepest = 1
+let fireTaps = 0
 // the Starfall Staff's falling stars (positions x10)
 let orbX = []
 let orbY = []
@@ -900,6 +904,9 @@ fn buildLevel() {
       add e to edge
     }
   }
+  if floor == 0 and contains(skinsOwned, 6) {
+    addSecretStand()
+  }
   checkX = hx
   checkY = hy
   bossAwake = false
@@ -932,6 +939,16 @@ fn saveGame() {
 
 fn enterFloor(f) {
   floor = f
+  let reached = f
+  if f == 0 {
+    reached = nextFloor
+  }
+  let wasLocked = deepest < vaultFloor
+  if reached > deepest {
+    deepest = reached
+    save "deepest", deepest
+  }
+  fireTaps = 0
   buildLevel()
   hp = maxHp
   fadeIn = 30
@@ -941,7 +958,11 @@ fn enterFloor(f) {
   if floor == 0 {
     say("THE REST CAMP\nA quiet cave between the floors.")
     say("MAGE:\nAh, a knight! Follow the paths: supplies\nand arms to the left, fine clothes to the\nright, and my vault right here.")
-    if not contains(owned, 6) or not contains(owned, 7) {
+    if deepest < vaultFloor {
+      say("MAGE:\nMy vault stays sealed until you've\nreached floor " + vaultFloor + ". Its treasures are... special.")
+    } else if wasLocked {
+      say("MAGE:\nYou've come far. The VAULT is open!\nThe Moonblade, the Starfall Staff... and\na Celestial look in the wardrobe.")
+    } else if not contains(owned, 6) or not contains(owned, 7) {
       say("MAGE:\nThe Moonblade, 750 gold. The Starfall Staff,\n850. Worth every coin, I promise.")
     }
     if length(skinsOwned) < 6 {
@@ -1758,6 +1779,11 @@ fn pressX() {
     }
     n += 1
   }
+  // the campfire?
+  if floor == 0 and abs(14 * 16 + 8 - cx) < 22 and abs(12 * 16 + 8 - cy) < 24 {
+    pokeFire()
+    return 0
+  }
   // the mage?
   if floor == 0 and abs(mageX * 16 + 8 - cx) < 24 and abs(mageY * 16 + 8 - cy) < 26 {
     say("MAGE:\nStand by a pedestal and press X to buy.\nPress C to switch between your weapons.")
@@ -1824,6 +1850,11 @@ fn pressX() {
 
 fn buy(item) {
   let cost = shopCost[item]
+  if item >= 7 and not vaultOpen() {
+    sound sndLocked
+    say("The vault is sealed. Reach floor " + vaultFloor + "\nand the mage will open it.")
+    return 0
+  }
   if item >= 3 and contains(owned, item - 1) {
     sound sndNope
     say("You already own the " + shopName[item] + ".\nPress C to switch to it.")
@@ -1861,7 +1892,58 @@ fn buy(item) {
   saveGame()
 }
 
+fn addSecretStand() {
+  add 29 to skx
+  add 13 to sky
+  grid[13 * MW + 29] = "q"
+}
+
+fn vaultOpen() {
+  return deepest >= vaultFloor
+}
+
+// the campfire's secret: poke it five times
+fn pokeFire() {
+  if contains(skinsOwned, 6) {
+    say("The campfire crackles happily.")
+    return 0
+  }
+  fireTaps += 1
+  let fx0 = 14 * 16 + 8
+  let fy0 = 12 * 16 + 8
+  burst(fx0, fy0 - 8, 6 + fireTaps * 4, "#ffb34a", 10 + fireTaps * 4)
+  effect(15, fx0, fy0 - 6, 16, "#ff6a1f", 40, 60 + fireTaps * 30, 0, 0)
+  tone 200 + fireTaps * 80 to 120 for 120ms
+  if fireTaps == 1 {
+    say("The campfire crackles.")
+  } else if fireTaps == 2 {
+    say("The flames lean toward you...")
+  } else if fireTaps == 3 {
+    say("You hear a whisper in the embers.")
+  } else if fireTaps == 4 {
+    say("The fire roars hotter! Once more...")
+  } else {
+    add 6 to skinsOwned
+    save "skins", skinsOwned
+    addSecretStand()
+    shake = 14
+    sound jingleTreasure
+    effect(14, fx0, fy0 - 6, 30, "#ff6a1f", 30, 300, 0, 0)
+    effect(16, fx0, fy0 - 6, 40, "#ffb34a", 50, 180, 0, 8)
+    repeat 6 {
+      puff(fx0, fy0 - 6, "#5a3a2a")
+    }
+    say("A knight of embers steps out of the fire,\nbows... and vanishes.")
+    say("SECRET LOOK FOUND: EMBER KNIGHT!\nIt waits for you in the wardrobe, free.")
+  }
+}
+
 fn wardrobe(n) {
+  if n == 5 and not vaultOpen() {
+    sound sndLocked
+    say("MAGE:\nThat one's sealed until you've reached\nfloor " + vaultFloor + ".")
+    return 0
+  }
   if n == skin {
     say("You're already wearing the " + skinName[n] + " look.")
     return 0
@@ -2837,6 +2919,17 @@ fn drawBody(sk, x, y, f, run, left, see, white) {
     } else {
       draw knightIdle at x, top frame f flip left alpha see flash white
     }
+    if sk == 6 {
+      // the Ember Knight: charred armour glowing from within
+      if run {
+        draw knightRun at x, top frame f flip left alpha see * 9 / 10 tint "#1e100c"
+        draw knightRun at x, top frame f flip left alpha see / 4 + tick % 12 tint "#ff5a1f" glow
+      } else {
+        draw knightIdle at x, top frame f flip left alpha see * 9 / 10 tint "#1e100c"
+        draw knightIdle at x, top frame f flip left alpha see / 4 + tick % 12 tint "#ff5a1f" glow
+      }
+      draw fxLight at x - 24, top - 21 tint "#ff6a1f" alpha see / 8 scale 70 glow
+    }
     if sk == 5 {
       // the Celestial Knight: starlight armour
       if run {
@@ -2860,6 +2953,9 @@ fn drawHero() {
     draw fxCircle at hx + 5 - 32, hy + 6 - 32 tint "#c9a227" alpha 14 scale 40 angle tick * 2 glow
   }
   // Celestial Knights leave stars behind
+  if skin == 6 and moving and tick % 6 == 0 {
+    burst(hx + 5 + random(-4, 4), hy - 4, 1, "#ff8a3d", 6)
+  }
   if skin == 5 and moving and tick % 8 == 0 {
     effect(2, hx + 5 + random(-5, 5), hy + random(-12, 4), 18, "#e8f4ff", 60, 10, random(0, 90), 10)
   }
@@ -2960,7 +3056,7 @@ fn drawCampFloor() {
   // a rug for each part of the camp
   rug(2, 5, 8, 4, "#3b2a24")
   rug(13, 3, 11, 5, "#2c2a40")
-  rug(24, 4, 11, 8, "#24303a")
+  rug(24, 4, 11, 11, "#24303a")
   rug(2, 9, 8, 7, "#3a2530")
   write "SUPPLIES" at 6 * 16, 5 * 16 + 4 centered color "#c9a27e"
   write "VAULT" at 18 * 16 + 8, 3 * 16 + 4 centered color "#ffd23f"
@@ -2995,10 +3091,11 @@ fn drawShop() {
     let sold = item >= 3 and contains(owned, item - 1)
     // a stone pedestal (the vault's have a gold trim)
     box x + 1, y + 6, 14, 10 color "#6b5b55"
+    let locked = item >= 7 and not vaultOpen()
     if item >= 7 {
       box x + 1, y + 6, 14, 2 color "#c9a227"
       box x + 1, y + 15, 14, 1 color "#c9a227"
-      if not sold {
+      if not sold and not locked {
         let beam = "#9bd3ff"
         if item == 8 {
           beam = "#ffd23f"
@@ -3009,14 +3106,22 @@ fn drawShop() {
       box x + 1, y + 6, 14, 2 color "#aa8d7a"
     }
     box x + 3, y + 16, 10, 2 color "#00000055"
-    if item == 1 {
+    if locked {
+      // a padlock
+      box x + 5, y - 6, 6, 5 color "#8a7a6a"
+      box x + 6, y - 5, 4, 4 color "#100c14"
+      box x + 3, y - 2, 10, 8 color "#c9a227"
+      box x + 7, y + 1, 2, 3 color "#5a4a2a"
+    } else if item == 1 {
       draw flask at x, y - 8 - bob
     } else if item == 2 {
       draw heart at x, y - 8 - bob
     } else {
       drawWeapon(item - 1, x + 8, y - 4 - bob, 0)
     }
-    if sold {
+    if locked {
+      write "FLOOR " + vaultFloor at x + 8, y + 20 centered color "#8a7a6a" shadow
+    } else if sold {
       box x + 6, y + 21, 4, 4 color "#7ee787"
     } else {
       write "" + shopCost[item] at x + 8, y + 20 centered color "#ffd23f" shadow
@@ -3038,8 +3143,17 @@ fn drawShop() {
     if n == skin {
       box x - 1, y + 15, 18, 1 color "#7ee787"
     }
-    drawBody(n, x, y - 10, tick / 9 + n, false, false, 100, false)
-    if n == skin {
+    let veiled = n == 5 and not vaultOpen()
+    if veiled {
+      draw knightIdle at x, y - 10 tint "#0b0912" alpha 85
+    } else {
+      drawBody(n, x, y - 10, tick / 9 + n, false, false, 100, false)
+    }
+    if veiled {
+      write "???" at x + 8, y + 18 centered color "#8a7a6a" shadow
+    } else if n == 6 and n != skin and not contains(skinsOwned, n) {
+      write "FREE" at x + 8, y + 18 centered color "#ff8a3d" shadow
+    } else if n == skin {
       write "WORN" at x + 8, y + 18 centered color "#7ee787" shadow
     } else if contains(skinsOwned, n) {
       box x + 6, y + 19, 4, 4 color "#7ee787"
@@ -3055,10 +3169,20 @@ fn drawShop() {
 }
 
 fn drawShopInfo() {
+  if skinNear == 5 and not vaultOpen() and length(msgs) == 0 {
+    box 34, 144, 282, 28 color "#0b0912"
+    box 34, 144, 282, 1 color "#6b5b55"
+    write "??? - sealed" at 175, 149 centered color "#8a7a6a"
+    write "Reach floor " + vaultFloor + " to reveal it." at 175, 160 centered color "#c9c3d6"
+    return 0
+  }
   if skinNear >= 0 and length(msgs) == 0 {
     box 34, 144, 282, 28 color "#0b0912"
     box 34, 144, 282, 1 color "#6b5b55"
     let what = skinName[skinNear] + " - " + skinCost[skinNear] + " gold   (X to buy)"
+    if skinNear == 6 {
+      what = "Ember Knight - secret   (X to wear)"
+    }
     if skinNear == skin {
       what = skinName[skinNear] + " - you're wearing it"
     } else if contains(skinsOwned, skinNear) {
@@ -3074,6 +3198,11 @@ fn drawShopInfo() {
   box 34, 144, 282, 28 color "#0b0912"
   box 34, 144, 282, 1 color "#6b5b55"
   let info = "Restores 2 hearts."
+  if shopNear >= 7 and not vaultOpen() {
+    write "Sealed treasure" at 175, 149 centered color "#8a7a6a"
+    write "The vault opens once you reach floor " + vaultFloor + "." at 175, 160 centered color "#c9c3d6"
+    return 0
+  }
   if shopNear >= 3 and contains(owned, shopNear - 1) {
     write shopName[shopNear] + " - yours   (C to switch)" at 175, 149 centered color "#7ee787"
     write wInfo[shopNear - 1] at 175, 160 centered color "#c9c3d6"
@@ -3408,6 +3537,7 @@ bestTime = saved("best", 0)
 bank = saved("bank", 0)
 skinsOwned = saved("skins", [0])
 skin = saved("skin", 0)
+deepest = saved("deepest", 1)
 floor = 1
 buildLevel()
 
