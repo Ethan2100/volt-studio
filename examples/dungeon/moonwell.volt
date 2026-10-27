@@ -449,7 +449,7 @@ let rows7 = [
   "##############################################",
   "########b#########b###########################",
   "###......................################b####",
-  "###.x..................x.#############......k#",
+  "###.xL.................x.#############......k#",
   "###......................#############$......#",
   "###.........B............#############..s....#",
   "###......................#############.......#",
@@ -491,7 +491,7 @@ let rows8 = [
   "##################################################",
   "########b#########b###############################",
   "###......................#################b#######",
-  "###.x..................x.#############........k###",
+  "###.xL.................x.#############........k###",
   "###......................#############.....t...###",
   "###......................#############..N......###",
   "###.........B............#############.........###",
@@ -690,15 +690,15 @@ let kindPace = [0, 1, 3, 2, 1, 2, 2, 3, 2, 2, 2, 3, 1, 1, 2, 3, 2, 2, 1, 2, 2, 3
 
 // ---------- weapons ----------
 let wName = ["", "Rusty Sword", "Knight Sword", "Big Hammer", "Golden Sword", "Ember Staff", "Moonblade", "Starfall Staff"]
-let wInfo = ["", "Old, but it cuts.", "Hits twice as hard.", "Slow, huge reach, 3 damage.", "Fast and deadly, 3 damage.", "Shoots flames that pass through foes.", "40 damage, and every swing throws a moon wave.", "Calls down a falling star. It explodes."]
-let wDmg = [0, 1, 2, 3, 3, 2, 40, 16]
+let wInfo = ["", "Old, but it cuts.", "Hits twice as hard.", "Slow, huge reach, 3 damage.", "Fast and deadly, 3 damage.", "Shoots flames that pass through foes.", "35 damage, and every swing throws a moon wave.", "Calls down a falling star. It explodes."]
+let wDmg = [0, 1, 2, 3, 3, 2, 35, 16]
 let wLen = [0, 16, 16, 26, 12, 18, 14, 22]
 let wReach = [0, 0, 2, 9, 2, 0, 7, 0]
 let wW = [0, 10, 10, 10, 10, 8, 12, 8]
 let wH = [0, 21, 23, 37, 22, 30, 30, 30]
 // the shop: 1 healing potion, 2 heart vessel, 3-8 weapons 2-7, 9 strength potion, 10 fortune potion (0 on the map)
 let shopName = ["", "Healing Potion", "Heart Vessel", "Knight Sword", "Big Hammer", "Golden Sword", "Ember Staff", "Moonblade", "Starfall Staff", "Strength Potion", "Fortune Potion"]
-let shopCost = [0, 8, 35, 25, 45, 70, 60, 400, 450, 30, 25]
+let shopCost = [0, 8, 35, 25, 45, 70, 60, 500, 550, 30, 25]
 // ---------- the pack: potions you carry (B opens it) ----------
 let inv = [0, 0, 0]          // healing, strength, fortune
 let invName = ["Healing Potion", "Strength Potion", "Fortune Potion"]
@@ -711,6 +711,11 @@ let strT = 0                 // frames of Strength left
 let goldT = 0                // frames of Fortune left
 let packTip = false
 let helpOpen = false
+let tutStep = 0                     // phone tutorial: 0 off, 1-5 the steps
+let tutDone = 0
+let tutX = 0
+let tutY = 0
+let tutT = 0
 let touch = false            // true on phones: the HUD moves out of the way of the buttons
 // ---------- the travellers: after the Ember King falls, three of them gather at camp ----------
 // each has two quests, one after the other (the Lady Knight isn't here: you are the last knight)
@@ -1315,7 +1320,7 @@ fn enterFloor(f) {
     } else if wasLocked {
       say("MAGE:\nYou've come far. The VAULT is open!\nThe Moonblade, the Starfall Staff... and\na Celestial look in the wardrobe.")
     } else if not contains(owned, 6) or not contains(owned, 7) {
-      say("MAGE:\nThe Moonblade, 400 gold. The Starfall Staff,\n450. Worth every coin, I promise.")
+      say("MAGE:\nThe Moonblade, 500 gold. The Starfall Staff,\n550. Worth every coin, I promise.")
     }
     if length(skinsOwned) < 6 {
       say("MAGE:\nAnd new looks in the wardrobe, if you\nfancy dressing like a hero.")
@@ -1414,6 +1419,10 @@ fn toggleHelp() {
 }
 
 fn toggleInv() {
+  if mode == 0 and touch and length(msgs) == 0 {
+    toggleHelp()
+    return 0
+  }
   if helpOpen {
     return 0
   }
@@ -2928,6 +2937,16 @@ fn wardrobe(n) {
 fn pressZ() {
   if helpOpen {
     helpOpen = false
+    if touch {
+      tutDone = 0
+      tutStep = 0
+      save "tut", 0
+      showToast("Tutorial will play from the start")
+    }
+    return 0
+  }
+  if mode == 0 and touch and length(msgs) == 0 and not typingCode {
+    newJourney()
     return 0
   }
   if invOpen {
@@ -3717,7 +3736,97 @@ fn updateCamera() {
   }
 }
 
+// the phone tutorial: each step waits until you really do the thing
+fn tutorialStep() {
+  if not touch or tutDone == 1 {
+    return 0
+  }
+  if tutStep == 0 {
+    tutStep = 1
+    tutX = hx
+    tutY = hy
+    tutT = 0
+    return 0
+  }
+  tutT += 1
+  let go = false
+  if tutStep == 1 {
+    go = abs(hx - tutX) + abs(hy - tutY) > 40
+  } else if tutStep == 2 {
+    go = swing > 0
+  } else if tutStep == 3 {
+    go = dash > 0
+  } else if tutStep == 4 {
+    go = invOpen
+  } else if tutStep == 5 {
+    go = not invOpen
+  }
+  if go {
+    tutStep += 1
+    tutT = 0
+    sound sndSwitch volume 50
+    if tutStep > 5 {
+      tutStep = 0
+      tutDone = 1
+      save "tut", 1
+      sound jingleTreasure volume 60
+      showToast("Tutorial done! PACK, then SWITCH = help")
+    }
+  }
+}
+
+fn drawTutorial() {
+  if tutStep == 0 or mode != 1 or length(msgs) > 0 or helpOpen or cutT > 0 {
+    return 0
+  }
+  let ty = 62
+  if tutStep == 5 {
+    ty = 2
+  }
+  let line1 = ""
+  let line2 = ""
+  if tutStep == 1 {
+    line1 = "MOVE"
+    line2 = "Drag the left stick to walk"
+  } else if tutStep == 2 {
+    line1 = "ATTACK"
+    line2 = "Tap SWORD. It also talks, opens, buys"
+  } else if tutStep == 3 {
+    line1 = "DASH"
+    line2 = "Tap DASH to burst forward"
+  } else if tutStep == 4 {
+    line1 = "POTIONS"
+    line2 = "Tap PACK to open your potion pack"
+  } else {
+    line1 = "IN THE PACK"
+    line2 = "Stick: pick   SWORD: drink   PACK: close"
+  }
+  let pulse = 0
+  if tick / 20 % 2 == 0 {
+    pulse = 1
+  }
+  box 40, ty, 240, 28 color "#05040af0"
+  box 40, ty, 240, 1 color "#ffd23f"
+  box 40, ty + 27, 240, 1 color "#ffd23f"
+  box 40, ty, 1, 28 color "#ffd23f"
+  box 279, ty, 1, 28 color "#ffd23f"
+  write "TUTORIAL " + tutStep + "/5  " + line1 at 160, ty + 5 centered color "#ffd23f" shadow
+  write line2 at 160, ty + 16 centered color "#e8f4ff"
+  let dot = 0
+  while dot < 5 {
+    let dc = "#3a3346"
+    if dot < tutStep - 1 {
+      dc = "#7ee787"
+    } else if dot == tutStep - 1 and pulse == 1 {
+      dc = "#ffd23f"
+    }
+    box 142 + dot * 8, ty + 25, 5, 2 color dc
+    dot += 1
+  }
+}
+
 fn update() {
+  tutorialStep()
   if freeze > 0 {
     freeze -= 1
     return 0
@@ -4942,22 +5051,38 @@ fn drawTalk() {
 
 // the controls, for when you forget them (P)
 fn drawHelp() {
+  let hh = 144
+  if touch {
+    hh = 124
+  }
   box 0, 0, 320, 180 color "#000000aa"
-  box 40, 18, 240, 144 color "#0b0912f2"
+  box 40, 18, 240, hh color "#0b0912f2"
   box 40, 18, 240, 1 color "#d3bfa9"
-  box 40, 161, 240, 1 color "#d3bfa9"
-  box 40, 18, 1, 144 color "#d3bfa9"
-  box 279, 18, 1, 144 color "#d3bfa9"
+  box 40, 17 + hh, 240, 1 color "#d3bfa9"
+  box 40, 18, 1, hh color "#d3bfa9"
+  box 279, 18, 1, hh color "#d3bfa9"
   write "CONTROLS" at 160, 26 centered color "#e8f4ff" shadow
   let names = ["MOVE", "SWING / USE", "DASH", "WEAPON", "POTION PACK", "DRINK", "SUMMON", "MUSIC", "THIS SCREEN"]
   let keysText = ["arrows / WASD", "X or space", "Z or shift", "C or Q", "B", "1 2 3", "V (Necromancer)", "M", "P"]
+  if touch {
+    names = ["MOVE", "SWORD", "DASH", "SWITCH", "PACK", "IN THE PACK", "SUMMON", "TITLE SCREEN", "THIS SCREEN"]
+    keysText = ["left stick", "attack, talk, open, buy", "burst forward", "swap weapon", "open and close potions", "stick picks, SWORD drinks", "(Necromancer look)", "SWITCH: code, PACK: help", "PACK, then SWITCH"]
+  }
   let r = 0
-  while r < length(names) {
-    write names[r] at 54, 42 + r * 12 color "#ffd23f"
-    write keysText[r] at 150, 42 + r * 12 color "#c9c3d6"
+  let rowsShown = length(names)
+  if touch {
+    rowsShown = 7
+  }
+  while r < rowsShown {
+    write names[r] at 54, 40 + r * 12 color "#ffd23f"
+    write keysText[r] at 150, 40 + r * 12 color "#c9c3d6"
     r += 1
   }
-  write "Press P to close" at 160, 151 centered color "#9a8fb0"
+  if touch {
+    write "SWORD: close    DASH: replay tutorial" at 160, 131 centered color "#9a8fb0"
+  } else {
+    write "Press P to close" at 160, 151 centered color "#9a8fb0"
+  }
 }
 
 // the pack: three slots, one potion kind each
@@ -5004,7 +5129,11 @@ fn drawInv() {
   if invNote != "" {
     write invNote at 160, 134 centered color "#ff8a8a"
   } else {
-    write "X: drink    B: close" at 160, 134 centered color "#9a8fb0"
+    if touch {
+      write "SWORD: drink   PACK: close   SWITCH: help" at 160, 134 centered color "#9a8fb0"
+    } else {
+      write "X: drink    B: close" at 160, 134 centered color "#9a8fb0"
+    }
   }
 }
 
@@ -5041,11 +5170,23 @@ fn titleScreen() {
   write "a dungeon crawler written in Volt" at 160, 102 centered color "#9a8fb0"
   if length(save0) > 0 {
     if tick / 30 % 2 == 0 {
-      write "X  CONTINUE - " + floorNames[save0[0]] at 160, 124 centered color "#ffd23f" shadow
+      if touch {
+        write "SWORD  CONTINUE - " + floorNames[save0[0]] at 160, 124 centered color "#ffd23f" shadow
+      } else {
+        write "X  CONTINUE - " + floorNames[save0[0]] at 160, 124 centered color "#ffd23f" shadow
+      }
     }
-    write "N  start a new journey" at 160, 138 centered color "#c9c3d6" shadow
+    if touch {
+      write "DASH  start a new journey" at 160, 138 centered color "#c9c3d6" shadow
+    } else {
+      write "N  start a new journey" at 160, 138 centered color "#c9c3d6" shadow
+    }
   } else if tick / 30 % 2 == 0 {
-    write "PRESS X TO BEGIN" at 160, 128 centered color "#ffd23f" shadow
+    if touch {
+      write "TAP SWORD TO BEGIN" at 160, 128 centered color "#ffd23f" shadow
+    } else {
+      write "PRESS X TO BEGIN" at 160, 128 centered color "#ffd23f" shadow
+    }
   }
   if bestTime > 0 {
     write "best time " + clock(bestTime) at 160, 154 centered color "#7ee787"
@@ -5053,7 +5194,11 @@ fn titleScreen() {
   if bank > 0 and length(save0) == 0 {
     write "treasury: " + bank + " gold" at 160, 144 centered color "#ffd23f"
   }
-  write "C: code   P: help   M: music   art: 0x72" at 160, 168 centered color "#5d5470"
+  if touch {
+    write "SWITCH: code   PACK: help" at 130, 168 centered color "#9a8fb0"
+  } else {
+    write "C: code   P: help   M: music   art: 0x72" at 160, 168 centered color "#5d5470"
+  }
 }
 
 fn endScreen() {
@@ -5116,6 +5261,7 @@ if length(qSaved) == 12 or length(qSaved) == 14 {
   }
 }
 shardFloors = saved("shards", [])
+tutDone = saved("tut", 0)
 touch = touchscreen()
 floor = 1
 buildLevel()
@@ -5138,6 +5284,9 @@ when key "shift" pressed {
 when key "c" pressed {
   if mode == 0 and length(msgs) == 0 {
     enterCode()
+  } else if touch and invOpen {
+    invOpen = false
+    toggleHelp()
   } else {
     switchWeapon()
   }
@@ -5209,6 +5358,8 @@ every frame {
       playCut()
     } else if mode == 1 and length(msgs) == 0 and not invOpen and not helpOpen {
       update()
+    } else if mode == 1 and length(msgs) == 0 and invOpen and not helpOpen {
+      tutorialStep()
     }
     updateSparks()
     updateEffects()
@@ -5225,6 +5376,7 @@ every frame {
     if invOpen and mode == 1 and length(msgs) == 0 {
       drawInv()
     }
+    drawTutorial()
     if mode >= 2 and length(msgs) == 0 {
       endScreen()
     }
