@@ -4161,11 +4161,11 @@ fn drawBody(sk, x, y, f, run, left, see, white) {
     if sk == 6 {
       // the Ember Knight: charred armour glowing from within
       if run {
-        draw knightRun at x, top frame f flip left alpha see * 5 / 10 tint "#4a1a0c"
-        draw knightRun at x, top frame f flip left alpha see / 3 + tick % 12 tint "#ff7a2f" glow
+        draw knightRun at x, top frame f flip left alpha see * 9 / 10 tint "#1e100c"
+        draw knightRun at x, top frame f flip left alpha see / 4 + tick % 12 tint "#ff5a1f" glow
       } else {
-        draw knightIdle at x, top frame f flip left alpha see * 5 / 10 tint "#4a1a0c"
-        draw knightIdle at x, top frame f flip left alpha see / 3 + tick % 12 tint "#ff7a2f" glow
+        draw knightIdle at x, top frame f flip left alpha see * 9 / 10 tint "#1e100c"
+        draw knightIdle at x, top frame f flip left alpha see / 4 + tick % 12 tint "#ff5a1f" glow
       }
       draw fxLight at x - 24, top - 21 tint "#ff6a1f" alpha see / 8 scale 70 glow
     }
