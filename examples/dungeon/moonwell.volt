@@ -21,6 +21,44 @@
 title "Moonwell"
 
 canvas 320, 180
+// saves belong to the game, not to the page's address: itch.io gives every upload its own folder,
+// so without this every update you upload would start a brand new save
+# window.__voltSaveId = 'moonwell';
+# const __mwKeys = ['moonwell', 'pack', 'bank', 'best', 'skins', 'skin', 'deepest', 'codes', 'won', 'quests', 'shards', 'ctl'];
+# window.__mwBox = function (mode) {
+#   const old = document.getElementById('mw-box'); if (old) old.remove();
+#   const box = document.createElement('div'); box.id = 'mw-box';
+#   box.style.cssText = 'position:fixed;inset:0;z-index:99;background:#000c;display:flex;align-items:center;justify-content:center;font:14px monospace;color:#e8f4ff';
+#   const card = document.createElement('div');
+#   card.style.cssText = 'width:min(440px,92vw);background:#0b0912;border:2px solid #d3bfa9;padding:14px;display:flex;flex-direction:column;gap:10px';
+#   const title = document.createElement('div'); title.style.cssText = 'color:#ffd23f;font-size:16px';
+#   const note = document.createElement('div'); note.style.color = '#c9c3d6';
+#   const ta = document.createElement('textarea'); ta.rows = 6; ta.spellcheck = false;
+#   ta.style.cssText = 'width:100%;box-sizing:border-box;background:#15101e;color:#e8f4ff;border:1px solid #6b5b55;font:12px monospace;padding:6px';
+#   ta.addEventListener('keydown', (e) => e.stopPropagation()); ta.addEventListener('keyup', (e) => e.stopPropagation());
+#   const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px';
+#   const mk = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.style.cssText = 'font:inherit;padding:8px 14px;background:#ffd23f;color:#1b1600;border:0;cursor:pointer'; b.onclick = fn; row.append(b); return b; };
+#   const msg = document.createElement('div'); msg.style.color = '#7ee787';
+#   if (mode === 'export') {
+#     const data = {}; for (const k of __mwKeys) { const v = localStorage.getItem(__saveKey(k)); if (v != null) data[k] = JSON.parse(v); }
+#     ta.value = 'MW1.' + btoa(unescape(encodeURIComponent(JSON.stringify(data)))); ta.readOnly = true;
+#     title.textContent = 'EXPORT SAVE'; note.textContent = 'Keep this code safe. To restore it anywhere, open the code box on the title (C, or SWITCH on a phone) and type IMPORT.';
+#     mk('Copy', () => { ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch (e) {} if (!ok && navigator.clipboard) navigator.clipboard.writeText(ta.value); msg.textContent = 'Copied!'; });
+#   } else {
+#     title.textContent = 'IMPORT SAVE'; note.textContent = 'Paste your save code here. This replaces the progress in this browser.';
+#     mk('Load', () => {
+#       try {
+#         const t = ta.value.trim(); if (t.indexOf('MW1.') !== 0) throw 0;
+#         const data = JSON.parse(decodeURIComponent(escape(atob(t.slice(4)))));
+#         if (!Array.isArray(data.moonwell) && data.skins === undefined) throw 0;
+#         for (const k of __mwKeys) { if (data[k] !== undefined) localStorage.setItem(__saveKey(k), JSON.stringify(data[k])); }
+#         msg.textContent = 'Loaded! Restarting...'; setTimeout(() => location.reload(), 600);
+#       } catch (e) { msg.style.color = '#ff8a8a'; msg.textContent = 'That code does not look right.'; }
+#     });
+#   }
+#   mk('Close', () => { box.remove(); if (__cv) __cv.focus(); });
+#   card.append(title, note, ta, row, msg); box.append(card); document.body.append(box); setTimeout(() => ta.focus(), 0);
+# };
 // on phones: a joystick and five buttons (Kenney's Mobile Controls, CC0)
 touchpad "x", "z", "c", "v", "b" stick "controls/stick.png", "controls/nub.png" button "controls/button.png" icons "controls/sword.png", "controls/dash.png", "controls/switch.png", "controls/summon.png", "controls/pack.png"
 
@@ -4741,6 +4779,14 @@ fn enterCode() {
   if code == "" {
     return 0
   }
+  if code == "EXPORT" {
+    # __mwBox('export');
+    return 0
+  }
+  if code == "IMPORT" {
+    # __mwBox('import');
+    return 0
+  }
   if contains(codesUsed, code) {
     sound sndNope
     say("You've already used that code.")
@@ -5139,9 +5185,9 @@ fn titleScreen() {
     write "treasury: " + bank + " gold" at 160, 144 centered color "#ffd23f"
   }
   if touch {
-    write "SWITCH: code   PACK: help" at 130, 168 centered color "#9a8fb0"
+    write "SWITCH: code / save backup   PACK: help" at 130, 168 centered color "#9a8fb0"
   } else {
-    write "C: code   P: help   M: music   art: 0x72" at 160, 168 centered color "#5d5470"
+    write "C: code / save backup   P: help   M: music" at 160, 168 centered color "#5d5470"
   }
 }
 
