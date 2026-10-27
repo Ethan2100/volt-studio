@@ -85,6 +85,16 @@ sprite hammer = tiles at 291, 42 size 10, 37
 sprite goldSword = tiles at 291, 153 size 10, 22
 sprite staff = tiles at 324, 145 size 8, 30
 sprite moonblade = tiles at 322, 81 size 12, 30
+sprite starStaff = tiles at 340, 145 size 8, 30
+// skins
+sprite ladyIdle = tiles at 128, 74 size 16, 22 frames 4
+sprite ladyRun = tiles at 192, 74 size 16, 22 frames 4
+sprite elfIdle = tiles at 128, 42 size 16, 22 frames 4
+sprite elfRun = tiles at 192, 42 size 16, 22 frames 4
+sprite lizardIdle = tiles at 128, 237 size 16, 19 frames 4
+sprite lizardRun = tiles at 192, 237 size 16, 19 frames 4
+sprite sorcIdle = tiles at 128, 132 size 16, 28 frames 4
+sprite sorcRun = tiles at 192, 132 size 16, 28 frames 4
 // monsters
 sprite goblinIdle = tiles at 368, 37 size 16, 11 frames 4
 sprite goblinRun = tiles at 432, 37 size 16, 11 frames 4
@@ -144,18 +154,18 @@ sprite fxVortex = fxSheet at 256, 32 size 64, 64
 //            m slime  M masked orc  S shaman  N necromancer  t tiny zombie
 //            I imp    B the floor's boss
 let shopRows = [
-  "##################",
-  "##################",
-  "###b#f###b###b####",
-  "##...u..........##",
-  "##......7..K....##",
-  "##..............##",
-  "##.1.2.3..4.5.6.##",
-  "##..............##",
-  "##..............##",
-  "##.......P....L.##",
-  "##..............##",
-  "##################",
+  "##########################",
+  "##########################",
+  "###b#f###b###b###b###b####",
+  "##...u..................##",
+  "##......7..K..8.........##",
+  "##...............q.q.q..##",
+  "##......................##",
+  "##.1.2.3..4.5.6.........##",
+  "##...............q.q.q..##",
+  "##.L.....P..............##",
+  "##......................##",
+  "##########################",
 ]
 let rows1 = [
   "##############################################",
@@ -439,16 +449,21 @@ let kindHit = [0, 1, 1, 2, 1, 2, 1, 2, 1, 2, 1, 1, 1, 1, 2, 2, 2, 2, 2]
 let kindPace = [0, 1, 3, 2, 1, 2, 2, 3, 2, 2, 2, 3, 1, 1, 2, 3, 2, 2, 1]
 
 // ---------- weapons ----------
-let wName = ["", "Rusty Sword", "Knight Sword", "Big Hammer", "Golden Sword", "Ember Staff", "Moonblade"]
-let wInfo = ["", "Old, but it cuts.", "Hits twice as hard.", "Slow, huge reach, 3 damage.", "Fast and deadly, 3 damage.", "Shoots flames that pass through foes.", "Forged from moonlight. 40 damage!"]
-let wDmg = [0, 1, 2, 3, 3, 2, 40]
-let wLen = [0, 16, 16, 26, 12, 18, 14]
-let wReach = [0, 0, 2, 9, 2, 0, 7]
-let wW = [0, 10, 10, 10, 10, 8, 12]
-let wH = [0, 21, 23, 37, 22, 30, 30]
-// the shop: 1 potion, 2 heart vessel, 3-7 weapons 2-6
-let shopName = ["", "Healing Potion", "Heart Vessel", "Knight Sword", "Big Hammer", "Golden Sword", "Ember Staff", "Moonblade"]
-let shopCost = [0, 8, 35, 25, 45, 70, 60, 150]
+let wName = ["", "Rusty Sword", "Knight Sword", "Big Hammer", "Golden Sword", "Ember Staff", "Moonblade", "Starfall Staff"]
+let wInfo = ["", "Old, but it cuts.", "Hits twice as hard.", "Slow, huge reach, 3 damage.", "Fast and deadly, 3 damage.", "Shoots flames that pass through foes.", "40 damage, and every swing throws a moon wave.", "Calls down a falling star. It explodes."]
+let wDmg = [0, 1, 2, 3, 3, 2, 40, 16]
+let wLen = [0, 16, 16, 26, 12, 18, 14, 22]
+let wReach = [0, 0, 2, 9, 2, 0, 7, 0]
+let wW = [0, 10, 10, 10, 10, 8, 12, 8]
+let wH = [0, 21, 23, 37, 22, 30, 30, 30]
+// the shop: 1 potion, 2 heart vessel, 3-8 weapons 2-7
+let shopName = ["", "Healing Potion", "Heart Vessel", "Knight Sword", "Big Hammer", "Golden Sword", "Ember Staff", "Moonblade", "Starfall Staff"]
+let shopCost = [0, 8, 35, 25, 45, 70, 60, 750, 850]
+// skins (yours forever, across every journey)
+let skinName = ["Knight", "Lady Knight", "Elf Ranger", "Lizardfolk", "Sorceress", "Celestial Knight"]
+let skinInfo = ["The classic.", "Same armour, better hair.", "Light on her feet.", "Scales, claws, attitude.", "Robes that crackle with magic.", "Starlight follows wherever you go."]
+let skinCost = [0, 250, 350, 450, 600, 1000]
+let skinTall = [22, 22, 22, 19, 28, 22]
 
 // ---------- music (each word is one step: a note, - for rest, _ to hold) ----------
 let songTitle = "a4 _ c5 e5 a5 _ g5 e5 f5 _ e5 c5 d5 _ b4 _ a4 _ c5 e5 a5 _ b5 c6 b5 _ g5 e5 e5 _ _ _"
@@ -606,6 +621,22 @@ let seenSpikes = false
 let seenRest = false
 let healedAt = -1000
 let muted = false
+let skin = 0
+let skinsOwned = [0]
+let bank = 0
+let skx = []
+let sky = []
+let skinNear = -1
+let whiteT = 0
+// the Starfall Staff's falling stars (positions x10)
+let orbX = []
+let orbY = []
+let orbVX = []
+let orbVY = []
+let orbLife = []
+// what each flying flame is: 1 ember flame, 2 star shard, 3 moon wave
+let fkind = []
+let fdmg = []
 let winAt = 0
 let shopNear = -1
 let bestTime = 0
@@ -634,7 +665,7 @@ fn isWall(tx, ty) {
 }
 
 fn solidCell(tx, ty) {
-  return contains("#bfruvCDK1234567", cell(tx, ty))
+  return contains("#bfruvCDKq12345678", cell(tx, ty))
 }
 
 fn isBoss(k) {
@@ -720,6 +751,15 @@ fn clearLists() {
   fvy = []
   flife = []
   fhit = []
+  fkind = []
+  fdmg = []
+  orbX = []
+  orbY = []
+  orbVX = []
+  orbVY = []
+  orbLife = []
+  skx = []
+  sky = []
   msgs = []
   shown = 0
 }
@@ -789,7 +829,10 @@ fn buildLevel() {
       } else if ch == "K" {
         mageX = tx
         mageY = ty
-      } else if contains("1234567", ch) {
+      } else if ch == "q" {
+        add tx to skx
+        add ty to sky
+      } else if contains("12345678", ch) {
         add tx to shx
         add ty to shy
         add number(ch) to shItem
@@ -892,8 +935,11 @@ fn enterFloor(f) {
   if floor == 0 {
     say("THE REST CAMP\nA quiet cave between the floors.")
     say("MAGE:\nAh, a knight! Gold for steel. Have a look.")
-    if not contains(owned, 6) {
-      say("MAGE:\nThat glowing blade by me is the Moonblade.\n150 gold. It fells a beast in one blow.")
+    if not contains(owned, 6) or not contains(owned, 7) {
+      say("MAGE:\nThe Moonblade, 750 gold. The Starfall Staff,\n850. Worth every coin, I promise.")
+    }
+    if length(skinsOwned) < 6 {
+      say("MAGE:\nAnd new looks in the wardrobe, if you\nfancy dressing like a hero.")
     }
   } else if floor == 2 {
     say("FLOOR 2: THE DROWNED CRYPT\nCold water drips. Something shuffles in the dark.")
@@ -914,7 +960,7 @@ fn enterFloor(f) {
 }
 
 fn newJourney() {
-  coins = 0
+  coins = bank
   maxHp = 6
   weapon = 1
   owned = [1]
@@ -953,6 +999,8 @@ fn useLadder() {
   if floor == lastFloor {
     mode = 3
     winAt = tick
+    bank = coins
+    save "bank", bank
     sound jingleWin
     save "moonwell", []
     if bestTime == 0 or playTime < bestTime {
@@ -1337,8 +1385,19 @@ fn updateHero() {
       swingHit = true
       if weapon == 5 {
         shootFlame()
+      } else if weapon == 7 {
+        shootStar()
       } else {
         swordHits()
+        if weapon == 6 {
+          let wx = faceX
+          let wy = faceY
+          if wx == 0 and wy == 0 {
+            wy = 1
+          }
+          launch(3, hx + 5 + wx * 16, hy - 4 + wy * 16, wx * 36, wy * 36, 14, 10)
+          tone 900 to 400 for 160ms
+        }
       }
     }
   }
@@ -1445,14 +1504,21 @@ fn shootFlame() {
   }
   let startX = hx + 5 + faceX * 8
   let startY = hy - 4 + faceY * 8
-  add startX * 10 to fx
-  add startY * 10 to fy
-  add vx to fvx
-  add vy to fvy
-  add 40 to flife
-  add "," to fhit
+  launch(1, startX, startY, vx, vy, 40, wDmg[5])
   tone 700 to 300 for 90ms
   effect(4, startX, startY, 8, "#ffb34a", 120, 40, 0, 0)
+}
+
+// a piercing shot from the hero: kind 1 ember flame, 2 star shard, 3 moon wave
+fn launch(kind, px, py, vx, vy, life, dmg) {
+  add px * 10 to fx
+  add py * 10 to fy
+  add vx to fvx
+  add vy to fvy
+  add life to flife
+  add "," to fhit
+  add kind to fkind
+  add dmg to fdmg
 }
 
 fn updateFlames() {
@@ -1463,22 +1529,32 @@ fn updateFlames() {
     flife[n] -= 1
     let px = fx[n] / 10
     let py = fy[n] / 10
-    if tick % 2 == 0 {
+    if fkind[n] == 1 and tick % 2 == 0 {
       burst(px, py, 1, "#ffb34a", 8)
+    } else if fkind[n] == 2 and tick % 2 == 0 {
+      effect(2, px, py, 10, "#fff4c2", 50, 10, random(0, 90), 9)
+    } else if fkind[n] == 3 {
+      effect(1, px, py, 8, "#9bd3ff", 160, 120, fhitAngle(n), 0)
     }
-    // burn every monster it touches, once each
+    // hit every monster it touches, once each
     let e2 = 0
     while e2 < length(ex) {
       let k = ekind[e2]
       let tag = "," + ehome[e2] + ","
       if not contains(fhit[n], tag) and overlap(px - 5, py - 5, 10, 10, ex[e2] - 2, ey[e2] + enemyH(k) - kindTall[k], enemyW(k) + 4, kindTall[k]) {
         fhit[n] = fhit[n] + ehome[e2] + ","
-        hitEnemy(e2, wDmg[5], sign(fvx[n]) * 4, sign(fvy[n]) * 4)
+        hitEnemy(e2, fdmg[n], sign(fvx[n]) * 4, sign(fvy[n]) * 4)
       }
       e2 += 1
     }
     if flife[n] <= 0 or isWall(px / 16, py / 16) {
-      burst(px, py, 6, "#ff8a3d", 14)
+      if fkind[n] == 1 {
+        burst(px, py, 6, "#ff8a3d", 14)
+      } else {
+        burst(px, py, 6, "#9bd3ff", 14)
+      }
+      remove fkind[n]
+      remove fdmg[n]
       remove fx[n]
       remove fy[n]
       remove fvx[n]
@@ -1488,6 +1564,109 @@ fn updateFlames() {
     } else {
       n += 1
     }
+  }
+}
+
+// which way a flying shot points, for drawing it
+fn fhitAngle(n) {
+  if fvx[n] > 0 {
+    return 270
+  }
+  if fvx[n] < 0 {
+    return 90
+  }
+  if fvy[n] < 0 {
+    return 180
+  }
+  return 0
+}
+
+// ---------- the Starfall Staff ----------
+fn shootStar() {
+  let vx = faceX * 34
+  let vy = faceY * 34
+  if faceX == 0 and faceY == 0 {
+    vy = 34
+  }
+  let sx = hx + 5 + faceX * 10
+  let sy = hy - 6 + faceY * 10
+  add sx * 10 to orbX
+  add sy * 10 to orbY
+  add vx to orbVX
+  add vy to orbVY
+  add 45 to orbLife
+  tone 1200 to 600 for 200ms
+  effect(16, sx, sy, 20, "#ffd23f", 20, 90, 0, 10)
+  effect(4, sx, sy, 10, "#ffffff", 160, 40, 0, 0)
+}
+
+fn updateStars() {
+  let n = 0
+  while n < length(orbX) {
+    orbX[n] += orbVX[n]
+    orbY[n] += orbVY[n]
+    orbLife[n] -= 1
+    let px = orbX[n] / 10
+    let py = orbY[n] / 10
+    // a glittering tail
+    effect(2, px + random(-3, 3), py + random(-3, 3), 14, "#ffe9a8", 70, 10, random(0, 90), 12)
+    if tick % 2 == 0 {
+      effect(12, px, py, 12, "#ffd23f", 60, 110, random(0, 359), 15)
+    }
+    let boom = orbLife[n] <= 0 or isWall(px / 16, py / 16)
+    let e2 = 0
+    while e2 < length(ex) and not boom {
+      let k = ekind[e2]
+      if overlap(px - 6, py - 6, 12, 12, ex[e2] - 2, ey[e2] + enemyH(k) - kindTall[k], enemyW(k) + 4, kindTall[k]) {
+        boom = true
+      }
+      e2 += 1
+    }
+    if boom {
+      starBurst(px, py)
+      remove orbX[n]
+      remove orbY[n]
+      remove orbVX[n]
+      remove orbVY[n]
+      remove orbLife[n]
+    } else {
+      n += 1
+    }
+  }
+}
+
+// the star explodes: a flash, rings, sparks, and eight shards flying out
+fn starBurst(px, py) {
+  whiteT = 10
+  shake = max(shake, 14)
+  freeze = 3
+  sound sndSlam
+  tone 200 to 40 for 500ms
+  effect(14, px, py, 30, "#ffd23f", 30, 380, 0, 0)
+  effect(14, px, py, 22, "#ffffff", 20, 240, 0, 0)
+  effect(16, px, py, 40, "#ffe9a8", 60, 230, 0, 9)
+  effect(15, px, py, 24, "#ffb34a", 220, 20, 0, 0)
+  effect(4, px, py, 14, "#ffffff", 300, 40, 0, 0)
+  repeat 10 {
+    effect(2, px + random(-30, 30), py + random(-30, 30), random(14, 26), "#fff4c2", 90, 10, random(0, 90), 14)
+  }
+  burst(px, py, 30, "#ffd23f", 40)
+  burst(px, py, 20, "#ffffff", 30)
+  // everything nearby takes the blast
+  let e2 = 0
+  while e2 < length(ex) {
+    let k = ekind[e2]
+    let dx = ex[e2] + enemyW(k) / 2 - px
+    let dy = ey[e2] + enemyH(k) / 2 - py
+    if roughLength(dx, dy) < 64 {
+      hitEnemy(e2, wDmg[7], sign(dx) * 6, sign(dy) * 6)
+    }
+    e2 += 1
+  }
+  let d = 0
+  while d < 8 {
+    launch(2, px, py, ringX[d] * 2, ringY[d] * 2, 14, 4)
+    d += 1
   }
 }
 
@@ -1567,6 +1746,15 @@ fn pressX() {
     }
     n += 1
   }
+  // a skin on the wardrobe stands?
+  n = 0
+  while n < length(skx) {
+    if abs(skx[n] * 16 + 8 - cx) < 14 and abs(sky[n] * 16 + 8 - cy) < 24 {
+      wardrobe(n)
+      return 0
+    }
+    n += 1
+  }
   // the mage?
   if floor == 0 and abs(mageX * 16 + 8 - cx) < 24 and abs(mageY * 16 + 8 - cy) < 26 {
     say("MAGE:\nStand by a pedestal and press X to buy.\nPress C to switch between your weapons.")
@@ -1625,7 +1813,7 @@ fn pressX() {
     if weapon == 3 {
       sound sndSwing
       tone 120 to 60 for 120ms
-    } else if weapon != 5 {
+    } else if weapon != 5 and weapon != 7 {
       sound sndSwing volume 70
     }
   }
@@ -1668,6 +1856,34 @@ fn buy(item) {
     say("You bought the " + shopName[item] + ".\n" + wInfo[item - 1])
   }
   saveGame()
+}
+
+fn wardrobe(n) {
+  if n == skin {
+    say("You're already wearing the " + skinName[n] + " look.")
+    return 0
+  }
+  if not contains(skinsOwned, n) {
+    if coins < skinCost[n] {
+      sound sndNope
+      say("MAGE:\nThe " + skinName[n] + " look is " + skinCost[n] + " gold.\nYou have " + coins + ". Fashion isn't cheap!")
+      return 0
+    }
+    coins -= skinCost[n]
+    add n to skinsOwned
+    save "skins", skinsOwned
+    sound jingleTreasure
+    say("New look: " + upper(skinName[n]) + "!\nIt's yours forever, on every journey.")
+  } else {
+    sound sndSwitch
+  }
+  skin = n
+  save "skin", skin
+  saveGame()
+  burst(hx + 5, hy - 8, 24, "#ffd23f", 20)
+  effect(16, hx + 5, hy - 6, 30, "#e8f4ff", 30, 130, 0, 6)
+  effect(4, hx + 5, hy - 6, 14, "#ffffff", 200, 40, 0, 0)
+  whiteT = 6
 }
 
 fn pressZ() {
@@ -1900,7 +2116,7 @@ fn killEnemy(n) {
     sound sndSlam
     sound jingleBoss
     // a pile of gold
-    repeat 8 {
+    repeat 20 {
       add px + random(-20, 20) to ix
       add py + random(-14, 14) to iy
       add 1 to ikind
@@ -2219,7 +2435,7 @@ fn updateItems() {
     let took = false
     if abs(ix[n] - (hx + 5)) < 11 and abs(iy[n] - (hy + 2)) < 12 {
       if ikind[n] == 1 {
-        coins += 2
+        coins += 1 + max(1, floor)
         sound sndCoin volume 60
         burst(ix[n], iy[n], 5, "#ffd23f", 12)
         effect(2, ix[n], iy[n] - 4, 10, "#ffd23f", 70, 20, 0, 9)
@@ -2333,6 +2549,7 @@ fn update() {
   updateEnemies()
   updateFireballs()
   updateFlames()
+  updateStars()
   updateItems()
   checkRooms()
   spikeWarning()
@@ -2571,10 +2788,63 @@ fn drawWeapon(wid, cx, cy, ang) {
     draw goldSword at x, y angle ang
   } else if wid == 5 {
     draw staff at x, y angle ang
-  } else {
+  } else if wid == 6 {
     // the Moonblade shines
     draw fxGlow at cx - 32, cy - 32 tint "#9bd3ff" alpha 35 + tick % 20 scale 55 glow
     draw moonblade at x, y angle ang
+    draw moonblade at x, y angle ang tint "#9bd3ff" alpha 20 + tick % 30 glow
+  } else {
+    // the Starfall Staff: a little star circles its tip
+    draw fxGlow at cx - 32, cy - 32 tint "#ffd23f" alpha 30 + tick % 15 scale 50 glow
+    draw starStaff at x, y angle ang
+    let ox = cx + (tick / 3 % 9) - 4
+    draw fxStar at ox - 16, cy - 16 - 10 tint "#fff4c2" angle tick * 8 scale 45 glow
+  }
+}
+
+// draws a skin's body with its feet on (x + 8, y + 22)
+fn drawBody(sk, x, y, f, run, left, see, white) {
+  let top = y + 22 - skinTall[sk]
+  if sk == 1 {
+    if run {
+      draw ladyRun at x, top frame f flip left alpha see flash white
+    } else {
+      draw ladyIdle at x, top frame f flip left alpha see flash white
+    }
+  } else if sk == 2 {
+    if run {
+      draw elfRun at x, top frame f flip left alpha see flash white
+    } else {
+      draw elfIdle at x, top frame f flip left alpha see flash white
+    }
+  } else if sk == 3 {
+    if run {
+      draw lizardRun at x, top frame f flip left alpha see flash white
+    } else {
+      draw lizardIdle at x, top frame f flip left alpha see flash white
+    }
+  } else if sk == 4 {
+    if run {
+      draw sorcRun at x, top frame f flip left alpha see flash white
+    } else {
+      draw sorcIdle at x, top frame f flip left alpha see flash white
+    }
+    draw fxGlow at x - 24, top - 22 tint "#c77dff" alpha see / 5 scale 60 glow
+  } else {
+    if run {
+      draw knightRun at x, top frame f flip left alpha see flash white
+    } else {
+      draw knightIdle at x, top frame f flip left alpha see flash white
+    }
+    if sk == 5 {
+      // the Celestial Knight: starlight armour
+      if run {
+        draw knightRun at x, top frame f flip left alpha see / 2 tint "#9bd3ff" glow
+      } else {
+        draw knightIdle at x, top frame f flip left alpha see / 2 tint "#9bd3ff" glow
+      }
+      draw fxLight at x - 24, top - 21 tint "#9bd3ff" alpha see / 4 scale 90 glow
+    }
   }
 }
 
@@ -2584,21 +2854,27 @@ fn drawHero() {
   let f = tick / 7
   let blink = hurt > 0 and tick % 6 < 3
   box hx, hy + 6, 10, 3 color "#00000055"
+  // the Starfall Staff draws a turning rune circle under you
+  if weapon == 7 and dying == 0 {
+    draw fxCircle at hx + 5 - 32, hy + 6 - 32 tint "#ffd23f" alpha 30 scale 45 angle tick * 2 glow
+  }
+  // Celestial Knights leave stars behind
+  if skin == 5 and moving and tick % 4 == 0 {
+    effect(2, hx + 5 + random(-5, 5), hy + random(-12, 4), 18, "#e8f4ff", 60, 10, random(0, 90), 10)
+  }
   if dash > 0 {
-    draw knightRun at x - faceX * 8, y - faceY * 8 frame f flip lookLeft alpha 35
-    draw knightRun at x - faceX * 16, y - faceY * 16 frame f flip lookLeft alpha 15
+    drawBody(skin, x - faceX * 8, y - faceY * 8, f, true, lookLeft, 35, false)
+    drawBody(skin, x - faceX * 16, y - faceY * 16, f, true, lookLeft, 15, false)
   }
   if faceY < 0 {
     drawHeld()
   }
   if dying > 0 {
-    draw knightHit at x, y flip lookLeft alpha dying + 30
+    drawBody(skin, x, y, 0, false, lookLeft, dying + 30, false)
   } else if blink {
-    draw knightHit at x, y flip lookLeft alpha 60
-  } else if moving {
-    draw knightRun at x, y frame f flip lookLeft
+    drawBody(skin, x, y, f, moving, lookLeft, 70, true)
   } else {
-    draw knightIdle at x, y frame f flip lookLeft
+    drawBody(skin, x, y, f, moving, lookLeft, 100, false)
   }
   if faceY >= 0 {
     drawHeld()
@@ -2640,6 +2916,12 @@ fn drawHeld() {
   if faceX == 0 and faceY == 0 {
     oy = reach
   }
+  if weapon == 6 {
+    let ghostX = cx + ox - 6
+    let ghostY = cy + oy - 15
+    draw moonblade at ghostX, ghostY angle base + sweep - 25 tint "#9bd3ff" alpha 45 glow
+    draw moonblade at ghostX, ghostY angle base + sweep - 50 tint "#9bd3ff" alpha 22 glow
+  }
   drawWeapon(weapon, cx + ox, cy + oy, base + sweep)
 }
 
@@ -2659,10 +2941,15 @@ fn drawShop() {
     box x + 1, y + 6, 14, 2 color "#aa8d7a"
     box x + 3, y + 16, 10, 2 color "#00000055"
     let sold = item >= 3 and contains(owned, item - 1)
-    if item == 7 and not sold {
-      draw fxLight at x + 8 - 32, y - 2 - 32 tint "#9bd3ff" alpha 40 + tick % 25 scale 110 glow
-      if tick % 12 == 0 {
-        effect(2, x + random(2, 14), y - random(0, 16), 16, "#e8f4ff", 50, 10, 0, 6)
+    if item >= 7 and not sold {
+      let beam = "#9bd3ff"
+      if item == 8 {
+        beam = "#ffd23f"
+      }
+      draw fxLight at x + 8 - 32, y - 2 - 32 tint beam alpha 40 + tick % 25 scale 110 glow
+      draw fxCircle at x + 8 - 32, y + 10 - 32 tint beam alpha 25 scale 40 angle tick glow
+      if tick % 10 == 0 {
+        effect(2, x + random(2, 14), y - random(0, 16), 16, "#ffffff", 50, 10, 0, 6)
       }
     }
     if item == 1 {
@@ -2683,9 +2970,50 @@ fn drawShop() {
     n += 1
   }
   shopNear = near
+  // the wardrobe
+  write "WARDROBE" at 19 * 16 + 8, 3 * 16 + 2 centered color "#c9c3d6" shadow
+  let near2 = -1
+  n = 0
+  while n < length(skx) {
+    let x = skx[n] * 16
+    let y = sky[n] * 16
+    box x - 1, y + 10, 18, 6 color "#3a2f3a"
+    box x - 1, y + 10, 18, 1 color "#aa8d7a"
+    if n == skin {
+      draw fxLight at x + 8 - 32, y + 4 - 32 tint "#7ee787" alpha 25 scale 70 glow
+    } else if n == 5 {
+      draw fxLight at x + 8 - 32, y + 4 - 32 tint "#9bd3ff" alpha 30 + tick % 20 scale 80 glow
+    }
+    drawBody(n, x, y - 10, tick / 9 + n, false, false, 100, false)
+    if n == skin {
+      write "WORN" at x + 8, y + 18 centered color "#7ee787" shadow
+    } else if contains(skinsOwned, n) {
+      write "OWNED" at x + 8, y + 18 centered color "#c9c3d6" shadow
+    } else {
+      write "" + skinCost[n] at x + 8, y + 18 centered color "#ffd23f" shadow
+    }
+    if abs(x + 8 - (hx + 5)) < 14 and abs(y + 8 - (hy + 4)) < 24 {
+      near2 = n
+    }
+    n += 1
+  }
+  skinNear = near2
 }
 
 fn drawShopInfo() {
+  if skinNear >= 0 and length(msgs) == 0 {
+    box 30, 22, 260, 24 color "#05040acc"
+    box 30, 22, 260, 1 color "#6b5b55"
+    let what = skinName[skinNear] + " - " + skinCost[skinNear] + " gold   (X to buy)"
+    if skinNear == skin {
+      what = skinName[skinNear] + " - you're wearing it"
+    } else if contains(skinsOwned, skinNear) {
+      what = skinName[skinNear] + " - yours   (X to wear)"
+    }
+    write what at 160, 26 centered color "#ffd23f"
+    write skinInfo[skinNear] at 160, 36 centered color "#c9c3d6"
+    return 0
+  }
   if shopNear < 0 or length(msgs) > 0 {
     return 0
   }
@@ -2790,8 +3118,16 @@ fn drawWorld() {
     } else if fvy[n] > 0 {
       fang = 180
     }
-    draw fxGlow at px - 32, py - 32 tint "#ff8a3d" alpha 60 scale 45 glow
-    draw fxFlame at px - 16, py - 16 tint "#ffb34a" angle fang + 180 scale 80 glow
+    if fkind[n] == 1 {
+      draw fxGlow at px - 32, py - 32 tint "#ff8a3d" alpha 60 scale 45 glow
+      draw fxFlame at px - 16, py - 16 tint "#ffb34a" angle fang + 180 scale 80 glow
+    } else if fkind[n] == 2 {
+      draw fxGlow at px - 32, py - 32 tint "#ffd23f" alpha 45 scale 25 glow
+      draw fxStar at px - 16, py - 16 tint "#fff4c2" angle tick * 12 scale 60 glow
+    } else {
+      draw fxGlow at px - 32, py - 32 tint "#9bd3ff" alpha 50 scale 60 glow
+      draw fxSlash at px - 16, py - 16 tint "#e8f4ff" angle fhitAngle(n) scale 220 glow
+    }
     n += 1
   }
   n = 0
@@ -2801,6 +3137,17 @@ fn drawWorld() {
       size = 1
     }
     box qx[n] / 10, qy[n] / 10, size, size color qcol[n]
+    n += 1
+  }
+  // falling stars
+  n = 0
+  while n < length(orbX) {
+    let px = orbX[n] / 10
+    let py = orbY[n] / 10
+    draw fxLight at px - 32, py - 32 tint "#ffd23f" alpha 60 scale 90 glow
+    draw fxGlow at px - 32, py - 32 tint "#ffffff" alpha 80 scale 35 glow
+    draw fxStar at px - 16, py - 16 tint "#fff4c2" angle tick * 9 scale 120 glow
+    draw fxCross at px - 16, py - 16 tint "#ffd23f" angle 0 - tick * 6 scale 90 glow
     n += 1
   }
   drawEffects()
@@ -2962,6 +3309,9 @@ fn titleScreen() {
   if bestTime > 0 {
     write "best time " + clock(bestTime) at 160, 154 centered color "#7ee787"
   }
+  if bank > 0 and length(save0) == 0 {
+    write "treasury: " + bank + " gold" at 160, 144 centered color "#ffd23f"
+  }
   write "art: 0x72 (CC0)   M: music" at 160, 168 centered color "#5d5470"
 }
 
@@ -2980,7 +3330,8 @@ fn endScreen() {
     if playTime == bestTime {
       write "A new best time!" at 160, 110 centered color "#7ee787" shadow
     }
-    write "Thanks for playing!   Press X" at 160, 128 centered shadow
+    write "Your gold is kept for your next journey." at 160, 116 centered color "#c9c3d6" shadow
+    write "Thanks for playing!   Press X" at 160, 130 centered shadow
   }
 }
 
@@ -2997,6 +3348,9 @@ for r from -18 to 18 {
 }
 save0 = saved("moonwell", [])
 bestTime = saved("best", 0)
+bank = saved("bank", 0)
+skinsOwned = saved("skins", [0])
+skin = saved("skin", 0)
 floor = 1
 buildLevel()
 
@@ -3046,12 +3400,18 @@ every frame {
     }
     updateSparks()
     updateEffects()
+    if whiteT > 0 {
+      whiteT -= 1
+    }
     updateCamera()
     drawWorld()
     drawVignette()
     drawHud()
     if mode >= 2 and length(msgs) == 0 {
       endScreen()
+    }
+    if whiteT > 0 {
+      box 0, 0, 320, 180 color "#fff4d0" + fadeHex[whiteT]
     }
     if fadeIn > 0 {
       box 0, 0, 320, 180 color "#000000" + fadeHex[fadeIn / 2]
