@@ -24,6 +24,12 @@ touchpad "x", "z", "c", "v", "b" stick "controls/stick.png", "controls/nub.png" 
 
 image tiles = "dungeon.png"
 image fxSheet = "fx.png"
+image icoStick = "controls/stick.png"
+image icoSword = "controls/sword.png"
+image icoDash = "controls/dash.png"
+image icoSwitch = "controls/switch.png"
+image icoSummon = "controls/summon.png"
+image icoPack = "controls/pack.png"
 
 // ---------- sounds (Kenney.nl, CC0): several files = a random pick each time ----------
 audio sndSwing = "sounds/swing1.mp3", "sounds/swing2.mp3"
@@ -52,6 +58,12 @@ audio jingleWin = "sounds/victory.mp3"
 
 // ---------- sprites: rectangles cut out of dungeon.png ----------
 // floors (frames are the different cracked versions)
+sprite pStick = icoStick at 0, 0 size 256, 256
+sprite pSword = icoSword at 0, 0 size 96, 96
+sprite pDash = icoDash at 0, 0 size 96, 96
+sprite pSwitch = icoSwitch at 0, 0 size 96, 96
+sprite pSummon = icoSummon at 0, 0 size 96, 96
+sprite pPack = icoPack at 0, 0 size 96, 96
 sprite floorA = tiles at 16, 64 size 16, 16 frames 3
 sprite floorB = tiles at 16, 80 size 16, 16 frames 3
 sprite floorC = tiles at 16, 96 size 16, 16 frames 2
@@ -711,11 +723,7 @@ let strT = 0                 // frames of Strength left
 let goldT = 0                // frames of Fortune left
 let packTip = false
 let helpOpen = false
-let tutStep = 0                     // phone tutorial: 0 off, 1-5 the steps
-let tutDone = 0
-let tutX = 0
-let tutY = 0
-let tutT = 0
+let ctlSeen = 0                     // phones: 1 once the controls screen has been shown
 let touch = false            // true on phones: the HUD moves out of the way of the buttons
 // ---------- the travellers: after the Ember King falls, three of them gather at camp ----------
 // each has two quests, one after the other (the Lady Knight isn't here: you are the last knight)
@@ -2937,12 +2945,6 @@ fn wardrobe(n) {
 fn pressZ() {
   if helpOpen {
     helpOpen = false
-    if touch {
-      tutDone = 0
-      tutStep = 0
-      save "tut", 0
-      showToast("Tutorial will play from the start")
-    }
     return 0
   }
   if mode == 0 and touch and length(msgs) == 0 and not typingCode {
@@ -3736,97 +3738,14 @@ fn updateCamera() {
   }
 }
 
-// the phone tutorial: each step waits until you really do the thing
-fn tutorialStep() {
-  if not touch or tutDone == 1 {
-    return 0
-  }
-  if tutStep == 0 {
-    tutStep = 1
-    tutX = hx
-    tutY = hy
-    tutT = 0
-    return 0
-  }
-  tutT += 1
-  let go = false
-  if tutStep == 1 {
-    go = abs(hx - tutX) + abs(hy - tutY) > 40
-  } else if tutStep == 2 {
-    go = swing > 0
-  } else if tutStep == 3 {
-    go = dash > 0
-  } else if tutStep == 4 {
-    go = invOpen
-  } else if tutStep == 5 {
-    go = not invOpen
-  }
-  if go {
-    tutStep += 1
-    tutT = 0
-    sound sndSwitch volume 50
-    if tutStep > 5 {
-      tutStep = 0
-      tutDone = 1
-      save "tut", 1
-      sound jingleTreasure volume 60
-      showToast("Tutorial done! PACK, then SWITCH = help")
-    }
-  }
-}
-
-fn drawTutorial() {
-  if tutStep == 0 or mode != 1 or length(msgs) > 0 or helpOpen or cutT > 0 {
-    return 0
-  }
-  let ty = 62
-  if tutStep == 5 {
-    ty = 2
-  }
-  let line1 = ""
-  let line2 = ""
-  if tutStep == 1 {
-    line1 = "MOVE"
-    line2 = "Drag the left stick to walk"
-  } else if tutStep == 2 {
-    line1 = "ATTACK"
-    line2 = "Tap SWORD. It also talks, opens, buys"
-  } else if tutStep == 3 {
-    line1 = "DASH"
-    line2 = "Tap DASH to burst forward"
-  } else if tutStep == 4 {
-    line1 = "POTIONS"
-    line2 = "Tap PACK to open your potion pack"
-  } else {
-    line1 = "IN THE PACK"
-    line2 = "Stick: pick   SWORD: drink   PACK: close"
-  }
-  let pulse = 0
-  if tick / 20 % 2 == 0 {
-    pulse = 1
-  }
-  box 40, ty, 240, 28 color "#05040af0"
-  box 40, ty, 240, 1 color "#ffd23f"
-  box 40, ty + 27, 240, 1 color "#ffd23f"
-  box 40, ty, 1, 28 color "#ffd23f"
-  box 279, ty, 1, 28 color "#ffd23f"
-  write "TUTORIAL " + tutStep + "/5  " + line1 at 160, ty + 5 centered color "#ffd23f" shadow
-  write line2 at 160, ty + 16 centered color "#e8f4ff"
-  let dot = 0
-  while dot < 5 {
-    let dc = "#3a3346"
-    if dot < tutStep - 1 {
-      dc = "#7ee787"
-    } else if dot == tutStep - 1 and pulse == 1 {
-      dc = "#ffd23f"
-    }
-    box 142 + dot * 8, ty + 25, 5, 2 color dc
-    dot += 1
-  }
-}
-
 fn update() {
-  tutorialStep()
+  // phones: the controls screen opens by itself the first time you play
+  if touch and ctlSeen == 0 {
+    ctlSeen = 1
+    save "ctl", 1
+    helpOpen = true
+    return 0
+  }
   if freeze > 0 {
     freeze -= 1
     return 0
@@ -4931,7 +4850,7 @@ fn drawHud() {
   drawSummonHud()
   drawPackHud()
   // the quest you're on, and a note when one is ready
-  if floor > 0 and questsOpen() {
+  if floor > 0 and questsOpen() and not (touch and bossAwake and not bossDead) {
     let q = 0
     while q < length(qName) {
       if qState[q] == 1 {
@@ -5051,38 +4970,61 @@ fn drawTalk() {
 
 // the controls, for when you forget them (P)
 fn drawHelp() {
-  let hh = 144
   if touch {
-    hh = 124
+    drawHelpPhone()
+    return 0
   }
   box 0, 0, 320, 180 color "#000000aa"
-  box 40, 18, 240, hh color "#0b0912f2"
+  box 40, 18, 240, 144 color "#0b0912f2"
   box 40, 18, 240, 1 color "#d3bfa9"
-  box 40, 17 + hh, 240, 1 color "#d3bfa9"
-  box 40, 18, 1, hh color "#d3bfa9"
-  box 279, 18, 1, hh color "#d3bfa9"
+  box 40, 161, 240, 1 color "#d3bfa9"
+  box 40, 18, 1, 144 color "#d3bfa9"
+  box 279, 18, 1, 144 color "#d3bfa9"
   write "CONTROLS" at 160, 26 centered color "#e8f4ff" shadow
   let names = ["MOVE", "SWING / USE", "DASH", "WEAPON", "POTION PACK", "DRINK", "SUMMON", "MUSIC", "THIS SCREEN"]
   let keysText = ["arrows / WASD", "X or space", "Z or shift", "C or Q", "B", "1 2 3", "V (Necromancer)", "M", "P"]
-  if touch {
-    names = ["MOVE", "SWORD", "DASH", "SWITCH", "PACK", "IN THE PACK", "SUMMON", "TITLE SCREEN", "THIS SCREEN"]
-    keysText = ["left stick", "attack, talk, open, buy", "burst forward", "swap weapon", "open and close potions", "stick picks, SWORD drinks", "(Necromancer look)", "SWITCH: code, PACK: help", "PACK, then SWITCH"]
-  }
   let r = 0
-  let rowsShown = length(names)
-  if touch {
-    rowsShown = 7
-  }
-  while r < rowsShown {
-    write names[r] at 54, 40 + r * 12 color "#ffd23f"
-    write keysText[r] at 150, 40 + r * 12 color "#c9c3d6"
+  while r < length(names) {
+    write names[r] at 54, 42 + r * 12 color "#ffd23f"
+    write keysText[r] at 150, 42 + r * 12 color "#c9c3d6"
     r += 1
   }
-  if touch {
-    write "SWORD: close    DASH: replay tutorial" at 160, 131 centered color "#9a8fb0"
-  } else {
-    write "Press P to close" at 160, 151 centered color "#9a8fb0"
+  write "Press P to close" at 160, 151 centered color "#9a8fb0"
+}
+
+// the phone controls screen: each button's picture, name and use
+fn drawHelpPhone() {
+  box 0, 0, 320, 180 color "#000000b0"
+  box 24, 10, 272, 134 color "#0b0912f4"
+  box 24, 10, 272, 1 color "#d3bfa9"
+  box 24, 143, 272, 1 color "#d3bfa9"
+  box 24, 10, 1, 134 color "#d3bfa9"
+  box 295, 10, 1, 134 color "#d3bfa9"
+  write "CONTROLS" at 160, 16 centered color "#e8f4ff" shadow
+  let names = ["STICK", "SWORD", "DASH", "SWITCH", "PACK", "SUMMON"]
+  let uses = ["walk, pick a pack slot", "attack, talk, open, buy, climb", "burst forward, dodge hits", "swap weapon (title: code)", "open and close your potions", "skeletons (Necromancer look)"]
+  let r = 0
+  while r < 6 {
+    let ry = 27 + r * 16
+    box 32, ry - 2, 256, 15 color "#15101e"
+    if r == 0 {
+      draw pStick at 34 - 120, ry - 122 scale 6
+    } else if r == 1 {
+      draw pSword at 34 - 41, ry - 41 scale 14
+    } else if r == 2 {
+      draw pDash at 34 - 41, ry - 41 scale 14
+    } else if r == 3 {
+      draw pSwitch at 34 - 41, ry - 41 scale 14
+    } else if r == 4 {
+      draw pPack at 34 - 41, ry - 41 scale 14
+    } else {
+      draw pSummon at 34 - 41, ry - 41 scale 14
+    }
+    write names[r] at 54, ry + 3 color "#ffd23f"
+    write uses[r] at 98, ry + 3 color "#c9c3d6"
+    r += 1
   }
+  write "SWORD closes.  Reopen: PACK, then SWITCH" at 160, 128 centered color "#9a8fb0"
 }
 
 // the pack: three slots, one potion kind each
@@ -5261,7 +5203,7 @@ if length(qSaved) == 12 or length(qSaved) == 14 {
   }
 }
 shardFloors = saved("shards", [])
-tutDone = saved("tut", 0)
+ctlSeen = saved("ctl", 0)
 touch = touchscreen()
 floor = 1
 buildLevel()
@@ -5358,8 +5300,6 @@ every frame {
       playCut()
     } else if mode == 1 and length(msgs) == 0 and not invOpen and not helpOpen {
       update()
-    } else if mode == 1 and length(msgs) == 0 and invOpen and not helpOpen {
-      tutorialStep()
     }
     updateSparks()
     updateEffects()
@@ -5376,7 +5316,6 @@ every frame {
     if invOpen and mode == 1 and length(msgs) == 0 {
       drawInv()
     }
-    drawTutorial()
     if mode >= 2 and length(msgs) == 0 {
       endScreen()
     }
