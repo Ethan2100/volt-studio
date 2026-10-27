@@ -304,6 +304,7 @@ every frame {                         // 60 times a second
 | `camera x, y` | Moves the view, for worlds bigger than the screen. Use `camera 0, 0` before drawing the score and hearts |
 | `every frame { }` | Runs 60 times a second, at the same speed on every screen |
 | `held("left")` | `true` while a key is down (`when key "x" pressed` still runs once per press) |
+| `touchscreen()` | `true` on phones and tablets, so a game can move its HUD away from the on-screen buttons |
 | `tone 440 for 80ms` | A retro beep. `tone 880 to 220 for 150ms` slides the pitch. On pages it doesn't wait |
 | `touchpad "x", "z"` | On phones and tablets: an arrow pad plus a button for each key |
 | `touchpad "x", "z" stick "pad.png", "nub.png" button "button.png" icons "sword.png", "dash.png"` | The same with your own pictures: `stick` swaps the arrow pad for a joystick you drag, `button` is the picture behind every button, `icons` gives each key's button a picture (one per key). All three are optional |
@@ -904,6 +905,7 @@ box x, y, 10, 10 color "#f00"
 write "Hi" at 10, 10 size 2 centered shadow
 camera x, y
 held("left")
+touchscreen()
 tone 880 to 220 for 100ms
 touchpad "x", "z"
 music "c5 e5 g5 _", "c3 - g2 -" tempo 150

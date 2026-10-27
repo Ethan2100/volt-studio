@@ -9,6 +9,7 @@
 //  Z              dash          C             switch weapon
 //  V              summon skeletons (Necromancer look only)
 //                 Celestial Knight: Z leaves a comet trail of stars that hurt monsters
+//  B              potion pack (1 2 3 drink straight away)
 //  M              music on/off  On phones, use the on-screen pad.
 //
 //  Your journey is saved at every floor, so you can continue later.
@@ -18,8 +19,8 @@
 title "Moonwell"
 
 canvas 320, 180
-// on phones: a joystick and three buttons (Kenney's Mobile Controls, CC0)
-touchpad "x", "z", "c", "v" stick "controls/stick.png", "controls/nub.png" button "controls/button.png" icons "controls/sword.png", "controls/dash.png", "controls/switch.png", "controls/summon.png"
+// on phones: a joystick and five buttons (Kenney's Mobile Controls, CC0)
+touchpad "x", "z", "c", "v", "b" stick "controls/stick.png", "controls/nub.png" button "controls/button.png" icons "controls/sword.png", "controls/dash.png", "controls/switch.png", "controls/summon.png", "controls/pack.png"
 
 image tiles = "dungeon.png"
 image fxSheet = "fx.png"
@@ -73,6 +74,8 @@ sprite crate = tiles at 288, 298 size 16, 22
 sprite chestFull = tiles at 304, 304 size 16, 16 frames 3
 sprite coin = tiles at 288, 272 size 8, 8 frames 4
 sprite flask = tiles at 288, 240 size 16, 16
+sprite flaskG = tiles at 320, 240 size 16, 16
+sprite flaskY = tiles at 336, 240 size 16, 16
 sprite bigFlask = tiles at 288, 224 size 16, 16
 sprite heart = tiles at 288, 256 size 16, 16 frames 3
 // the hero and the camp's mage
@@ -163,7 +166,7 @@ let shopRows = [
   "##.................................##",
   "##................K................##",
   "##.............7.....8....q..q..q..##",
-  "##..1..2...........................##",
+  "##..1..2..9..0.....................##",
   "##.................................##",
   "##.................................##",
   "##........................q..q..q..##",
@@ -464,9 +467,21 @@ let wLen = [0, 16, 16, 26, 12, 18, 14, 22]
 let wReach = [0, 0, 2, 9, 2, 0, 7, 0]
 let wW = [0, 10, 10, 10, 10, 8, 12, 8]
 let wH = [0, 21, 23, 37, 22, 30, 30, 30]
-// the shop: 1 potion, 2 heart vessel, 3-8 weapons 2-7
-let shopName = ["", "Healing Potion", "Heart Vessel", "Knight Sword", "Big Hammer", "Golden Sword", "Ember Staff", "Moonblade", "Starfall Staff"]
-let shopCost = [0, 8, 35, 25, 45, 70, 60, 750, 850]
+// the shop: 1 healing potion, 2 heart vessel, 3-8 weapons 2-7, 9 strength potion, 10 fortune potion (0 on the map)
+let shopName = ["", "Healing Potion", "Heart Vessel", "Knight Sword", "Big Hammer", "Golden Sword", "Ember Staff", "Moonblade", "Starfall Staff", "Strength Potion", "Fortune Potion"]
+let shopCost = [0, 8, 35, 25, 45, 70, 60, 400, 450, 30, 25]
+// ---------- the pack: potions you carry (B opens it) ----------
+let inv = [0, 0, 0]          // healing, strength, fortune
+let invName = ["Healing Potion", "Strength Potion", "Fortune Potion"]
+let invInfo = ["Restores 2 hearts.", "Double damage for 60 seconds.", "Double gold for 60 seconds."]
+let invMax = 9
+let invOpen = false
+let invSel = 0
+let invNote = ""
+let strT = 0                 // frames of Strength left
+let goldT = 0                // frames of Fortune left
+let packTip = false
+let touch = false            // true on phones: the HUD moves out of the way of the buttons
 // skins (yours forever, across every journey)
 let skinName = ["Knight", "Lady Knight", "Elf Ranger", "Lizardfolk", "Sorceress", "Celestial Knight", "Ember Knight", "Necromancer"]
 let skinInfo = ["Steadfast: a longer breather after every hit.", "Swift: dash again almost twice as fast.", "Eagle Eye: every 3rd swing looses a piercing arrow.", "Regrowth: slowly heals while you fight on.", "Gold Touch: coins are worth half again as much.", "Comet Dash: your dash leaves stars that hurt.", "Burning Aura: scorches monsters that get close.", "Commands the dead: press V to summon."]
@@ -867,10 +882,14 @@ fn buildLevel() {
         add tx to skx
         add ty to sky
         add length(skx) - 1 to skIdx
-      } else if contains("12345678", ch) {
+      } else if contains("1234567890", ch) {
         add tx to shx
         add ty to shy
-        add number(ch) to shItem
+        let itemNo = number(ch)
+        if itemNo == 0 {
+          itemNo = 10
+        }
+        add itemNo to shItem
       } else if ch == "D" {
         if rows[ty][tx - 1] != "D" {
           add tx to drx
@@ -963,6 +982,7 @@ fn saveGame() {
     add w to data
   }
   save "moonwell", data
+  save "pack", inv
 }
 
 fn enterFloor(f) {
@@ -977,6 +997,7 @@ fn enterFloor(f) {
     save "deepest", deepest
   }
   fireTaps = 0
+  invOpen = false
   buildLevel()
   hp = maxHp
   fadeIn = 30
@@ -991,7 +1012,7 @@ fn enterFloor(f) {
     } else if wasLocked {
       say("MAGE:\nYou've come far. The VAULT is open!\nThe Moonblade, the Starfall Staff... and\na Celestial look in the wardrobe.")
     } else if not contains(owned, 6) or not contains(owned, 7) {
-      say("MAGE:\nThe Moonblade, 750 gold. The Starfall Staff,\n850. Worth every coin, I promise.")
+      say("MAGE:\nThe Moonblade, 400 gold. The Starfall Staff,\n450. Worth every coin, I promise.")
     }
     if length(skinsOwned) < 6 {
       say("MAGE:\nAnd new looks in the wardrobe, if you\nfancy dressing like a hero.")
@@ -1019,6 +1040,9 @@ fn newJourney() {
   maxHp = 6
   weapon = 1
   owned = [1]
+  inv = [0, 0, 0]
+  strT = 0
+  goldT = 0
   playTime = 0
   nextFloor = 2
   seenSpikes = false
@@ -1029,6 +1053,7 @@ fn newJourney() {
   say("Since then, a hundred moons have passed\nin darkness...")
   say("You are the last knight of the old order.\nGo down. Find the Ember King.")
   say("ARROWS / WASD  move     X  swing, open, buy\nZ  dash     C  switch weapon     M  music")
+  say("B  open your potion pack\n1 2 3  drink a potion straight away")
 }
 
 fn continueJourney() {
@@ -1044,10 +1069,69 @@ fn continueJourney() {
     add data[n] to owned
     n += 1
   }
+  inv = saved("pack", [0, 0, 0])
+  strT = 0
+  goldT = 0
   seenSpikes = true
   seenRest = true
   enterFloor(data[0])
   say("Welcome back, knight.\n" + floorNames[floor] + " awaits.")
+}
+
+// ---------- the pack ----------
+fn toggleInv() {
+  if mode != 1 or length(msgs) > 0 or dying > 0 {
+    return 0
+  }
+  invOpen = not invOpen
+  invNote = ""
+  sound sndSwitch volume 50
+}
+
+fn invMove(d) {
+  if not invOpen {
+    return 0
+  }
+  invSel = (invSel + d + 3) % 3
+  sound sndTick volume 40
+}
+
+fn usePotion(slot) {
+  if mode != 1 or length(msgs) > 0 or dying > 0 {
+    return 0
+  }
+  if inv[slot] <= 0 {
+    sound sndNope
+    invNote = "You have none of those."
+    return 0
+  }
+  if slot == 0 and hp >= maxHp {
+    sound sndNope
+    invNote = "Your hearts are already full."
+    return 0
+  }
+  inv[slot] -= 1
+  invNote = ""
+  if slot == 0 {
+    hp = min(maxHp, hp + 4)
+    sound sndHeal
+    burst(hx + 5, hy - 6, 12, "#ff4d6d", 16)
+    effect(9, hx + 5, hy - 6, 30, "#ff6b8a", 40, 90, 0, 6)
+    drift(0, -5)
+  } else if slot == 1 {
+    strT = 3600
+    sound sndBuy
+    burst(hx + 5, hy - 6, 14, "#7be07b", 18)
+    effect(16, hx + 5, hy - 6, 30, "#7be07b", 30, 100, 0, 4)
+  } else {
+    goldT = 3600
+    sound sndBuy
+    burst(hx + 5, hy - 6, 14, "#ffd23f", 18)
+    effect(16, hx + 5, hy - 6, 30, "#ffd23f", 30, 100, 0, 4)
+  }
+  saveGame()
+  // drinking from the pack closes it, so the fight goes on
+  invOpen = false
 }
 
 fn useLadder() {
@@ -1232,6 +1316,9 @@ fn clearEffects() {
 //  Underlings: press V to raise ghostly skeletons that fight for you
 // =====================================================================
 fn summon() {
+  if invOpen {
+    return 0
+  }
   if mode != 1 or length(msgs) > 0 or dying > 0 {
     return 0
   }
@@ -1602,6 +1689,18 @@ fn updateHero() {
   if hurt > 0 {
     hurt -= 1
   }
+  if strT > 0 {
+    strT -= 1
+    if tick % 9 == 0 {
+      burst(hx + 5 + random(-5, 5), hy + random(-12, 2), 1, "#7be07b", 8)
+    }
+  }
+  if goldT > 0 {
+    goldT -= 1
+    if tick % 11 == 0 {
+      burst(hx + 5 + random(-5, 5), hy + random(-12, 2), 1, "#ffd23f", 8)
+    }
+  }
   // Lizardfolk Regrowth: half a heart every 8 seconds
   if skin == 3 and hp > 0 and hp < maxHp and dying == 0 and tick % 480 == 0 {
     hp += 1
@@ -1726,7 +1825,12 @@ fn swordHits() {
 
 fn hitEnemy(n, dmg, pushX, pushY) {
   let k = ekind[n]
-  ehp[n] -= dmg
+  // a Strength potion doubles every hit (the Moonblade is mighty enough already)
+  let hit = dmg
+  if strT > 0 and weapon != 6 {
+    hit = dmg * 2
+  }
+  ehp[n] -= hit
   ehurt[n] = 12
   if not isBoss(k) {
     ekx[n] = pushX
@@ -1940,6 +2044,9 @@ fn starBurst(px, py) {
 }
 
 fn switchWeapon() {
+  if invOpen {
+    return 0
+  }
   if mode != 1 or length(owned) < 2 or swing > 0 {
     return 0
   }
@@ -1966,6 +2073,10 @@ fn giveWeapon(wid) {
 
 // X: talk, open, buy, climb, or swing
 fn pressX() {
+  if invOpen {
+    usePotion(invSel)
+    return 0
+  }
   if length(msgs) > 0 {
     if shown < length(msgs[0]) {
       shown = length(msgs[0])
@@ -2095,12 +2206,12 @@ fn pressX() {
 
 fn buy(item) {
   let cost = shopCost[item]
-  if item >= 7 and not vaultOpen() {
+  if (item == 7 or item == 8) and not vaultOpen() {
     sound sndLocked
     say("The vault is sealed. Reach floor " + vaultFloor + "\nand the mage will open it.")
     return 0
   }
-  if item >= 3 and contains(owned, item - 1) {
+  if item >= 3 and item <= 8 and contains(owned, item - 1) {
     sound sndNope
     say("You already own the " + shopName[item] + ".\nPress C to switch to it.")
     return 0
@@ -2110,9 +2221,9 @@ fn buy(item) {
     say("Five hearts is as strong as a knight gets.")
     return 0
   }
-  if item == 1 and hp >= maxHp {
+  if (item == 1 or item >= 9) and inv[potionSlot(item)] >= invMax {
     sound sndNope
-    say("Your hearts are already full.")
+    say("Your pack can't hold more than " + invMax + " of those.")
     return 0
   }
   if coins < cost {
@@ -2124,8 +2235,12 @@ fn buy(item) {
   sound sndBuy
   burst(hx + 5, hy - 8, 14, "#ffd23f", 16)
   effect(16, hx + 5, hy - 6, 30, "#ffd23f", 30, 110, 0, 4)
-  if item == 1 {
-    hp = min(maxHp, hp + 4)
+  if item == 1 or item >= 9 {
+    inv[potionSlot(item)] += 1
+    if not packTip {
+      packTip = true
+      say("The potion goes in your pack.\nPress B to open it, or 1 2 3 to drink.")
+    }
   } else if item == 2 {
     maxHp += 2
     hp = maxHp
@@ -2135,6 +2250,16 @@ fn buy(item) {
     say("You bought the " + shopName[item] + ".\n" + wInfo[item - 1])
   }
   saveGame()
+}
+
+fn potionSlot(item) {
+  if item == 9 {
+    return 1
+  }
+  if item == 10 {
+    return 2
+  }
+  return 0
 }
 
 fn addStand(tx, ty, which) {
@@ -2221,6 +2346,10 @@ fn wardrobe(n) {
 }
 
 fn pressZ() {
+  if invOpen {
+    invOpen = false
+    return 0
+  }
   if mode != 1 or length(msgs) > 0 or dying > 0 {
     return 0
   }
@@ -2243,6 +2372,15 @@ fn pressZ() {
   }
 }
 
+// coins earned: a Fortune potion doubles them
+fn gain(n) {
+  let amount = n
+  if goldT > 0 {
+    amount = n * 2
+  }
+  coins += amount
+}
+
 fn openChest(n) {
   chOpen[n] = 1
   sound sndChest
@@ -2258,7 +2396,7 @@ fn openChest(n) {
   } else if chWhat[n] == 3 {
     let wid = min(5, floor + 1)
     if contains(owned, wid) {
-      coins += 25
+      gain(25)
       say("A " + wName[wid] + "... you already have one.\nYou sell the spare for 25 gold.")
     } else {
       giveWeapon(wid)
@@ -2266,7 +2404,7 @@ fn openChest(n) {
       say("You found the " + upper(wName[wid]) + "!\n" + wInfo[wid] + "  (C switches weapons)")
     }
   } else {
-    coins += 10
+    gain(10)
     sound sndCoin
     add px to ix
     add py + 14 to iy
@@ -2776,10 +2914,11 @@ fn updateItems() {
     let took = false
     if abs(ix[n] - (hx + 5)) < 11 and abs(iy[n] - (hy + 2)) < 12 {
       if ikind[n] == 1 {
-        coins += 1 + max(1, floor)
+        let worth = 1 + max(1, floor)
         if skin == 4 {
-          coins += max(1, (1 + max(1, floor)) / 2)
+          worth += max(1, worth / 2)
         }
+        gain(worth)
         sound sndCoin volume 60
         burst(ix[n], iy[n], 5, "#ffd23f", 12)
         effect(2, ix[n], iy[n] - 4, 10, "#ffd23f", 70, 20, 0, 9)
@@ -2790,6 +2929,15 @@ fn updateItems() {
         burst(ix[n], iy[n], 10, "#ff4d6d", 14)
         effect(9, hx + 5, hy - 6, 30, "#ff6b8a", 40, 90, 0, 6)
         drift(0, -5)
+        took = true
+      } else if inv[0] < invMax {
+        inv[0] += 1
+        sound sndBuy volume 60
+        burst(ix[n], iy[n], 8, "#ff4d6d", 12)
+        if not packTip {
+          packTip = true
+          say("Hearts full, so the potion goes in your pack.\nPress B to open it, or 1 2 3 to drink.")
+        }
         took = true
       }
     }
@@ -3227,6 +3375,12 @@ fn drawHero() {
   if skin == 5 and moving and tick % 8 == 0 {
     effect(2, hx + 5 + random(-5, 5), hy + random(-12, 4), 18, "#e8f4ff", 60, 10, random(0, 90), 10)
   }
+  if strT > 0 {
+    draw fxLight at hx + 5 - 32, hy - 4 - 32 tint "#6bd36b" alpha 9 scale 60 glow
+  }
+  if goldT > 0 {
+    draw fxLight at hx + 5 - 32, hy - 4 - 32 tint "#ffd23f" alpha 8 scale 55 glow
+  }
   if dash > 0 {
     drawBody(skin, x - faceX * 8, y - faceY * 8, f, true, lookLeft, 35, false)
     drawBody(skin, x - faceX * 16, y - faceY * 16, f, true, lookLeft, 15, false)
@@ -3356,11 +3510,11 @@ fn drawShop() {
     let y = shy[n] * 16
     let item = shItem[n]
     let bob = (tick / 16 + n) % 2
-    let sold = item >= 3 and contains(owned, item - 1)
+    let sold = item >= 3 and item <= 8 and contains(owned, item - 1)
     // a stone pedestal (the vault's have a gold trim)
     box x + 1, y + 6, 14, 10 color "#6b5b55"
-    let locked = item >= 7 and not vaultOpen()
-    if item >= 7 {
+    let locked = (item == 7 or item == 8) and not vaultOpen()
+    if item == 7 or item == 8 {
       box x + 1, y + 6, 14, 2 color "#c9a227"
       box x + 1, y + 15, 14, 1 color "#c9a227"
       if not sold and not locked {
@@ -3384,6 +3538,10 @@ fn drawShop() {
       draw flask at x, y - 8 - bob
     } else if item == 2 {
       draw heart at x, y - 8 - bob
+    } else if item == 9 {
+      draw flaskG at x, y - 8 - bob
+    } else if item == 10 {
+      draw flaskY at x, y - 8 - bob
     } else {
       drawWeapon(item - 1, x + 8, y - 4 - bob, 0)
     }
@@ -3436,16 +3594,21 @@ fn drawShop() {
 }
 
 fn drawShopInfo() {
+  // on phones the panel moves to the top, away from the buttons
+  let oy = 0
+  if touch {
+    oy = -108
+  }
   if (skinNear == 5 or skinNear == 7) and not vaultOpen() and not contains(skinsOwned, skinNear) and length(msgs) == 0 {
-    box 34, 144, 282, 28 color "#0b0912"
-    box 34, 144, 282, 1 color "#6b5b55"
-    write "??? - sealed" at 175, 149 centered color "#8a7a6a"
-    write "Reach floor " + vaultFloor + " to reveal it." at 175, 160 centered color "#c9c3d6"
+    box 34, 144 + oy, 282, 28 color "#0b0912"
+    box 34, 144 + oy, 282, 1 color "#6b5b55"
+    write "??? - sealed" at 175, 149 + oy centered color "#8a7a6a"
+    write "Reach floor " + vaultFloor + " to reveal it." at 175, 160 + oy centered color "#c9c3d6"
     return 0
   }
   if skinNear >= 0 and length(msgs) == 0 {
-    box 34, 144, 282, 28 color "#0b0912"
-    box 34, 144, 282, 1 color "#6b5b55"
+    box 34, 144 + oy, 282, 28 color "#0b0912"
+    box 34, 144 + oy, 282, 1 color "#6b5b55"
     let what = skinName[skinNear] + " - " + skinCost[skinNear] + " gold   (X to buy)"
     if skinNear == 6 {
       what = "Ember Knight - secret   (X to wear)"
@@ -3455,33 +3618,37 @@ fn drawShopInfo() {
     } else if contains(skinsOwned, skinNear) {
       what = skinName[skinNear] + " - yours   (X to wear)"
     }
-    write what at 175, 149 centered color "#ffd23f"
-    write skinInfo[skinNear] at 175, 160 centered color "#c9c3d6"
+    write what at 175, 149 + oy centered color "#ffd23f"
+    write skinInfo[skinNear] at 175, 160 + oy centered color "#c9c3d6"
     return 0
   }
   if shopNear < 0 or length(msgs) > 0 {
     return 0
   }
-  box 34, 144, 282, 28 color "#0b0912"
-  box 34, 144, 282, 1 color "#6b5b55"
+  box 34, 144 + oy, 282, 28 color "#0b0912"
+  box 34, 144 + oy, 282, 1 color "#6b5b55"
   let info = "Restores 2 hearts."
-  if shopNear >= 7 and not vaultOpen() {
-    write "Sealed treasure" at 175, 149 centered color "#8a7a6a"
-    write "The vault opens once you reach floor " + vaultFloor + "." at 175, 160 centered color "#c9c3d6"
+  if (shopNear == 7 or shopNear == 8) and not vaultOpen() {
+    write "Sealed treasure" at 175, 149 + oy centered color "#8a7a6a"
+    write "The vault opens once you reach floor " + vaultFloor + "." at 175, 160 + oy centered color "#c9c3d6"
     return 0
   }
-  if shopNear >= 3 and contains(owned, shopNear - 1) {
-    write shopName[shopNear] + " - yours   (C to switch)" at 175, 149 centered color "#7ee787"
-    write wInfo[shopNear - 1] at 175, 160 centered color "#c9c3d6"
+  if shopNear >= 3 and shopNear <= 8 and contains(owned, shopNear - 1) {
+    write shopName[shopNear] + " - yours   (C to switch)" at 175, 149 + oy centered color "#7ee787"
+    write wInfo[shopNear - 1] at 175, 160 + oy centered color "#c9c3d6"
     return 0
   }
   if shopNear == 2 {
     info = "One more heart, for good."
+  } else if shopNear >= 9 {
+    info = invInfo[potionSlot(shopNear)]
+  } else if shopNear == 1 {
+    info = "Restores 2 hearts. Drink it from your pack (B)."
   } else if shopNear >= 3 {
     info = wInfo[shopNear - 1]
   }
-  write shopName[shopNear] + " - " + shopCost[shopNear] + " gold   (X to buy)" at 175, 149 centered color "#ffd23f"
-  write info at 175, 160 centered color "#c9c3d6"
+  write shopName[shopNear] + " - " + shopCost[shopNear] + " gold   (X to buy)" at 175, 149 + oy centered color "#ffd23f"
+  write info at 175, 160 + oy centered color "#c9c3d6"
 }
 
 fn drawWorld() {
@@ -3722,21 +3889,59 @@ fn drawSummonHud() {
   if floor == 0 or skin != 7 {
     return 0
   }
-  box 4, 122, 26, 26 color "#05040a99"
-  box 4, 122, 26, 1 color "#46607a"
-  if summonCool > 0 {
-    draw skelIdle at 9, 126 alpha 35 tint "#5f8fc0"
-    let fill = summonCool * 25 / summonWait
-    box 4, 148 - fill, 26, fill color "#05040a88"
-  } else {
-    draw skelIdle at 9, 126 frame tick / 9
-    draw skelIdle at 9, 126 frame tick / 9 alpha 30 tint "#9bd3ff" glow
+  let sy = 122
+  if touch {
+    sy = 40
   }
-  write "V" at 25, 140 color "#9a8fb0"
+  box 4, sy, 26, 26 color "#05040a99"
+  box 4, sy, 26, 1 color "#46607a"
+  if summonCool > 0 {
+    draw skelIdle at 9, sy + 4 alpha 35 tint "#5f8fc0"
+    let fill = summonCool * 25 / summonWait
+    box 4, sy + 26 - fill, 26, fill color "#05040a88"
+  } else {
+    draw skelIdle at 9, sy + 4 frame tick / 9
+    draw skelIdle at 9, sy + 4 frame tick / 9 alpha 30 tint "#9bd3ff" glow
+  }
+  write "V" at 25, sy + 18 color "#9a8fb0"
+}
+
+// the potions you carry, with a bar for the ones working right now
+fn drawPackHud() {
+  let x = 4
+  let sl = 0
+  while sl < 3 {
+    let active = (sl == 1 and strT > 0) or (sl == 2 and goldT > 0)
+    if inv[sl] > 0 or active {
+      if sl == 0 {
+        draw flask at x, 18
+      } else if sl == 1 {
+        draw flaskG at x, 18
+      } else {
+        draw flaskY at x, 18
+      }
+      if inv[sl] > 0 {
+        write "x" + inv[sl] at x + 15, 26 shadow
+      }
+      if active {
+        let left = strT
+        let col = "#7be07b"
+        if sl == 2 {
+          left = goldT
+          col = "#ffd23f"
+        }
+        box x, 34, 16, 2 color "#00000099"
+        box x, 34, left * 16 / 3600, 2 color col
+      }
+      x += 38
+    }
+    sl += 1
+  }
 }
 
 fn drawHud() {
   drawSummonHud()
+  drawPackHud()
   let k = 0
   while k < maxHp / 2 {
     let v = hp - k * 2
@@ -3755,32 +3960,50 @@ fn drawHud() {
     drawKey(238, 4)
     write "" + keys at 252, 7 color "#ffd23f" shadow
   }
-  // the weapon in hand
-  box 4, 150, 26, 26 color "#05040a99"
-  box 4, 150, 26, 1 color "#6b5b55"
-  drawWeapon(weapon, 17, 163, 45)
+  // the weapon in hand (on phones: top middle, clear of the buttons)
+  let wx = 4
+  let wy = 150
+  if touch {
+    wx = 147
+    wy = 2
+  }
+  box wx, wy, 26, 26 color "#05040a99"
+  box wx, wy, 26, 1 color "#6b5b55"
+  drawWeapon(weapon, wx + 13, wy + 13, 45)
   let bossBar = bossAwake and not bossDead and length(msgs) == 0
   if weaponShow > 0 and not bossBar and shopNear < 0 and skinNear < 0 {
-    write wName[weapon] at 34, 160 color "#e8f4ff" shadow
-    if length(owned) > 1 {
-      write "C: switch" at 34, 169 color "#9a8fb0"
+    if touch {
+      write wName[weapon] at 160, 32 centered color "#e8f4ff" shadow
+    } else {
+      write wName[weapon] at 34, 160 color "#e8f4ff" shadow
+      if length(owned) > 1 {
+        write "C: switch" at 34, 169 color "#9a8fb0"
+      }
     }
   }
   if floor > 0 {
-    write "FLOOR " + floor at 274, 170 color "#5d5470"
+    if touch {
+      write "FLOOR " + floor at 274, 20 color "#5d5470"
+    } else {
+      write "FLOOR " + floor at 274, 170 color "#5d5470"
+    }
   } else {
     drawShopInfo()
   }
   // the boss's health bar
   if bossBar {
+    let by0 = 158
+    if touch {
+      by0 = 34
+    }
     let n = 0
     while n < length(ex) {
       if isBoss(ekind[n]) {
-        write bossTitle() at 160, 158 centered color "#ffb38a" shadow
-        box 79, 167, 162, 7 color "#000000aa"
-        box 80, 168, 160, 5 color "#3a1518"
-        box 80, 168, ehp[n] * 160 / bossMax, 5 color "#ff5a1f"
-        box 80, 168, ehp[n] * 160 / bossMax, 1 color "#ffb38a"
+        write bossTitle() at 160, by0 centered color "#ffb38a" shadow
+        box 79, by0 + 9, 162, 7 color "#000000aa"
+        box 80, by0 + 10, 160, 5 color "#3a1518"
+        box 80, by0 + 10, ehp[n] * 160 / bossMax, 5 color "#ff5a1f"
+        box 80, by0 + 10, ehp[n] * 160 / bossMax, 1 color "#ffb38a"
       }
       n += 1
     }
@@ -3795,16 +4018,69 @@ fn drawTalk() {
       sound sndTick volume 30
     }
   }
-  box 8, 124, 304, 50 color "#05040acc"
-  box 8, 124, 304, 1 color "#d3bfa9"
-  box 8, 173, 304, 1 color "#d3bfa9"
-  box 8, 124, 1, 50 color "#d3bfa9"
-  box 311, 124, 1, 50 color "#d3bfa9"
-  write part(words, 0, shown) at 18, 132 shadow
+  // on phones the box sits at the top, so the buttons never cover it
+  let ty = 124
+  if touch {
+    ty = 24
+  }
+  box 8, ty, 304, 50 color "#05040aee"
+  box 8, ty, 304, 1 color "#d3bfa9"
+  box 8, ty + 49, 304, 1 color "#d3bfa9"
+  box 8, ty, 1, 50 color "#d3bfa9"
+  box 311, ty, 1, 50 color "#d3bfa9"
+  write part(words, 0, shown) at 18, ty + 8 shadow
   if shown >= length(words) and tick / 20 % 2 == 0 {
-    box 298, 164, 6, 2 color "#ffd23f"
-    box 299, 166, 4, 1 color "#ffd23f"
-    box 300, 167, 2, 1 color "#ffd23f"
+    box 298, ty + 40, 6, 2 color "#ffd23f"
+    box 299, ty + 42, 4, 1 color "#ffd23f"
+    box 300, ty + 43, 2, 1 color "#ffd23f"
+  }
+}
+
+// the pack: three slots, one potion kind each
+fn drawInv() {
+  box 0, 0, 320, 180 color "#00000088"
+  box 50, 30, 220, 120 color "#0b0912f2"
+  box 50, 30, 220, 1 color "#d3bfa9"
+  box 50, 149, 220, 1 color "#d3bfa9"
+  box 50, 30, 1, 120 color "#d3bfa9"
+  box 269, 30, 1, 120 color "#d3bfa9"
+  write "POTION PACK" at 160, 38 centered color "#e8f4ff" shadow
+  let sl = 0
+  while sl < 3 {
+    let cx = 100 + sl * 60
+    box cx - 18, 52, 36, 36 color "#1c1626"
+    if sl == invSel {
+      box cx - 18, 52, 36, 1 color "#ffd23f"
+      box cx - 18, 87, 36, 1 color "#ffd23f"
+      box cx - 18, 52, 1, 36 color "#ffd23f"
+      box cx + 17, 52, 1, 36 color "#ffd23f"
+    } else {
+      box cx - 18, 52, 36, 1 color "#6b5b55"
+      box cx - 18, 87, 36, 1 color "#6b5b55"
+      box cx - 18, 52, 1, 36 color "#6b5b55"
+      box cx + 17, 52, 1, 36 color "#6b5b55"
+    }
+    let a = 100
+    if inv[sl] == 0 {
+      a = 35
+    }
+    if sl == 0 {
+      draw flask at cx - 8, 62 alpha a
+    } else if sl == 1 {
+      draw flaskG at cx - 8, 62 alpha a
+    } else {
+      draw flaskY at cx - 8, 62 alpha a
+    }
+    write "x" + inv[sl] at cx, 94 centered color "#ffd23f" shadow
+    write "" + (sl + 1) at cx - 14, 56 color "#6b5b55"
+    sl += 1
+  }
+  write invName[invSel] at 160, 108 centered color "#e8f4ff" shadow
+  write invInfo[invSel] at 160, 119 centered color "#c9c3d6"
+  if invNote != "" {
+    write invNote at 160, 134 centered color "#ff8a8a"
+  } else {
+    write "X: drink    B: close" at 160, 134 centered color "#9a8fb0"
   }
 }
 
@@ -3894,6 +4170,7 @@ skinsOwned = saved("skins", [0])
 skin = saved("skin", 0)
 deepest = saved("deepest", 1)
 codesUsed = saved("codes", [])
+touch = touchscreen()
 floor = 1
 buildLevel()
 
@@ -3922,6 +4199,36 @@ when key "c" pressed {
 when key "v" pressed {
   summon()
 }
+when key "b" pressed {
+  toggleInv()
+}
+when key "i" pressed {
+  toggleInv()
+}
+when key "escape" pressed {
+  invOpen = false
+}
+when key "left" pressed {
+  invMove(-1)
+}
+when key "right" pressed {
+  invMove(1)
+}
+when key "a" pressed {
+  invMove(-1)
+}
+when key "d" pressed {
+  invMove(1)
+}
+when key "1" pressed {
+  usePotion(0)
+}
+when key "2" pressed {
+  usePotion(1)
+}
+when key "3" pressed {
+  usePotion(2)
+}
 when key "q" pressed {
   switchWeapon()
 }
@@ -3945,7 +4252,7 @@ every frame {
   if mode == 0 {
     titleScreen()
   } else {
-    if mode == 1 and length(msgs) == 0 {
+    if mode == 1 and length(msgs) == 0 and not invOpen {
       update()
     }
     updateSparks()
@@ -3957,6 +4264,9 @@ every frame {
     drawWorld()
     drawVignette()
     drawHud()
+    if invOpen and mode == 1 and length(msgs) == 0 {
+      drawInv()
+    }
     if mode >= 2 and length(msgs) == 0 {
       endScreen()
     }

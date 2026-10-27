@@ -9,7 +9,7 @@
   const ATOMS = ['true', 'false', 'uptime'];
   const INPUTS = ['ask'];
   const LOGIC = ['and', 'or', 'not'];
-  const BUILTINS = ['random', 'abs', 'min', 'max', 'constrain', 'map', 'number', 'text', 'length', 'upper', 'lower', 'contains', 'part', 'sign', 'held', 'saved'];
+  const BUILTINS = ['random', 'abs', 'min', 'max', 'constrain', 'map', 'number', 'text', 'length', 'upper', 'lower', 'contains', 'part', 'sign', 'held', 'saved', 'touchscreen'];
   const word = (list) => new RegExp(`\\b(?:${list.join('|')})\\b`);
 
   CodeMirror.defineSimpleMode('volt', {

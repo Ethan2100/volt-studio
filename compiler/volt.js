@@ -853,7 +853,7 @@ const TARGET_NAMES = {
 };
 
 // Built-in functions: name -> number of values they take
-const BUILTINS = { random: 2, abs: 1, min: 2, max: 2, constrain: 3, map: 5, number: 1, text: 1, length: 1, upper: 1, lower: 1, contains: 2, part: 3, sign: 1, held: 1, saved: 2 };
+const BUILTINS = { random: 2, abs: 1, min: 2, max: 2, constrain: 3, map: 5, number: 1, text: 1, length: 1, upper: 1, lower: 1, contains: 2, part: 3, sign: 1, held: 1, saved: 2, touchscreen: 0 };
 
 // Names that would clash with Volt, C++, Python, Ruby or JavaScript.
 // All of them are checked for every program, so a Volt file can switch languages freely.
@@ -1099,6 +1099,7 @@ const GAME_RUNTIME = [
   "const __down = new Set();",
   "function __keyOf(name) { const k = String(name).toLowerCase(); return __keyNames[k] || k; }",
   "function __held(name) { return __down.has(__keyOf(name)); }",
+  "function __touchscreen() { return window.matchMedia('(pointer: coarse)').matches; }",
   "document.addEventListener('keydown', (e) => {",
   "  const k = e.key.toLowerCase();",
   "  __down.add(k);",
@@ -1316,6 +1317,13 @@ const GAME_CSS = `  body.volt-game { background: #000; overflow: hidden; }
   .volt-touch button.volt-art { background: center / contain no-repeat; border: 0; display: grid; place-items: center; }
   .volt-touch button img { width: 46%; height: 46%; pointer-events: none; }
   .volt-touch button.volt-down { transform: scale(0.92); filter: brightness(1.35); }
+  @media (pointer: coarse) and (max-height: 520px) {
+    .volt-touch { padding: 6px max(14px, env(safe-area-inset-right, 0px)) max(8px, env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left, 0px)); }
+    .volt-stick { width: 104px !important; height: 104px !important; opacity: 0.8; }
+    .volt-acts { gap: 8px; }
+    .volt-acts button { width: 46px; height: 46px; opacity: 0.8; }
+    .volt-acts button:nth-child(2n) { margin-bottom: 26px; }
+  }
   .volt-stick { position: relative; width: 132px; height: 132px; display: grid; place-items: center; background: center / contain no-repeat; pointer-events: auto; touch-action: none; }
   .volt-nub { width: 48%; height: 48%; pointer-events: none; }
   body.volt-game .volt-ask { position: fixed; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 6; margin: 0; padding: 14px 16px; max-width: calc(100vw - 32px); background: rgba(11, 9, 18, 0.94); color: #e8f4ff; border: 1px solid #6b5b55; border-radius: 10px; font: 600 15px system-ui, sans-serif; }
@@ -1885,6 +1893,10 @@ function generate(ast, target = 'cpp', options = {}) {
         case 'saved':
           gameOnly("'saved'", e.line);
           return { code: `__saved(${a}, ${b})`, type: args[1].type === 'list' ? 'list' : 'any' };
+        // touchscreen() -> true on phones and tablets      (#html)
+        case 'touchscreen':
+          gameOnly("'touchscreen'", e.line);
+          return { code: '__touchscreen()', type: 'bool' };
         // held("left") -> true while the key is down      (#html)
         case 'held':
           gameOnly("'held'", e.line);
