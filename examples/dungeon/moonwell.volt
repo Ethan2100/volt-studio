@@ -3773,6 +3773,27 @@ fn pickMusic() {
 // =====================================================================
 //  Drawing
 // =====================================================================
+let bookCols = ["#b23a3a", "#2f6fb0", "#d9a93a", "#3f8f5a", "#8a4fb0", "#c9c3d6", "#d9783a"]
+
+// a bookshelf set into the wall of the Sunken Archive
+fn drawShelf(x, y, tx) {
+  box x + 1, y + 1, 14, 14 color "#3a2418"
+  box x + 2, y + 2, 12, 5 color "#1a0f0a"
+  box x + 2, y + 9, 12, 5 color "#1a0f0a"
+  let b = 0
+  while b < 6 {
+    let c = bookCols[(tx * 3 + b) % 7]
+    let tall = 3 + (tx + b * 2) % 3
+    box x + 2 + b * 2, y + 7 - tall, 2, tall color c
+    let c2 = bookCols[(tx * 5 + b * 2 + 1) % 7]
+    let tall2 = 3 + (tx * 2 + b) % 3
+    box x + 2 + b * 2, y + 14 - tall2, 2, tall2 color c2
+    b += 1
+  }
+  box x + 1, y + 7, 14, 2 color "#6a4426"
+  box x + 1, y + 1, 14, 1 color "#6a4426"
+}
+
 fn drawCell(tx, ty) {
   if tx < 0 or ty < 0 or tx >= MW or ty >= MH {
     return 0
@@ -3789,6 +3810,9 @@ fn drawCell(tx, ty) {
     draw floorC at x, y frame pic - 7
   } else if pic == 10 {
     draw wallFace at x, y
+    if floor == 7 and tx % 3 != 2 {
+      drawShelf(x, y, tx)
+    }
   } else if pic == 11 or pic == 12 {
     draw bannerRB at x, y frame pic - 11
   } else if pic == 13 or pic == 14 {
@@ -3955,8 +3979,37 @@ fn drawEnemy(n) {
       draw chortIdle at x, y frame f flip left flash hit size 2 alpha see
     }
   } else if k == 19 {
-    // Morwen: Vael's cousin, drawn big and drowned-teal
-    draw necro at x, y frame f flip left flash hit size 2
+    // Morwen: an orc shaman scholar in ink-blue robes, ringed by floating books
+    draw shamanIdle at x, y frame f flip left flash hit size 2
+    draw shamanIdle at x, y frame f flip left alpha 55 tint "#2a3fa8" size 2
+    draw fxGlow at x - 16, y - 20 tint "#6fa8ff" alpha 22 scale 70 glow
+    let bk = 0
+    while bk < 4 {
+      let bkOff = (tick * 2 + bk * 90) % 360
+      let ox = 0
+      let oy = 0
+      if bkOff < 90 {
+        ox = bkOff - 45
+        oy = -34 - (45 - abs(bkOff - 45)) / 4
+      } else if bkOff < 180 {
+        ox = 45 - (bkOff - 90) / 2
+        oy = -20 + (bkOff - 90) / 4
+      } else if bkOff < 270 {
+        ox = 45 - (bkOff - 180)
+        oy = 4 + (45 - abs(bkOff - 225)) / 4
+      } else {
+        ox = -45 + (bkOff - 270) / 2
+        oy = -10 - (bkOff - 270) / 3
+      }
+      let bc = bookCols[(bk * 2 + 1) % 7]
+      let bx0 = x + 16 + ox
+      let by0 = y + 18 + oy
+      box bx0, by0, 6, 8 color bc
+      box bx0, by0, 1, 8 color "#1a0f0a"
+      box bx0 + 2, by0 + 2, 3, 1 color "#f4ecd0"
+      box bx0 + 2, by0 + 4, 3, 1 color "#f4ecd0"
+      bk += 1
+    }
   } else if k == 20 {
     // the Bone Colossus winds up like Grukk
     let windup = bossWind > 0 and tick % 6 < 3
