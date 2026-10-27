@@ -7,6 +7,7 @@
 //
 //  Arrows / WASD  move          X (or space)  swing, open, talk, buy
 //  Z              dash          C             switch weapon
+//  V              summon ghostly skeletons to fight for you
 //  M              music on/off  On phones, use the on-screen pad.
 //
 //  Your journey is saved at every floor, so you can continue later.
@@ -17,7 +18,7 @@ title "Moonwell"
 
 canvas 320, 180
 // on phones: a joystick and three buttons (Kenney's Mobile Controls, CC0)
-touchpad "x", "z", "c" stick "controls/stick.png", "controls/nub.png" button "controls/button.png" icons "controls/sword.png", "controls/dash.png", "controls/switch.png"
+touchpad "x", "z", "c", "v" stick "controls/stick.png", "controls/nub.png" button "controls/button.png" icons "controls/sword.png", "controls/dash.png", "controls/switch.png", "controls/summon.png"
 
 image tiles = "dungeon.png"
 image fxSheet = "fx.png"
@@ -636,6 +637,15 @@ let skx = []
 let sky = []
 let skinNear = -1
 let whiteT = 0
+// underlings: ghostly skeletons that fight for you (V)
+let ux = []
+let uy = []
+let uhp = []
+let ulife = []
+let uatk = []
+let uleft = []
+let summonCool = 0
+let summonWait = 1200      // 20 seconds between summons
 let deepest = 1
 let fireTaps = 0
 // the Starfall Staff's falling stars (positions x10)
@@ -762,6 +772,13 @@ fn clearLists() {
   flife = []
   fhit = []
   fkind = []
+  ux = []
+  uy = []
+  uhp = []
+  ulife = []
+  uatk = []
+  uleft = []
+  summonCool = 0
   fdmg = []
   orbX = []
   orbY = []
@@ -1000,7 +1017,7 @@ fn newJourney() {
   say("Then the Ember King climbed up from the\ndeep, and one by one the lights went out.")
   say("Since then, a hundred moons have passed\nin darkness...")
   say("You are the last knight of the old order.\nGo down. Find the Ember King.")
-  say("ARROWS / WASD  move     X  swing, open, buy\nZ  dash     C  switch weapon     M  music")
+  say("ARROWS / WASD  move     X  swing, open, buy\nZ  dash     C  switch weapon     M  music\nV  summon underlings to fight beside you")
 }
 
 fn continueJourney() {
@@ -1198,6 +1215,158 @@ fn clearEffects() {
   efspin = []
   efvx = []
   efvy = []
+}
+
+// =====================================================================
+//  Underlings: press V to raise ghostly skeletons that fight for you
+// =====================================================================
+fn summon() {
+  if mode != 1 or length(msgs) > 0 or dying > 0 {
+    return 0
+  }
+  if floor == 0 {
+    say("The camp is a place of rest. Your\nunderlings will answer you in the dungeon.")
+    return 0
+  }
+  if summonCool > 0 {
+    sound sndNope
+    return 0
+  }
+  // two underlings, three from floor 4 down
+  let count = 2
+  if floor >= 4 {
+    count = 3
+  }
+  let i = 0
+  while i < count {
+    let sx = hx + random(-22, 22)
+    let sy = hy + random(-16, 16)
+    if blocked(sx, sy, 10, 8) {
+      sx = hx
+      sy = hy
+    }
+    add sx to ux
+    add sy to uy
+    add 3 + floor / 2 to uhp
+    add 900 to ulife
+    add 20 to uatk
+    add false to uleft
+    effect(16, sx + 5, sy + 2, 30, "#7fb8e8", 20, 70, 0, 10)
+    puff(sx + 5, sy + 4, "#46607a")
+    i += 1
+  }
+  summonCool = summonWait
+  tone 220 to 660 for 300ms
+  sound sndSwitch
+  effect(16, hx + 5, hy + 2, 36, "#c77dff", 30, 120, 0, -8)
+}
+
+fn moveUnderling(n, dx, dy) {
+  if dx != 0 and not blocked(ux[n] + dx, uy[n], 10, 8) {
+    ux[n] += dx
+  }
+  if dy != 0 and not blocked(ux[n], uy[n] + dy, 10, 8) {
+    uy[n] += dy
+  }
+}
+
+// an underling's hit: no screen freeze, so it doesn't interrupt your own fighting
+fn allyHit(e2, dmg, pushX, pushY) {
+  let k = ekind[e2]
+  ehp[e2] -= dmg
+  ehurt[e2] = 8
+  if isBoss(k) {
+    bossAwake = true
+  } else {
+    ekx[e2] = pushX
+    eky[e2] = pushY
+  }
+  let mx = ex[e2] + enemyW(k) / 2
+  let my = ey[e2] + enemyH(k) - kindTall[k] / 2
+  effect(2, mx, my, 8, "#9bd3ff", 70, 20, random(0, 90), 6)
+  sound sndHit volume 30
+}
+
+fn updateUnderlings() {
+  if summonCool > 0 {
+    summonCool -= 1
+  }
+  let n = 0
+  while n < length(ux) {
+    ulife[n] -= 1
+    if uatk[n] > 0 {
+      uatk[n] -= 1
+    }
+    // find the nearest monster
+    let best = -1
+    let bestFar = 170
+    let e2 = 0
+    while e2 < length(ex) {
+      let far = abs(ex[e2] + enemyW(ekind[e2]) / 2 - (ux[n] + 5)) + abs(ey[e2] + enemyH(ekind[e2]) / 2 - (uy[n] + 4))
+      if far < bestFar and (not isBoss(ekind[e2]) or bossAwake) {
+        best = e2
+        bestFar = far
+      }
+      e2 += 1
+    }
+    if best >= 0 {
+      let k = ekind[best]
+      let dx = ex[best] + enemyW(k) / 2 - (ux[n] + 5)
+      let dy = ey[best] + enemyH(k) / 2 - (uy[n] + 4)
+      uleft[n] = dx < 0
+      if overlap(ux[n] - 3, uy[n] - 3, 16, 14, ex[best] - 2, ey[best] - 2, enemyW(k) + 4, enemyH(k) + 4) {
+        if uatk[n] == 0 {
+          allyHit(best, 1 + floor / 3, sign(dx) * 3, sign(dy) * 3)
+          uatk[n] = 32
+        }
+        // monsters fight back
+        if tick % 45 == 0 {
+          uhp[n] -= 1
+        }
+      } else if tick % 4 != 0 {
+        moveUnderling(n, sign(dx), sign(dy))
+      }
+    } else {
+      // no monsters near: stay close to the knight
+      let dx = hx - ux[n]
+      let dy = hy - uy[n]
+      if abs(dx) + abs(dy) > 28 and tick % 2 == 0 {
+        moveUnderling(n, sign(dx), sign(dy))
+        uleft[n] = dx < 0
+      }
+    }
+    if ulife[n] <= 0 or uhp[n] <= 0 {
+      puff(ux[n] + 5, uy[n] - 2, "#46607a")
+      effect(15, ux[n] + 5, uy[n] - 2, 14, "#7fb8e8", 40, 5, 0, 0)
+      remove ux[n]
+      remove uy[n]
+      remove uhp[n]
+      remove ulife[n]
+      remove uatk[n]
+      remove uleft[n]
+    } else {
+      n += 1
+    }
+  }
+}
+
+fn drawUnderlings() {
+  let n = 0
+  while n < length(ux) {
+    let x = ux[n] - 3
+    let y = uy[n] - 8
+    let see = 75
+    // they flicker as their time runs out
+    if ulife[n] < 120 and tick % 8 < 4 {
+      see = 35
+    }
+    box ux[n], uy[n] + 6, 10, 3 color "#00000044"
+    draw fxGlow at x + 8 - 32, y + 8 - 32 tint "#5f8fc0" alpha see / 4 scale 45 glow
+    draw skelRun at x, y frame tick / 7 + n * 3 flip uleft[n] alpha see * 2 / 3 tint "#5f8fc0"
+    draw skelRun at x, y frame tick / 7 + n * 3 flip uleft[n] alpha see / 3
+    draw skelRun at x, y frame tick / 7 + n * 3 flip uleft[n] alpha see / 4 tint "#9bd3ff" glow
+    n += 1
+  }
 }
 
 fn updateEffects() {
@@ -2634,6 +2803,7 @@ fn update() {
   updateFireballs()
   updateFlames()
   updateStars()
+  updateUnderlings()
   updateItems()
   checkRooms()
   spikeWarning()
@@ -3280,6 +3450,7 @@ fn drawWorld() {
     }
     n += 1
   }
+  drawUnderlings()
   drawHero()
   n = 0
   while n < length(ex) {
@@ -3381,7 +3552,25 @@ fn bossTitle() {
   return "THE EMBER KING"
 }
 
+fn drawSummonHud() {
+  if floor == 0 {
+    return 0
+  }
+  box 4, 122, 26, 26 color "#05040a99"
+  box 4, 122, 26, 1 color "#46607a"
+  if summonCool > 0 {
+    draw skelIdle at 9, 126 alpha 35 tint "#5f8fc0"
+    let fill = summonCool * 25 / summonWait
+    box 4, 148 - fill, 26, fill color "#05040a88"
+  } else {
+    draw skelIdle at 9, 126 frame tick / 9
+    draw skelIdle at 9, 126 frame tick / 9 alpha 30 tint "#9bd3ff" glow
+  }
+  write "V" at 25, 140 color "#9a8fb0"
+}
+
 fn drawHud() {
+  drawSummonHud()
   let k = 0
   while k < maxHp / 2 {
     let v = hp - k * 2
@@ -3558,6 +3747,9 @@ when key "shift" pressed {
 }
 when key "c" pressed {
   switchWeapon()
+}
+when key "v" pressed {
+  summon()
 }
 when key "q" pressed {
   switchWeapon()
