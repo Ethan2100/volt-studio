@@ -8,6 +8,7 @@
 //  Arrows / WASD  move          X (or space)  swing, open, talk, buy
 //  Z              dash          C             switch weapon
 //  V              summon skeletons (Necromancer look only)
+//                 Celestial Knight: Z leaves a comet trail of stars that hurt monsters
 //  M              music on/off  On phones, use the on-screen pad.
 //
 //  Your journey is saved at every floor, so you can continue later.
@@ -468,7 +469,7 @@ let shopName = ["", "Healing Potion", "Heart Vessel", "Knight Sword", "Big Hamme
 let shopCost = [0, 8, 35, 25, 45, 70, 60, 750, 850]
 // skins (yours forever, across every journey)
 let skinName = ["Knight", "Lady Knight", "Elf Ranger", "Lizardfolk", "Sorceress", "Celestial Knight", "Ember Knight", "Necromancer"]
-let skinInfo = ["The classic.", "Same armour, better hair.", "Light on her feet.", "Scales, claws, attitude.", "Robes that crackle with magic.", "Starlight follows wherever you go.", "A secret, born in the campfire.", "Commands the dead: press V to summon."]
+let skinInfo = ["The classic.", "Same armour, better hair.", "Light on her feet.", "Scales, claws, attitude.", "Robes that crackle with magic.", "Comet Dash: your dash leaves stars that hurt.", "A secret, born in the campfire.", "Commands the dead: press V to summon."]
 let skinCost = [0, 250, 350, 450, 600, 1000, 0, 800]
 let skinTall = [22, 22, 22, 19, 28, 22, 22, 20]
 // the vault (and the Celestial Knight) open once you've reached this floor
@@ -659,6 +660,8 @@ let orbLife = []
 // what each flying flame is: 1 ember flame, 2 star shard, 3 moon wave
 let fkind = []
 let fdmg = []
+// monsters already hit by this Comet Dash, so its stars hit each one once
+let cometHit = ","
 let winAt = 0
 let shopNear = -1
 let bestTime = 0
@@ -1559,6 +1562,10 @@ fn updateHero() {
     moveHero(faceX * 4, faceY * 4)
     if tick % 2 == 0 {
       burst(hx + 5, hy + 4, 1, "#9bd3ff", 6)
+      // Comet Dash: the Celestial Knight drops stars that sting monsters
+      if skin == 5 {
+        launch(4, hx + 5, hy - 2, 0, 0, 40, 2)
+      }
     }
   } else {
     moveHero(mx * speed, my * speed)
@@ -1739,6 +1746,10 @@ fn updateFlames() {
       burst(px, py, 1, "#ffb34a", 8)
     } else if fkind[n] == 2 and tick % 2 == 0 {
       effect(2, px, py, 10, "#fff4c2", 50, 10, random(0, 90), 9)
+    } else if fkind[n] == 4 {
+      if tick % 5 == 0 {
+        effect(2, px + random(-3, 3), py + random(-3, 3), 12, "#e8f4ff", 40, 5, random(0, 90), 8)
+      }
     } else if fkind[n] == 3 {
       if tick % 3 == 0 {
         effect(1, px, py, 6, "#4f7fa8", 140, 110, fhitAngle(n), 0)
@@ -1749,15 +1760,28 @@ fn updateFlames() {
     while e2 < length(ex) {
       let k = ekind[e2]
       let tag = "," + ehome[e2] + ","
-      if not contains(fhit[n], tag) and overlap(px - 5, py - 5, 10, 10, ex[e2] - 2, ey[e2] + enemyH(k) - kindTall[k], enemyW(k) + 4, kindTall[k]) {
-        fhit[n] = fhit[n] + ehome[e2] + ","
-        hitEnemy(e2, fdmg[n], sign(fvx[n]) * 4, sign(fvy[n]) * 4)
+      // comet stars share one list per dash, so a trail hits each monster once
+      let seen = fhit[n]
+      if fkind[n] == 4 {
+        seen = cometHit
+      }
+      if not contains(seen, tag) and overlap(px - 6, py - 6, 12, 12, ex[e2] - 2, ey[e2] + enemyH(k) - kindTall[k], enemyW(k) + 4, kindTall[k]) {
+        if fkind[n] == 4 {
+          cometHit = cometHit + ehome[e2] + ","
+          hitEnemy(e2, fdmg[n], faceX * 4, faceY * 4)
+          effect(16, px, py, 16, "#9bd3ff", 20, 70, 0, 8)
+        } else {
+          fhit[n] = fhit[n] + ehome[e2] + ","
+          hitEnemy(e2, fdmg[n], sign(fvx[n]) * 4, sign(fvy[n]) * 4)
+        }
       }
       e2 += 1
     }
-    if flife[n] <= 0 or isWall(px / 16, py / 16) {
+    if flife[n] <= 0 or (fkind[n] != 4 and isWall(px / 16, py / 16)) {
       if fkind[n] == 1 {
         burst(px, py, 6, "#ff8a3d", 14)
+      } else if fkind[n] == 4 {
+        burst(px, py, 2, "#9bd3ff", 8)
       } else {
         burst(px, py, 6, "#9bd3ff", 14)
       }
@@ -2164,6 +2188,10 @@ fn pressZ() {
     dash = 9
     dashCool = 36
     sound sndDash
+    if skin == 5 {
+      cometHit = ","
+      tone 900 to 1500 for 120ms
+    }
     puff(hx + 5, hy + 6, "#b9a8a0")
     puff(hx + 5, hy + 6, "#b9a8a0")
     if faceX == 0 and faceY == 0 {
@@ -3142,7 +3170,7 @@ fn drawHero() {
   if weapon == 7 and dying == 0 {
     draw fxCircle at hx + 5 - 32, hy + 6 - 32 tint "#c9a227" alpha 14 scale 40 angle tick * 2 glow
   }
-  // Celestial Knights leave stars behind
+  // Necromancers trail ghostly wisps
   if skin == 7 and moving and tick % 7 == 0 {
     effect(10, hx + 5 + random(-4, 4), hy + random(-6, 4), 20, "#9b6bd6", 30, 5, 0, 0)
     drift(0, -3)
@@ -3507,6 +3535,11 @@ fn drawWorld() {
     if fkind[n] == 1 {
       draw fxGlow at px - 32, py - 32 tint "#ff8a3d" alpha 60 scale 45 glow
       draw fxFlame at px - 16, py - 16 tint "#ffb34a" angle fang + 180 scale 80 glow
+    } else if fkind[n] == 4 {
+      // a comet star: twinkles, then fades out
+      let starA = min(100, flife[n] * 4)
+      draw fxGlow at px - 32, py - 32 tint "#6fa8d6" alpha starA / 3 scale 30 glow
+      draw fxStar at px - 16, py - 16 tint "#e8f4ff" angle tick * 8 alpha starA scale 30 + flife[n] glow
     } else if fkind[n] == 2 {
       draw fxGlow at px - 32, py - 32 tint "#ffd23f" alpha 45 scale 25 glow
       draw fxStar at px - 16, py - 16 tint "#fff4c2" angle tick * 12 scale 60 glow
