@@ -154,19 +154,24 @@ sprite fxVortex = fxSheet at 256, 32 size 64, 64
 //            m slime  M masked orc  S shaman  N necromancer  t tiny zombie
 //            I imp    B the floor's boss
 let shopRows = [
-  "##############################",
-  "##############################",
-  "####f###b#######b##b#####b####",
-  "##..u.......................##",
-  "##........7.K.8.............##",
-  "##..................q.q.q...##",
-  "##..........................##",
-  "##.1.2...3.4.5.6............##",
-  "##..................q.q.q...##",
-  "##..........P...............##",
-  "##.L........................##",
-  "##############################",
-  "##############################",
+  "#####################################",
+  "#####################################",
+  "####f#####b#######b######b#######b###",
+  "##..u..............................##",
+  "##.................................##",
+  "##................K................##",
+  "##.............7.....8....q..q..q..##",
+  "##..1..2...........................##",
+  "##.................................##",
+  "##.................................##",
+  "##........................q..q..q..##",
+  "##..3...4..........................##",
+  "##............y....................##",
+  "##.................................##",
+  "##..5...6.........P...L............##",
+  "##.................................##",
+  "#####################################",
+  "#####################################",
 ]
 let rows1 = [
   "##############################################",
@@ -666,7 +671,7 @@ fn isWall(tx, ty) {
 }
 
 fn solidCell(tx, ty) {
-  return contains("#bfruvCDKq12345678", cell(tx, ty))
+  return contains("#bfruvCDKqy12345678", cell(tx, ty))
 }
 
 fn isBoss(k) {
@@ -935,7 +940,7 @@ fn enterFloor(f) {
   sound jingleFloor volume 80
   if floor == 0 {
     say("THE REST CAMP\nA quiet cave between the floors.")
-    say("MAGE:\nAh, a knight! Supplies and arms on the left,\nthe vault by me, fine clothes on the right.")
+    say("MAGE:\nAh, a knight! Follow the paths: supplies\nand arms to the left, fine clothes to the\nright, and my vault right here.")
     if not contains(owned, 6) or not contains(owned, 7) {
       say("MAGE:\nThe Moonblade, 750 gold. The Starfall Staff,\n850. Worth every coin, I promise.")
     }
@@ -2928,16 +2933,52 @@ fn rug(tx, ty, w, h, color) {
   box tx * 16, ty * 16, w * 16, h * 16 color "#00000030"
 }
 
-// the camp's floor: rugs and signs (drawn under everyone)
+// a cobbled path over the cells from (x1, y1) to (x2, y2)
+fn path(x1, y1, x2, y2) {
+  for ty from y1 to y2 {
+    for tx from x1 to x2 {
+      let x = tx * 16
+      let y = ty * 16
+      box x, y, 16, 16 color "#4a3e3a"
+      box x + 1, y + 1, 6, 6 color "#64554e"
+      box x + 9, y + 1, 6, 6 color "#5b4d47"
+      box x + 1, y + 9, 6, 6 color "#5b4d47"
+      box x + 9, y + 9, 6, 6 color "#64554e"
+    }
+  }
+}
+
+// the camp's floor: paths, rugs and signs (drawn under everyone)
 fn drawCampFloor() {
-  rug(2, 6, 5, 4, "#3b2a24")
-  rug(8, 6, 9, 4, "#3a2530")
-  rug(9, 3, 7, 3, "#2c2a40")
-  rug(19, 4, 7, 6, "#24303a")
-  write "SUPPLIES" at 4 * 16 + 8, 9 * 16 + 4 centered color "#c9a27e"
-  write "ARMOURY" at 12 * 16 + 8, 9 * 16 + 4 centered color "#c9a27e"
-  write "VAULT" at 12 * 16 + 8, 3 * 16 + 1 centered color "#ffd23f"
-  write "WARDROBE" at 22 * 16 + 8, 4 * 16 + 1 centered color "#9bd3ff"
+  // paths from the start to every corner of the camp
+  path(17, 8, 19, 15)
+  path(10, 8, 23, 9)
+  path(20, 14, 22, 15)
+  // the ladder sits on top of the path
+  draw fxLight at ladX * 16 + 8 - 32, ladY * 16 + 8 - 32 tint "#9bd3ff" alpha 18 scale 90 glow
+  draw ladder at ladX * 16, ladY * 16
+  // a rug for each part of the camp
+  rug(2, 5, 8, 4, "#3b2a24")
+  rug(13, 3, 11, 5, "#2c2a40")
+  rug(24, 4, 11, 8, "#24303a")
+  rug(2, 9, 8, 7, "#3a2530")
+  write "SUPPLIES" at 6 * 16, 5 * 16 + 4 centered color "#c9a27e"
+  write "VAULT" at 18 * 16 + 8, 3 * 16 + 4 centered color "#ffd23f"
+  write "WARDROBE" at 29 * 16 + 8, 4 * 16 + 4 centered color "#9bd3ff"
+  write "ARMOURY" at 6 * 16, 9 * 16 + 4 centered color "#c9a27e"
+  write "WAY DOWN" at 22 * 16 + 8, 13 * 16 + 4 centered color "#9a8fb0"
+  // the campfire
+  let fx0 = 14 * 16 + 8
+  let fy0 = 12 * 16 + 8
+  draw fxLight at fx0 - 32, fy0 - 32 tint "#ff8a3d" alpha 22 + tick / 5 % 5 scale 170 glow
+  box fx0 - 7, fy0 + 2, 14, 3 color "#5a3a22"
+  box fx0 - 5, fy0 - 1, 3, 7 color "#6e4a2c"
+  box fx0 + 2, fy0 - 1, 3, 7 color "#6e4a2c"
+  draw fxFire at fx0 - 16, fy0 - 20 tint "#ff8a3d" alpha 85 scale 55 angle tick * 3 % 20 - 10 glow
+  draw fxFlame at fx0 - 16, fy0 - 22 tint "#ffd23f" alpha 70 scale 45 glow
+  if tick % 9 == 0 {
+    burst(fx0 + random(-3, 3), fy0 - 8, 1, "#ffb34a", 6)
+  }
 }
 
 fn drawShop() {
