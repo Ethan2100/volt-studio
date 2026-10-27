@@ -84,6 +84,7 @@ sprite knightSword = tiles at 339, 120 size 10, 23
 sprite hammer = tiles at 291, 42 size 10, 37
 sprite goldSword = tiles at 291, 153 size 10, 22
 sprite staff = tiles at 324, 145 size 8, 30
+sprite moonblade = tiles at 322, 81 size 12, 30
 // monsters
 sprite goblinIdle = tiles at 368, 37 size 16, 11 frames 4
 sprite goblinRun = tiles at 432, 37 size 16, 11 frames 4
@@ -147,7 +148,7 @@ let shopRows = [
   "##################",
   "###b#f###b###b####",
   "##...u..........##",
-  "##.........K....##",
+  "##......7..K....##",
   "##..............##",
   "##.1.2.3..4.5.6.##",
   "##..............##",
@@ -438,16 +439,16 @@ let kindHit = [0, 1, 1, 2, 1, 2, 1, 2, 1, 2, 1, 1, 1, 1, 2, 2, 2, 2, 2]
 let kindPace = [0, 1, 3, 2, 1, 2, 2, 3, 2, 2, 2, 3, 1, 1, 2, 3, 2, 2, 1]
 
 // ---------- weapons ----------
-let wName = ["", "Rusty Sword", "Knight Sword", "Big Hammer", "Golden Sword", "Ember Staff"]
-let wInfo = ["", "Old, but it cuts.", "Hits twice as hard.", "Slow, huge reach, 3 damage.", "Fast and deadly, 3 damage.", "Shoots flames that pass through foes."]
-let wDmg = [0, 1, 2, 3, 3, 2]
-let wLen = [0, 16, 16, 26, 12, 18]
-let wReach = [0, 0, 2, 9, 2, 0]
-let wW = [0, 10, 10, 10, 10, 8]
-let wH = [0, 21, 23, 37, 22, 30]
-// the shop: 1 potion, 2 heart vessel, 3-6 weapons 2-5
-let shopName = ["", "Healing Potion", "Heart Vessel", "Knight Sword", "Big Hammer", "Golden Sword", "Ember Staff"]
-let shopCost = [0, 8, 35, 25, 45, 70, 60]
+let wName = ["", "Rusty Sword", "Knight Sword", "Big Hammer", "Golden Sword", "Ember Staff", "Moonblade"]
+let wInfo = ["", "Old, but it cuts.", "Hits twice as hard.", "Slow, huge reach, 3 damage.", "Fast and deadly, 3 damage.", "Shoots flames that pass through foes.", "Forged from moonlight. 40 damage!"]
+let wDmg = [0, 1, 2, 3, 3, 2, 40]
+let wLen = [0, 16, 16, 26, 12, 18, 14]
+let wReach = [0, 0, 2, 9, 2, 0, 7]
+let wW = [0, 10, 10, 10, 10, 8, 12]
+let wH = [0, 21, 23, 37, 22, 30, 30]
+// the shop: 1 potion, 2 heart vessel, 3-7 weapons 2-6
+let shopName = ["", "Healing Potion", "Heart Vessel", "Knight Sword", "Big Hammer", "Golden Sword", "Ember Staff", "Moonblade"]
+let shopCost = [0, 8, 35, 25, 45, 70, 60, 150]
 
 // ---------- music (each word is one step: a note, - for rest, _ to hold) ----------
 let songTitle = "a4 _ c5 e5 a5 _ g5 e5 f5 _ e5 c5 d5 _ b4 _ a4 _ c5 e5 a5 _ b5 c6 b5 _ g5 e5 e5 _ _ _"
@@ -633,7 +634,7 @@ fn isWall(tx, ty) {
 }
 
 fn solidCell(tx, ty) {
-  return contains("#bfruvCDK123456", cell(tx, ty))
+  return contains("#bfruvCDK1234567", cell(tx, ty))
 }
 
 fn isBoss(k) {
@@ -788,7 +789,7 @@ fn buildLevel() {
       } else if ch == "K" {
         mageX = tx
         mageY = ty
-      } else if contains("123456", ch) {
+      } else if contains("1234567", ch) {
         add tx to shx
         add ty to shy
         add number(ch) to shItem
@@ -891,6 +892,9 @@ fn enterFloor(f) {
   if floor == 0 {
     say("THE REST CAMP\nA quiet cave between the floors.")
     say("MAGE:\nAh, a knight! Gold for steel. Have a look.")
+    if not contains(owned, 6) {
+      say("MAGE:\nThat glowing blade by me is the Moonblade.\n150 gold. It fells a beast in one blow.")
+    }
   } else if floor == 2 {
     say("FLOOR 2: THE DROWNED CRYPT\nCold water drips. Something shuffles in the dark.")
     say("One key opens the crypt's great door.\nThe Warden waits beyond it.")
@@ -1388,6 +1392,11 @@ fn swordHits() {
     arc = 180
   }
   let slashCol = "#ffffff"
+  if weapon == 6 {
+    effect(1, ax + aw / 2, ay + ah / 2, 14, "#9bd3ff", 230, 320, arc, 0)
+    effect(16, ax + aw / 2, ay + ah / 2, 18, "#e8f4ff", 30, 110, 0, 8)
+    shake = max(shake, 3)
+  }
   if weapon == 4 {
     slashCol = "#ffd23f"
   } else if weapon == 1 {
@@ -2560,8 +2569,12 @@ fn drawWeapon(wid, cx, cy, ang) {
     draw hammer at x, y angle ang
   } else if wid == 4 {
     draw goldSword at x, y angle ang
-  } else {
+  } else if wid == 5 {
     draw staff at x, y angle ang
+  } else {
+    // the Moonblade shines
+    draw fxGlow at cx - 32, cy - 32 tint "#9bd3ff" alpha 35 + tick % 20 scale 55 glow
+    draw moonblade at x, y angle ang
   }
 }
 
@@ -2646,6 +2659,12 @@ fn drawShop() {
     box x + 1, y + 6, 14, 2 color "#aa8d7a"
     box x + 3, y + 16, 10, 2 color "#00000055"
     let sold = item >= 3 and contains(owned, item - 1)
+    if item == 7 and not sold {
+      draw fxLight at x + 8 - 32, y - 2 - 32 tint "#9bd3ff" alpha 40 + tick % 25 scale 110 glow
+      if tick % 12 == 0 {
+        effect(2, x + random(2, 14), y - random(0, 16), 16, "#e8f4ff", 50, 10, 0, 6)
+      }
+    }
     if item == 1 {
       draw flask at x, y - 8 - bob
     } else if item == 2 {
