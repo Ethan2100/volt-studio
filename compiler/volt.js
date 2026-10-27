@@ -1326,8 +1326,12 @@ const GAME_CSS = `  body.volt-game { background: #000; overflow: hidden; }
   }
   .volt-stick { position: relative; width: 132px; height: 132px; display: grid; place-items: center; background: center / contain no-repeat; pointer-events: auto; touch-action: none; }
   .volt-nub { width: 48%; height: 48%; pointer-events: none; }
-  body.volt-game .volt-ask { position: fixed; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 6; margin: 0; padding: 14px 16px; max-width: calc(100vw - 32px); background: rgba(11, 9, 18, 0.94); color: #e8f4ff; border: 1px solid #6b5b55; border-radius: 10px; font: 600 15px system-ui, sans-serif; }
-  body.volt-game .volt-ask input { border-color: #6b5b55; min-width: 180px; }
+  body.volt-game .volt-ask { position: fixed; left: 50%; top: 40%; transform: translate(-50%, -50%); z-index: 6; margin: 0; padding: 16px 18px; gap: 10px; justify-content: center; width: min(420px, calc(100vw - 32px)); box-sizing: border-box; background: #05040a; color: #ffd23f; border: 2px solid #d3bfa9; border-radius: 0; box-shadow: 0 0 0 2px #05040a, 0 0 0 3px #6b5b55, 0 8px 30px rgba(0,0,0,0.6); font: 700 15px "Courier New", ui-monospace, monospace; letter-spacing: 1px; text-transform: uppercase; image-rendering: pixelated; }
+  body.volt-game .volt-ask label { flex: 1 0 100%; text-align: center; }
+  body.volt-game .volt-ask input { flex: 1 1 160px; min-width: 0; padding: 9px 10px; border: 2px solid #6b5b55; border-radius: 0; background: #0b0912; color: #e8f4ff; caret-color: #ffd23f; font: 700 16px "Courier New", ui-monospace, monospace; letter-spacing: 2px; text-transform: uppercase; outline: none; }
+  body.volt-game .volt-ask input:focus { border-color: #ffd23f; }
+  body.volt-game .volt-ask button { margin: 0; padding: 9px 16px; border: 2px solid #ffd23f; border-radius: 0; background: #ffd23f; color: #05040a; font: 700 14px "Courier New", ui-monospace, monospace; letter-spacing: 1px; text-transform: uppercase; }
+  body.volt-game .volt-ask button:active { transform: translateY(1px); }
   body.volt-game .volt-answer, body.volt-game .volt-line { display: none; }`;
 
 // Removes one pair of outer brackets: "(a + b)" -> "a + b" (but not "(a) + (b)")
@@ -2795,6 +2799,7 @@ function generate(ast, target = 'cpp', options = {}) {
     "    const i = document.createElement('input'); i.autocomplete = 'off';",
     "    const b = document.createElement('button'); b.textContent = 'OK';",
     '    f.append(l, i, b);',
+    "    i.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') { i.value = ''; if (f.requestSubmit) f.requestSubmit(); else f.dispatchEvent(new Event('submit', { cancelable: true })); } });",
     "    f.onsubmit = (e) => { e.preventDefault(); const d = document.createElement('div'); d.className = 'volt-line volt-answer'; d.textContent = String(q) + ' ' + i.value; f.replaceWith(d); resolve(i.value); };",
     '    __add(f); setTimeout(() => i.focus(), 0);   // after the key that opened it, so that key isn\'t typed in',
     '  });',

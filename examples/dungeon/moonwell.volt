@@ -481,6 +481,7 @@ let invNote = ""
 let strT = 0                 // frames of Strength left
 let goldT = 0                // frames of Fortune left
 let packTip = false
+let helpOpen = false
 let touch = false            // true on phones: the HUD moves out of the way of the buttons
 // skins (yours forever, across every journey)
 let skinName = ["Knight", "Lady Knight", "Elf Ranger", "Lizardfolk", "Sorceress", "Celestial Knight", "Ember Knight", "Necromancer"]
@@ -1079,7 +1080,22 @@ fn continueJourney() {
 }
 
 // ---------- the pack ----------
+fn toggleHelp() {
+  if helpOpen {
+    helpOpen = false
+    return 0
+  }
+  if (mode != 0 and mode != 1) or length(msgs) > 0 or dying > 0 or invOpen or typingCode {
+    return 0
+  }
+  helpOpen = true
+  sound sndSwitch volume 50
+}
+
 fn toggleInv() {
+  if helpOpen {
+    return 0
+  }
   if mode != 1 or length(msgs) > 0 or dying > 0 {
     return 0
   }
@@ -1097,6 +1113,9 @@ fn invMove(d) {
 }
 
 fn usePotion(slot) {
+  if helpOpen {
+    return 0
+  }
   if mode != 1 or length(msgs) > 0 or dying > 0 {
     return 0
   }
@@ -1316,7 +1335,7 @@ fn clearEffects() {
 //  Underlings: press V to raise ghostly skeletons that fight for you
 // =====================================================================
 fn summon() {
-  if invOpen {
+  if invOpen or helpOpen {
     return 0
   }
   if mode != 1 or length(msgs) > 0 or dying > 0 {
@@ -2044,7 +2063,7 @@ fn starBurst(px, py) {
 }
 
 fn switchWeapon() {
-  if invOpen {
+  if invOpen or helpOpen {
     return 0
   }
   if mode != 1 or length(owned) < 2 or swing > 0 {
@@ -2073,6 +2092,10 @@ fn giveWeapon(wid) {
 
 // X: talk, open, buy, climb, or swing
 fn pressX() {
+  if helpOpen {
+    helpOpen = false
+    return 0
+  }
   if invOpen {
     usePotion(invSel)
     return 0
@@ -2346,6 +2369,10 @@ fn wardrobe(n) {
 }
 
 fn pressZ() {
+  if helpOpen {
+    helpOpen = false
+    return 0
+  }
   if invOpen {
     invOpen = false
     return 0
@@ -2370,6 +2397,32 @@ fn pressZ() {
       faceY = 1
     }
   }
+}
+
+// puts a coin or potion on the floor where you can actually walk to it
+fn dropItem(px, py, kind) {
+  let bestX = hx + 5
+  let bestY = hy + 2
+  let found = false
+  let radius = 0
+  while radius < 5 and not found {
+    let gap = radius * 10
+    let t = 0
+    while t < 9 and not found {
+      let tx = px + (t % 3 - 1) * gap
+      let ty = py + (t / 3 - 1) * gap
+      if not blocked(tx - 5, ty - 2, 10, 8) {
+        bestX = tx
+        bestY = ty
+        found = true
+      }
+      t += 1
+    }
+    radius += 1
+  }
+  add bestX to ix
+  add bestY to iy
+  add kind to ikind
 }
 
 // coins earned: a Fortune potion doubles them
@@ -2406,9 +2459,7 @@ fn openChest(n) {
   } else {
     gain(10)
     sound sndCoin
-    add px to ix
-    add py + 14 to iy
-    add 2 to ikind
+    dropItem(px, py + 14, 2)
     say("Ten gold coins, and a healing potion!")
   }
 }
@@ -2567,13 +2618,9 @@ fn killEnemy(n) {
   let roll = random(1, 100)
   if k != 12 or roll <= 25 {
     if roll <= 50 {
-      add px to ix
-      add py to iy
-      add 1 to ikind
+      dropItem(px, py, 1)
     } else if roll <= 62 {
-      add px to ix
-      add py to iy
-      add 2 to ikind
+      dropItem(px, py, 2)
     }
   }
   if isBoss(k) {
@@ -2596,9 +2643,7 @@ fn killEnemy(n) {
     sound jingleBoss
     // a pile of gold
     repeat 20 {
-      add px + random(-20, 20) to ix
-      add py + random(-14, 14) to iy
-      add 1 to ikind
+      dropItem(px + random(-20, 20), py + random(-14, 14), 1)
     }
     if k == 14 {
       say("GRUKK THE GATEKEEPER:\nGrukk... tired. Grukk... nap now.")
@@ -2912,6 +2957,17 @@ fn updateItems() {
   let n = 0
   while n < length(ix) {
     let took = false
+    // loose coins and potions drift toward you when you're close
+    let pullX = hx + 5 - ix[n]
+    let pullY = hy + 2 - iy[n]
+    if abs(pullX) + abs(pullY) < 44 and abs(pullX) + abs(pullY) > 4 and dying == 0 {
+      if not blocked(ix[n] + sign(pullX) - 5, iy[n] - 2, 10, 8) {
+        ix[n] += sign(pullX)
+      }
+      if not blocked(ix[n] - 5, iy[n] + sign(pullY) - 2, 10, 8) {
+        iy[n] += sign(pullY)
+      }
+    }
     if abs(ix[n] - (hx + 5)) < 11 and abs(iy[n] - (hy + 2)) < 12 {
       if ikind[n] == 1 {
         let worth = 1 + max(1, floor)
@@ -4036,6 +4092,26 @@ fn drawTalk() {
   }
 }
 
+// the controls, for when you forget them (P)
+fn drawHelp() {
+  box 0, 0, 320, 180 color "#000000aa"
+  box 40, 18, 240, 144 color "#0b0912f2"
+  box 40, 18, 240, 1 color "#d3bfa9"
+  box 40, 161, 240, 1 color "#d3bfa9"
+  box 40, 18, 1, 144 color "#d3bfa9"
+  box 279, 18, 1, 144 color "#d3bfa9"
+  write "CONTROLS" at 160, 26 centered color "#e8f4ff" shadow
+  let names = ["MOVE", "SWING / USE", "DASH", "WEAPON", "POTION PACK", "DRINK", "SUMMON", "MUSIC", "THIS SCREEN"]
+  let keysText = ["arrows / WASD", "X or space", "Z or shift", "C or Q", "B", "1 2 3", "V (Necromancer)", "M", "P"]
+  let r = 0
+  while r < length(names) {
+    write names[r] at 54, 42 + r * 12 color "#ffd23f"
+    write keysText[r] at 150, 42 + r * 12 color "#c9c3d6"
+    r += 1
+  }
+  write "Press P to close" at 160, 151 centered color "#9a8fb0"
+}
+
 // the pack: three slots, one potion kind each
 fn drawInv() {
   box 0, 0, 320, 180 color "#00000088"
@@ -4129,7 +4205,7 @@ fn titleScreen() {
   if bank > 0 and length(save0) == 0 {
     write "treasury: " + bank + " gold" at 160, 144 centered color "#ffd23f"
   }
-  write "C: enter a code   M: music   art: 0x72" at 160, 168 centered color "#5d5470"
+  write "C: code   P: help   M: music   art: 0x72" at 160, 168 centered color "#5d5470"
 }
 
 fn endScreen() {
@@ -4207,6 +4283,13 @@ when key "i" pressed {
 }
 when key "escape" pressed {
   invOpen = false
+  helpOpen = false
+}
+when key "p" pressed {
+  toggleHelp()
+}
+when key "h" pressed {
+  toggleHelp()
 }
 when key "left" pressed {
   invMove(-1)
@@ -4252,7 +4335,7 @@ every frame {
   if mode == 0 {
     titleScreen()
   } else {
-    if mode == 1 and length(msgs) == 0 and not invOpen {
+    if mode == 1 and length(msgs) == 0 and not invOpen and not helpOpen {
       update()
     }
     updateSparks()
@@ -4277,6 +4360,9 @@ every frame {
       box 0, 0, 320, 180 color "#000000" + fadeHex[fadeIn / 2]
       fadeIn -= 1
     }
+  }
+  if helpOpen {
+    drawHelp()
   }
   if length(msgs) > 0 {
     drawTalk()
