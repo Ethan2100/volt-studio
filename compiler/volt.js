@@ -1135,7 +1135,7 @@ const GAME_RUNTIME = [
   "    if (f2 != null) o.frequency.exponentialRampToValueAtTime(Math.max(20, f2), t + d);",
   "    g.gain.setValueAtTime(0.05, t);",
   "    g.gain.exponentialRampToValueAtTime(0.0001, t + d);",
-  "    o.connect(g); g.connect(__dest());",
+  "    o.connect(g); g.connect(__sfxBus());",
   "    o.start(t); o.stop(t + d + 0.02);",
   "  } catch (e) { /* no sound card: stay quiet */ }",
   "}",
@@ -1204,6 +1204,12 @@ const GAME_RUNTIME = [
   "  return __master;",
   "}",
   "function __volume(v) { __vol = Math.max(0, Math.min(1, v / 100)); if (__master) __master.gain.value = __vol; }",
+  "// two mixer channels under the master volume: sound effects and music (window.__setMix(sfx, music), each 0-100)",
+  "let __sfxV = 1, __musV = 1, __sfxG = null, __musG = null;",
+  "function __sfxBus() { if (!__sfxG) { __sfxG = __ac.createGain(); __sfxG.gain.value = __sfxV; __sfxG.connect(__dest()); } return __sfxG; }",
+  "function __musBus() { if (!__musG) { __musG = __ac.createGain(); __musG.gain.value = __musV; __musG.connect(__dest()); } return __musG; }",
+  "window.__setMix = (sfx, mus) => { __sfxV = Math.max(0, Math.min(1, sfx / 100)); __musV = Math.max(0, Math.min(1, mus / 100)); if (__sfxG) __sfxG.gain.value = __sfxV; if (__musG) __musG.gain.value = __musV; };",
+  "window.__setLefty = (on) => { const t = document.querySelector('.volt-touch'); if (t) t.classList.toggle('volt-lefty', !!on); window.__lefty = !!on; };",
   "const __sounds = [];",
   "function __audio(srcs, name) { const a = { srcs, name, bufs: null, busy: false }; __sounds.push(a); return a; }",
   "function __bytes(src) {",
@@ -1233,7 +1239,7 @@ const GAME_RUNTIME = [
   "  const s = __ac.createBufferSource(), g = __ac.createGain();",
   "  s.buffer = a.bufs[Math.floor(Math.random() * a.bufs.length)];",
   "  g.gain.value = vol == null ? 1 : Math.max(0, vol / 100);",
-  "  s.connect(g); g.connect(__dest());",
+  "  s.connect(g); g.connect(__sfxBus());",
   "  s.start();",
   "}",
   "// save \"best\", 120 and saved(\"best\", 0): values kept in this browser between visits",
@@ -1281,7 +1287,7 @@ const GAME_RUNTIME = [
   "  try { __ac = __ac || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }",
   "  const words = (t) => String(t == null ? '' : t).trim().toLowerCase().split(/\\s+/).filter(Boolean);",
   "  const voices = [words(mel), words(bass)];",
-  "  const out = __ac.createGain(); out.connect(__dest());",
+  "  const out = __ac.createGain(); out.connect(__musBus());",
   "  const s = { key, out, step: 0, next: __ac.currentTime + 0.08, dur: 60 / Math.max(30, tempo || 140) / 2 };",
   "  s.timer = setInterval(() => {",
   "    if (__stopped) { clearInterval(s.timer); return; }",
@@ -1321,6 +1327,7 @@ const GAME_CSS = `  body.volt-game { background: #000; overflow: hidden; }
   body.volt-game .volt-error { position: fixed; top: 10px; left: 10px; right: 10px; z-index: 5; }
   .volt-canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; outline: none; touch-action: none; }
   .volt-touch { position: fixed; inset: auto 0 0 0; display: flex; justify-content: space-between; align-items: end; padding: 18px max(18px, env(safe-area-inset-right, 0px)) max(18px, env(safe-area-inset-bottom, 0px)) max(18px, env(safe-area-inset-left, 0px)); pointer-events: none; z-index: 4; user-select: none; -webkit-user-select: none; }
+  .volt-touch.volt-lefty { flex-direction: row-reverse; }
   .volt-touch button { pointer-events: auto; margin: 0; padding: 0; border-radius: 50%; background: rgba(255,255,255,0.10); color: rgba(255,255,255,0.75); font: 700 18px system-ui, sans-serif; touch-action: none; border: 2px solid rgba(255,255,255,0.25); }
   .volt-touch button:active { background: rgba(255,255,255,0.35); transform: none; }
   .volt-dpad { display: grid; grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 44px); }
