@@ -735,7 +735,7 @@ let lastFloor = 11
 //        19 Archivist Morwen, 20 the Bone Colossus, 21 the Hollow Moon, 22 Warlord Zorn,
 //        23 the Cinder God, 24 moon wisp
 let kindLetters = "-gsozBZimMSNtIAEFGHJOQRTW"
-let kindLife = [0, 2, 3, 5, 3, 52, 4, 7, 3, 7, 4, 5, 1, 2, 20, 38, 42, 46, 46, 52, 58, 60, 64, 84, 4]
+let kindLife = [0, 2, 3, 5, 3, 91, 4, 7, 3, 7, 4, 5, 1, 2, 20, 38, 42, 46, 46, 52, 58, 60, 64, 84, 4]
 let kindTall = [0, 11, 16, 20, 24, 36, 16, 16, 16, 20, 20, 20, 12, 16, 32, 34, 40, 40, 48, 40, 32, 34, 40, 36, 16]
 let kindHit = [0, 1, 1, 2, 1, 2, 1, 2, 1, 2, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1]
 let kindPace = [0, 1, 3, 2, 1, 2, 2, 3, 2, 2, 2, 3, 1, 1, 2, 3, 2, 2, 1, 2, 2, 3, 2, 1, 2]
