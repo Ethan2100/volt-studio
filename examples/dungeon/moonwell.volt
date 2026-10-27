@@ -5055,23 +5055,21 @@ fn achCount() {
 }
 
 fn drawAch() {
-  box 0, 0, 320, 180 color "#000000c8"
+  box 0, 0, 320, 180 color "#0b0912"
   write "ACHIEVEMENTS  " + achCount() + "/" + length(achName) at 160, 3 centered color "#e8f4ff" shadow
   let a = 0
   while a < length(achName) {
-    let col = a / 9
-    let row = a % 9
-    let x = 10 + col * 156
-    let y = 15 + row * 17
-    let got = ach[a] == 1
-    box x, y, 150, 16 color "#1c1626"
-    if got {
-      box x, y, 2, 16 color "#ffd23f"
-      write achName[a] at x + 6, y + 1 color "#ffd23f"
-      write achInfo[a] at x + 6, y + 9 color "#9a8fb0"
+    let y = 15 + a * 9
+    if a % 2 == 0 {
+      box 8, y - 1, 304, 9 color "#15101e"
+    }
+    if ach[a] == 1 {
+      box 8, y - 1, 2, 9 color "#ffd23f"
+      write achName[a] at 14 + 0, y color "#ffd23f"
+      write achInfo[a] at 124, y color "#c9c3d6"
     } else {
-      write achName[a] at x + 6, y + 1 color "#6b5b55"
-      write achInfo[a] at x + 6, y + 9 color "#5a5270"
+      write achName[a] at 14, y color "#8a7f9a"
+      write achInfo[a] at 124, y color "#6a6280"
     }
     a += 1
   }
@@ -5083,7 +5081,7 @@ fn drawAch() {
 }
 
 fn drawStats() {
-  box 0, 0, 320, 180 color "#000000c8"
+  box 0, 0, 320, 180 color "#0b0912"
   write "STATS" at 160, 8 centered color "#e8f4ff" shadow
   let names = ["Monsters defeated", "Times fallen", "Gold earned", "Bombs used", "Secret rooms found", "Chests opened", "Bosses beaten", "Potions drunk", "Deepest floor", "Achievements", "This run"]
   let vals = [stats[0], stats[1], stats[2], stats[3], stats[4], stats[5], stats[6], stats[7], deepest, achCount() + "/" + length(achName), clock(playTime)]
