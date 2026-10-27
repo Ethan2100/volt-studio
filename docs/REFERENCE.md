@@ -15,6 +15,8 @@ every 500ms {
 
 1. [The first line: picking the output](#the-first-line-picking-the-output)
 1. [Scripts and web pages](#scripts-and-web-pages)
+1. [Lists](#lists)
+1. [Games: canvas, sprites and keys](#games-canvas-sprites-and-keys)
 2. [How a Volt program runs](#how-a-volt-program-runs)
 3. [Comments](#comments)
 4. [Pins](#pins)
@@ -225,6 +227,91 @@ Click on the page first so it has focus. Keys aren't counted while someone is ty
 | Ruby | `ruby name.rb` |
 | JavaScript | `node name.js` |
 | HTML | double-click `index.html` |
+
+## Lists
+
+A list holds many values in one variable. Lists work in `#python`, `#ruby`, `#js` and `#html` (not on boards yet).
+
+```volt
+let scores = [3, 1, 4]      // [] is an empty list
+add 5 to scores             // put a value on the end
+scores[0] = 9               // change one value (counting starts at 0)
+scores[1] += 10
+remove scores[2]            // take one out; the ones after it move up
+print length(scores)        // how many values
+print contains(scores, 5)   // true or false
+
+for each s in scores {      // every value, in order
+  print s
+}
+```
+
+Text can be read with `[ ]` too, which makes maps easy to draw as text:
+
+```volt
+let rows = ["#####", "#..k#", "#####"]
+print rows[1][3]            // k
+```
+
+To change a list while going through it (removing defeated monsters, say), use a counter and `while`:
+
+```volt
+let i = 0
+while i < length(hp) {
+  if hp[i] <= 0 {
+    remove hp[i]            // don't add 1: the next one moved into place i
+  } else {
+    i += 1
+  }
+}
+```
+
+Two more built-ins help with text and movement: `part(text, start, count)` cuts out a piece (`part("dungeon", 1, 3)` is `"ung"`), and `sign(x)` is `-1`, `0` or `1`.
+
+## Games: canvas, sprites and keys
+
+An `#html` program can be a real game: a pixel screen, pictures, held keys and sound. The finished `index.html` fills the window with crisp, unblurred pixels.
+
+```volt
+#html
+canvas 320, 180                       // a screen 320 pixels wide, 180 tall
+image tiles = "tiles.png"             // a picture next to your .volt file
+sprite hero = tiles at 128, 106 size 16, 22 frames 4
+
+let x = 150
+let y = 80
+let t = 0
+
+every frame {                         // 60 times a second
+  t += 1
+  if held("left") { x -= 2 }
+  if held("right") { x += 2 }
+  paint "#14111a"                     // clear the screen
+  draw hero at x, y frame t / 8 flip held("left")
+  write "Hello, dungeon!" at 160, 20 centered shadow
+}
+```
+
+| Command | What it does |
+|---|---|
+| `canvas 320, 180` | Makes the pixel screen. Run it once, before drawing |
+| `image tiles = "tiles.png"` | Loads a picture (`.png`, `.jpg`, `.gif`, `.webp`, `.svg`). Top level only. When you Run or Build, Volt packs it into the page, so `index.html` works on its own |
+| `sprite hero = tiles at x, y size w, h` | Cuts a rectangle out of a picture. Add `frames 4` when the animation frames sit side by side |
+| `draw hero at x, y` | Draws a sprite. Options, in any order: `frame n`, `flipped` or `flip (condition)`, `angle 90`, `size 2`, `alpha 50` (0-100), `flash (condition)` (draws it pure white, for hits) |
+| `paint "#14111a"` | Fills the whole screen with a colour |
+| `box x, y, w, h color "#ff4d6d"` | A filled rectangle. Colours like `"#00000080"` are see-through |
+| `write "text" at x, y` | Pixel-font text. Options: `color "#ffd23f"`, `size 2`, `centered`, `shadow`. `\n` starts a new line |
+| `camera x, y` | Moves the view, for worlds bigger than the screen. Use `camera 0, 0` before drawing the score and hearts |
+| `every frame { }` | Runs 60 times a second, at the same speed on every screen |
+| `held("left")` | `true` while a key is down (`when key "x" pressed` still runs once per press) |
+| `tone 440 for 80ms` | A retro beep. `tone 880 to 220 for 150ms` slides the pitch. On pages it doesn't wait |
+| `touchpad "x", "z"` | On phones and tablets: an arrow pad plus a button for each key |
+
+Things to know:
+
+- `draw`, `box` and `write` all follow the camera. Positions are whole pixels.
+- Volt numbers are whole numbers. For smooth slow movement, keep positions times 10 (`x10 += speed`) and draw at `x10 / 10`.
+- `examples/dungeon/moonwell.volt` is a full dungeon crawler written this way: rooms, monsters, keys, a boss and dialogue.
 
 ## How a Volt program runs
 
@@ -791,6 +878,24 @@ button "Click" { }
 when key "k" pressed { }
 html "<b>markup</b>"
 ## body { color: white; }    // CSS in #html
+
+let xs = [1, 2]              // lists (not on boards)
+add 3 to xs   xs[0] = 5   remove xs[1]
+for each v in xs { }
+part(word, 0, 3)  sign(x)
+
+canvas 320, 180              // games (#html)
+image tiles = "tiles.png"
+sprite hero = tiles at 0, 0 size 16, 16 frames 4
+every frame { }
+paint "#000"
+draw hero at x, y frame f flipped
+box x, y, 10, 10 color "#f00"
+write "Hi" at 10, 10 size 2 centered shadow
+camera x, y
+held("left")
+tone 880 to 220 for 100ms
+touchpad "x", "z"
 
 random(1, 6)  map(x, 0, 1023, 0, 100)  constrain(x, 0, 100)
 min(a, b)  max(a, b)  abs(x)

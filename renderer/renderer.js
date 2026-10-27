@@ -222,6 +222,7 @@ function setDirty(value) {
 
 function loadDocument(content, filePath) {
   state.filePath = filePath || null;
+  state.assetDir = null;            // set again by examples that keep pictures in their own folder
   editor.setValue(content);
   editor.clearHistory();
   editor.setCursor(0, 0);
@@ -371,7 +372,7 @@ async function compileNow() {
 }
 
 async function compileAndSave() {
-  const r = await api.build({ filePath: state.filePath, source: editor.getValue() });
+  const r = await api.build({ filePath: state.filePath, source: editor.getValue(), assetDir: state.assetDir });
   showTab('bottom', 'console');
   if (!r.ok) {
     await compileNow();
@@ -513,7 +514,7 @@ async function run() {
   if (state.dirty && state.filePath) await saveFile();
   showTab('bottom', 'console');
   if (state.target !== 'html') $('console').textContent = '';
-  const res = await api.run({ filePath: state.filePath, source: editor.getValue() });
+  const res = await api.run({ filePath: state.filePath, source: editor.getValue(), assetDir: state.assetDir });
   if (res.ok && res.preview) {
     setStatus('✓ Page shown in the preview window', 'ok');
   } else if (!res.ok) {
@@ -734,6 +735,7 @@ async function loadExamples() {
     b.onclick = async () => {
       if (!(await confirmDiscard())) return;
       loadDocument(ex.content, null);
+      state.assetDir = ex.assetDir || null;
       state.suggestedName = `${ex.name.replace(/^\d+_/, '')}.volt`;
       setDirty(false);
       toast(`Loaded example: ${ex.name}. Save it to keep your changes.`);
@@ -1056,7 +1058,7 @@ $('btn-copy-output').addEventListener('click', () => {
 });
 $('btn-open-output').addEventListener('click', async () => {
   if (!state.filePath) { toast('Save your .volt file first'); return; }
-  await api.build({ filePath: state.filePath, source: editor.getValue() });
+  await api.build({ filePath: state.filePath, source: editor.getValue(), assetDir: state.assetDir });
   api.openOutput(state.filePath);
 });
 

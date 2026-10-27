@@ -25,7 +25,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const VERSION = '3.2.0';
+const VERSION = '3.3.0';
 
 // Errors that are the Volt programmer's fault (not a bug in the compiler)
 class VoltError extends Error {
@@ -151,7 +151,7 @@ function lex(src) {
     if (['==', '!=', '<=', '>=', '+=', '-=', '*=', '/='].includes(two)) { add(two, two); i += 2; continue; }
 
     // One-character symbols
-    if ('=+-*/%<>{}(),'.includes(c)) { add(c, c); i++; continue; }
+    if ('=+-*/%<>{}(),[]'.includes(c)) { add(c, c); i++; continue; }
 
     throw new VoltError(`I don't understand the character '${c}'`, line);
   }
@@ -166,6 +166,11 @@ function lex(src) {
 
 const PIN_MODES = ['input', 'output', 'analog', 'pwm', 'servo', 'stepper'];
 const PAGE_WORDS = ['button', 'title', 'html'];
+// Game commands (#html canvas games) and list commands. Like the page words they
+// aren't keywords, so 'let box = 3' or 'fn draw()' in older programs still work.
+const GAME_WORDS = ['canvas', 'image', 'sprite', 'draw', 'paint', 'box', 'write', 'camera', 'touchpad'];
+const LIST_WORDS = ['add', 'remove'];
+const NOT_A_COMMAND = ['=', '(', '[', '+=', '-=', '*=', '/=', 'eof'];
 
 function parse(tokens) {
   let pos = 0;
@@ -296,7 +301,12 @@ function parse(tokens) {
       case 'every': {
         if (!topLevel) topLevelOnly(t);
         next();
-        const ms = expect('duration', 'a time like 500ms or 2s').value;
+        // every frame { ... }      (#html games: 60 times a second, in step with the screen)
+        if (peek().type === 'ident' && peek().value === 'frame') {
+          next();
+          return { kind: 'EveryFrame', body: block(), line };
+        }
+        const ms = expect('duration', 'a time like 500ms or 2s (or the word frame)').value;
         return { kind: 'Every', ms, body: block(), line };
       }
 
@@ -358,13 +368,23 @@ function parse(tokens) {
         return { kind: 'Fade', pin, value, time: duration("'fade'"), line };
       }
 
-      // tone buzzer 440 for 200ms
+      // tone buzzer 440 for 200ms          (boards: a buzzer on a pin)
+      // tone 440 for 200ms                 (#html: a retro beep through the speakers)
+      // tone 880 to 220 for 150ms          (#html: slides from one pitch to another)
       case 'tone': {
         next();
-        const pin = expect('ident', 'a pin name').value;
-        const freq = expression();
+        let pin = null;
+        let freq = expression();
+        if (!check('for') && !check('to')) {
+          // the first value was the pin: tone buzzer 440 for 200ms
+          if (freq.kind !== 'Var') throw new VoltError("Expected 'for' after the pitch, like: tone 440 for 200ms", peek().line);
+          pin = freq.name;
+          freq = expression();
+        }
+        let toFreq = null;
+        if (match('to')) toFreq = expression();
         expect('for', "'for'");
-        return { kind: 'Tone', pin, freq, time: duration("'tone'"), line };
+        return { kind: 'Tone', pin, freq, toFreq, time: duration("'tone'"), line };
       }
 
       // wait 200ms     wait gap ms
@@ -395,6 +415,13 @@ function parse(tokens) {
       // for i from 1 to 10 { ... }      (counts down too: for i from 10 to 1)
       case 'for': {
         next();
+        // for each enemy in enemies { ... }      (every value in a list)
+        if (peek().type === 'ident' && peek().value === 'each' && peek(1).type === 'ident' && peek(2).type === 'ident' && peek(2).value === 'in') {
+          next();
+          const item = next().value;
+          next();
+          return { kind: 'ForEach', name: item, list: expression(), body: block(), line };
+        }
         const name = expect('ident', 'a name for the counter, like i').value;
         const from = peek();
         if (!(from.type === 'ident' && from.value === 'from')) {
@@ -452,6 +479,28 @@ function parse(tokens) {
           const target = { kind: 'Var', name: t.value, line };
           return { kind: 'Assign', name: t.value, value: { kind: 'Binary', op: opTok.type[0], left: target, right: value, line }, line };
         }
+        // Changing one value in a list: scores[2] = 10     hp[i] -= 1
+        if (peek(1).type === '[') {
+          next();
+          next();
+          const index = expression();
+          expect(']', "']'");
+          const opTok = next();
+          if (!['=', '+=', '-=', '*=', '/='].includes(opTok.type)) {
+            throw new VoltError(`Expected '=' after ${t.value}[...], like: ${t.value}[0] = 5`, opTok.line);
+          }
+          let value = expression();
+          if (opTok.type !== '=') {
+            const current = { kind: 'Index', target: { kind: 'Var', name: t.value, line }, index, line };
+            value = { kind: 'Binary', op: opTok.type[0], left: current, right: value, line };
+          }
+          return { kind: 'IndexAssign', name: t.value, index, value, line };
+        }
+        // Game and list commands
+        if ((GAME_WORDS.includes(t.value) || LIST_WORDS.includes(t.value)) && !NOT_A_COMMAND.includes(peek(1).type)) {
+          next();
+          return gameStatement(t, topLevel);
+        }
         // Web page commands. They aren't keywords, so 'pin button = 2' still works:
         //   button "Click me" { ... }      title "My page"      html "<b>bold</b>"
         if (PAGE_WORDS.includes(t.value) && !['=', '(', 'eof'].includes(peek(1).type)) {
@@ -487,6 +536,124 @@ function parse(tokens) {
     return { kind: 'If', cond, then, otherwise, line };
   }
 
+  // Little words inside game commands (at, size, frame, color ...) aren't keywords either
+  // (an option word only counts on the same line, so 'color = 3' on the next line is still its own statement)
+  const isWord = (w) => peek().type === 'ident' && peek().value === w && peek().line === tokens[pos - 1].line;
+  function word(w, example) {
+    if (isWord(w)) return next();
+    throw new VoltError(`Expected '${w}' but found ${describe(peek())}. Like this: ${example}`, peek().line);
+  }
+  function pair() {
+    const a = expression();
+    expect(',', "','");
+    return [a, expression()];
+  }
+
+  function gameStatement(t, topLevel) {
+    const line = t.line;
+    switch (t.value) {
+      // canvas 320, 180      (makes a pixel screen, 320 pixels wide and 180 tall)
+      case 'canvas': {
+        const [w, h] = pair();
+        return { kind: 'Canvas', w, h, line };
+      }
+      // image tiles = "dungeon.png"
+      case 'image': {
+        if (!topLevel) topLevelOnly(t);
+        const name = expect('ident', 'a name for the image').value;
+        expect('=', "'='");
+        const file = expect('string', 'the image file in quotes, like "tiles.png"').value;
+        return { kind: 'Image', name, file, line };
+      }
+      // sprite hero = tiles at 128, 106 size 16, 22 frames 4
+      case 'sprite': {
+        if (!topLevel) topLevelOnly(t);
+        const name = expect('ident', 'a name for the sprite').value;
+        expect('=', "'='");
+        const image = expect('ident', 'the name of an image').value;
+        const ex = `sprite ${name} = ${image} at 0, 0 size 16, 16 frames 4`;
+        word('at', ex);
+        const [x, y] = pair();
+        word('size', ex);
+        const [w, h] = pair();
+        let frames = { kind: 'Number', value: '1', line };
+        if (isWord('frames')) { next(); frames = expression(); }
+        return { kind: 'Sprite', name, image, x, y, w, h, frames, line };
+      }
+      // draw hero at x, y frame f flip left angle 90 size 2 alpha 50 flash hurt
+      case 'draw': {
+        const sprite = expect('ident', 'a sprite name').value;
+        word('at', `draw ${sprite} at x, y`);
+        const [x, y] = pair();
+        const opts = {};
+        for (;;) {
+          if (isWord('flipped')) { next(); opts.flip = { kind: 'Bool', value: true, line }; continue; }
+          const o = ['frame', 'flip', 'angle', 'size', 'alpha', 'flash'].find(isWord);
+          if (!o) break;
+          next();
+          opts[o] = expression();
+        }
+        return { kind: 'Draw', sprite, x, y, opts, line };
+      }
+      // paint "#14111a"      (fills the whole screen)
+      case 'paint':
+        return { kind: 'Paint', color: expression(), line };
+      // box x, y, 40, 8 color "#ff4d6d"
+      case 'box': {
+        const [x, y] = pair();
+        expect(',', "','");
+        const [w, h] = pair();
+        let color = null;
+        if (isWord('color')) { next(); color = expression(); }
+        return { kind: 'Box', x, y, w, h, color, line };
+      }
+      // write "Hello" at 10, 10 color "#ffd23f" size 2 centered shadow
+      case 'write': {
+        const value = expression();
+        word('at', 'write "Hello" at 10, 10');
+        const [x, y] = pair();
+        const opts = {};
+        for (;;) {
+          if (isWord('centered')) { next(); opts.centered = true; continue; }
+          if (isWord('shadow')) { next(); opts.shadow = true; continue; }
+          const o = ['color', 'size'].find(isWord);
+          if (!o) break;
+          next();
+          opts[o] = expression();
+        }
+        return { kind: 'WriteText', value, x, y, opts, line };
+      }
+      // camera x, y      (moves the view; HUD things go after camera 0, 0)
+      case 'camera': {
+        const [x, y] = pair();
+        return { kind: 'Camera', x, y, line };
+      }
+      // touchpad "x", "z"      (on phones: arrow pad plus buttons for these keys)
+      case 'touchpad': {
+        const keys = [expect('string', 'a key in quotes, like "x"').value];
+        while (match(',')) keys.push(expect('string', 'a key in quotes, like "x"').value);
+        return { kind: 'Touchpad', keys, line };
+      }
+      // add 5 to scores
+      case 'add': {
+        const value = expression();
+        expect('to', "'to'");
+        const list = expect('ident', 'a list name').value;
+        return { kind: 'ListAdd', list, value, line };
+      }
+      // remove scores[0]
+      case 'remove': {
+        const list = expect('ident', 'a list name').value;
+        if (!check('[')) throw new VoltError(`Say which item to remove, like: remove ${list}[0]`, line);
+        next();
+        const index = expression();
+        expect(']', "']'");
+        return { kind: 'ListRemove', list, index, line };
+      }
+    }
+    throw new Error(`Compiler bug: game word ${t.value}`);
+  }
+
   // ---- Expressions, lowest precedence first ----
   // or -> and -> comparison -> add/subtract -> multiply/divide -> unary -> primary
 
@@ -510,7 +677,19 @@ function parse(tokens) {
     return primary();
   }
 
+  // A value, then any number of [index] after it: rows[y][x]
   function primary() {
+    let e = atom();
+    while (check('[') && (e.kind === 'Var' || e.kind === 'Index' || e.kind === 'List' || e.kind === 'Call')) {
+      const line = next().line;
+      const index = expression();
+      expect(']', "']'");
+      e = { kind: 'Index', target: e, index, line };
+    }
+    return e;
+  }
+
+  function atom() {
     const t = next();
     switch (t.type) {
       case 'number': return { kind: 'Number', value: t.value, line: t.line };
@@ -541,6 +720,18 @@ function parse(tokens) {
         const e = expression();
         expect(')', "')'");
         return e;
+      }
+      // A list: [3, 5, 8]     [] is an empty list
+      case '[': {
+        const items = [];
+        if (!check(']')) {
+          do {
+            if (check(']')) break;     // allows a comma after the last item
+            items.push(expression());
+          } while (match(','));
+        }
+        expect(']', "']' to close the list");
+        return { kind: 'List', items, line: t.line };
       }
       default:
         throw new VoltError(`Expected a value but found ${describe(t)}`, t.line);
@@ -611,7 +802,7 @@ const TARGET_NAMES = {
 };
 
 // Built-in functions: name -> number of values they take
-const BUILTINS = { random: 2, abs: 1, min: 2, max: 2, constrain: 3, map: 5, number: 1, text: 1, length: 1, upper: 1, lower: 1, contains: 2 };
+const BUILTINS = { random: 2, abs: 1, min: 2, max: 2, constrain: 3, map: 5, number: 1, text: 1, length: 1, upper: 1, lower: 1, contains: 2, part: 3, sign: 1, held: 1 };
 
 // Names that would clash with Volt, C++, Python, Ruby or JavaScript.
 // All of them are checked for every program, so a Volt file can switch languages freely.
@@ -715,6 +906,7 @@ const RB_HELPERS = {
 
 const JS_HELPERS = {
   random: ['function __random(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }'],
+  len: ['function __len(v) { return Array.isArray(v) ? v.length : String(v).length; }'],
   ask: [
     "const __rl = require('readline').createInterface({ input: process.stdin });",
     'const __lines = __rl[Symbol.asyncIterator]();',
@@ -741,6 +933,187 @@ const HTML_CSS = `  :root { color-scheme: light dark; }
     .volt-error { background: #3a1518; color: #ffb3b3; }
   }`;
 
+// Helpers for #html games, added to the page only when it uses canvas
+const GAME_RUNTIME = [
+  "// ---- Volt game runtime: canvas, images, sprites, text, keys, sound ----",
+  "let __cv = null, __cx = null, __W = 0, __H = 0, __camX = 0, __camY = 0;",
+  "function __fit() {",
+  "  if (!__cv) return;",
+  "  let s = Math.min(window.innerWidth / __W, window.innerHeight / __H);",
+  "  if (s >= 2) s = Math.floor(s);",
+  "  __cv.style.width = Math.floor(__W * s) + 'px';",
+  "  __cv.style.height = Math.floor(__H * s) + 'px';",
+  "}",
+  "function __canvas(w, h) {",
+  "  __W = Math.max(1, w | 0); __H = Math.max(1, h | 0);",
+  "  if (!__cv) {",
+  "    __cv = document.createElement('canvas'); __cv.className = 'volt-canvas'; __cv.tabIndex = 0;",
+  "    document.body.classList.add('volt-game'); __add(__cv);",
+  "    window.addEventListener('resize', __fit);",
+  "  }",
+  "  __cv.width = __W; __cv.height = __H;",
+  "  __cx = __cv.getContext('2d'); __cx.imageSmoothingEnabled = false;",
+  "  __fit(); __cv.focus();",
+  "}",
+  "function __need() { if (!__cx) throw new Error('Make a screen first, like: canvas 320, 180'); }",
+  "function __paint(c) { __need(); __cx.fillStyle = String(c); __cx.fillRect(0, 0, __W, __H); }",
+  "function __camera(x, y) { __camX = Math.round(x); __camY = Math.round(y); }",
+  "function __box(x, y, w, h, c) {",
+  "  __need(); __cx.fillStyle = c == null ? '#fff' : String(c);",
+  "  __cx.fillRect(Math.round(x) - __camX, Math.round(y) - __camY, Math.round(w), Math.round(h));",
+  "}",
+  "// 5x7 pixel font (Adafruit-GFX classic font, BSD licence): 5 columns per letter, ASCII 32-126",
+  "const __FONT = '000000000000005f00000007000700147f147f14242a7f2a12231308646236495620500008070300001c2241000041221c002a1c7f1c2a08083e080800807030000808080808000060600020100804023e5149453e00427f400072494949462141494d331814127f1027454545393c4a49493141211109073649494936464949291e0000140000004034000000081422411414141414004122140802015909063e415d594e7c1211127c7f494949363e414141227f4141413e7f494949417f090909013e414151737f0808087f00417f41002040413f017f081422417f404040407f021c027f7f0408107f3e4141413e7f090909063e4151215e7f09192946264949493203017f01033f4040403f1f2040201f3f4038403f631408146303047804036159494d43007f4141410204081020004141417f04020102044040404040000307080020545478407f284444383844444428384444287f385454541800087e090218a4a49c787f0804047800447d40002040403d007f1028440000417f40007c047804787c080404783844444438fc1824241818242418fc7c08040408485454542404043f44243c4040207c1c2040201c3c4030403c44281028444c9090907c4464544c440008364100000077000000413608000201020402';",
+  "const __glyphs = {};",
+  "function __fontFor(c) {",
+  "  if (__glyphs[c]) return __glyphs[c];",
+  "  const g = document.createElement('canvas'); g.width = 95 * 6; g.height = 8;",
+  "  const x = g.getContext('2d'); x.fillStyle = c;",
+  "  for (let ch = 0; ch < 95; ch++) for (let col = 0; col < 5; col++) {",
+  "    const b = parseInt(__FONT.substr((ch * 5 + col) * 2, 2), 16);",
+  "    for (let row = 0; row < 8; row++) if ((b >> row) & 1) x.fillRect(ch * 6 + col, row, 1, 1);",
+  "  }",
+  "  return (__glyphs[c] = g);",
+  "}",
+  "function __text(t, x, y, c, s, center) {",
+  "  const g = __fontFor(c);",
+  "  String(t).split('\\n').forEach((ln, row) => {",
+  "    let px = Math.round(x) - __camX;",
+  "    if (center) px -= Math.floor((ln.length * 6 - 1) * s / 2);",
+  "    const py = Math.round(y) - __camY + row * 9 * s;",
+  "    for (let i = 0; i < ln.length; i++) {",
+  "      let k = ln.charCodeAt(i) - 32;",
+  "      if (k < 0 || k > 94) k = 31;",
+  "      if (k) __cx.drawImage(g, k * 6, 0, 6, 8, px + i * 6 * s, py, 6 * s, 8 * s);",
+  "    }",
+  "  });",
+  "}",
+  "function __write(t, x, y, c, size, center, shadow) {",
+  "  __need();",
+  "  const s = Math.max(1, size | 0);",
+  "  if (shadow) __text(t, x + s, y + s, '#000', s, center);",
+  "  __text(t, x, y, c == null ? '#fff' : String(c), s, center);",
+  "}",
+  "// Images load before the program starts; sprites are rectangles cut out of them",
+  "const __imgs = [];",
+  "function __image(src, name) {",
+  "  const im = new Image();",
+  "  __imgs.push(new Promise((ok, fail) => {",
+  "    im.onload = ok;",
+  "    im.onerror = () => fail(new Error(\"Couldn't load the image '\" + name + \"'. Keep the picture next to your .volt file\"));",
+  "  }));",
+  "  im.src = src;",
+  "  return im;",
+  "}",
+  "function __sprite(img, x, y, w, h, n) { return { img, x, y, w, h, n: Math.max(1, n | 0) }; }",
+  "let __tmp = null;",
+  "function __draw(s, x, y, f, flip, ang, size, alpha, flash) {",
+  "  __need();",
+  "  const sc = size == null ? 1 : Math.max(0, size), w = s.w * sc, h = s.h * sc;",
+  "  const dx = Math.round(x) - __camX, dy = Math.round(y) - __camY, m = Math.max(w, h);",
+  "  if (dx > __W + m || dy > __H + m || dx + w < -m || dy + h < -m) return;",
+  "  const k = (((f | 0) % s.n) + s.n) % s.n;",
+  "  let src = s.img, sx = s.x + k * s.w, sy = s.y;",
+  "  if (flash) {",
+  "    __tmp = __tmp || document.createElement('canvas');",
+  "    __tmp.width = s.w; __tmp.height = s.h;",
+  "    const t = __tmp.getContext('2d');",
+  "    t.drawImage(s.img, sx, sy, s.w, s.h, 0, 0, s.w, s.h);",
+  "    t.globalCompositeOperation = 'source-atop'; t.fillStyle = '#fff'; t.fillRect(0, 0, s.w, s.h);",
+  "    src = __tmp; sx = 0; sy = 0;",
+  "  }",
+  "  const c = __cx;",
+  "  c.save();",
+  "  if (alpha != null) c.globalAlpha = Math.max(0, Math.min(1, alpha / 100));",
+  "  c.translate(dx + w / 2, dy + h / 2);",
+  "  if (ang) c.rotate(ang * Math.PI / 180);",
+  "  if (flip) c.scale(-1, 1);",
+  "  c.drawImage(src, sx, sy, s.w, s.h, -w / 2, -h / 2, w, h);",
+  "  c.restore();",
+  "}",
+  "// Keys that are held down right now: held(\"left\"), held(\"x\") ...",
+  "const __down = new Set();",
+  "function __keyOf(name) { const k = String(name).toLowerCase(); return __keyNames[k] || k; }",
+  "function __held(name) { return __down.has(__keyOf(name)); }",
+  "document.addEventListener('keydown', (e) => {",
+  "  const k = e.key.toLowerCase();",
+  "  __down.add(k);",
+  "  if (__cv && (k === ' ' || k.startsWith('arrow'))) e.preventDefault();",
+  "});",
+  "document.addEventListener('keyup', (e) => { __down.delete(e.key.toLowerCase()); });",
+  "window.addEventListener('blur', () => __down.clear());",
+  "// every frame { }: runs 60 times a second, whatever the screen's refresh rate",
+  "function __onFrame(fn) {",
+  "  let last = performance.now(), acc = 0, busy = false;",
+  "  const step = 1000 / 60;",
+  "  const tick = async (now) => {",
+  "    if (__stopped) return;",
+  "    acc = Math.min(acc + (now - last), step * 4); last = now;",
+  "    if (!busy && acc >= step) {",
+  "      busy = true;",
+  "      try { while (acc >= step) { acc -= step; await fn(); } } catch (e) { __error(e); return; } finally { busy = false; }",
+  "    }",
+  "    requestAnimationFrame(tick);",
+  "  };",
+  "  requestAnimationFrame(tick);",
+  "}",
+  "// tone 440 for 100ms (and tone 880 to 220 for 150ms): a little square-wave beep",
+  "let __ac = null;",
+  "function __beep(f1, f2, ms) {",
+  "  try {",
+  "    __ac = __ac || new (window.AudioContext || window.webkitAudioContext)();",
+  "    if (__ac.state === 'suspended') __ac.resume();",
+  "    const o = __ac.createOscillator(), g = __ac.createGain(), t = __ac.currentTime, d = Math.max(10, ms) / 1000;",
+  "    o.type = 'square';",
+  "    o.frequency.setValueAtTime(Math.max(20, f1), t);",
+  "    if (f2 != null) o.frequency.exponentialRampToValueAtTime(Math.max(20, f2), t + d);",
+  "    g.gain.setValueAtTime(0.05, t);",
+  "    g.gain.exponentialRampToValueAtTime(0.0001, t + d);",
+  "    o.connect(g); g.connect(__ac.destination);",
+  "    o.start(t); o.stop(t + d + 0.02);",
+  "  } catch (e) { /* no sound card: stay quiet */ }",
+  "}",
+  "// touchpad \"x\", \"z\": on touch screens, an arrow pad plus a button for each key",
+  "function __touchpad(keys) {",
+  "  if (!window.matchMedia('(pointer: coarse)').matches) return;",
+  "  const pad = document.createElement('div'); pad.className = 'volt-touch';",
+  "  const btn = (label, key, cls) => {",
+  "    const b = document.createElement('button'); b.textContent = label; b.className = cls;",
+  "    const k = __keyOf(key);",
+  "    const press = (e) => {",
+  "      e.preventDefault(); if (__down.has(k)) return; __down.add(k);",
+  "      if (!__stopped) __keys.filter((h) => h.key === k || h.key === 'any').forEach((h) => h.fn().catch(__error));",
+  "    };",
+  "    const release = (e) => { e.preventDefault(); __down.delete(k); };",
+  "    b.addEventListener('pointerdown', press); b.addEventListener('pointerup', release);",
+  "    b.addEventListener('pointercancel', release); b.addEventListener('pointerleave', release);",
+  "    return b;",
+  "  };",
+  "  const dpad = document.createElement('div'); dpad.className = 'volt-dpad';",
+  "  dpad.append(btn('\u25b2', 'up', 'u'), btn('\u25c0', 'left', 'l'), btn('\u25b6', 'right', 'r'), btn('\u25bc', 'down', 'd'));",
+  "  const acts = document.createElement('div'); acts.className = 'volt-acts';",
+  "  keys.forEach((k) => acts.append(btn(String(k).toUpperCase(), k, 'a')));",
+  "  pad.append(dpad, acts);",
+  "  document.body.appendChild(pad);",
+  "}",
+];
+
+// Extra CSS for pages that use 'canvas' (games): full window, crisp pixels
+const GAME_CSS = `  body.volt-game { background: #000; overflow: hidden; }
+  body.volt-game #volt { max-width: none; padding: 0; height: 100vh; display: grid; place-items: center; align-content: center; }
+  body.volt-game #volt > h1 { display: none; }
+  body.volt-game .volt-error { position: fixed; top: 10px; left: 10px; right: 10px; z-index: 5; }
+  .volt-canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; outline: none; touch-action: none; }
+  .volt-touch { position: fixed; inset: auto 0 0 0; display: flex; justify-content: space-between; align-items: end; padding: 18px; pointer-events: none; z-index: 4; user-select: none; -webkit-user-select: none; }
+  .volt-touch button { pointer-events: auto; margin: 0; padding: 0; border-radius: 50%; background: rgba(255,255,255,0.10); color: rgba(255,255,255,0.75); font: 700 18px system-ui, sans-serif; touch-action: none; border: 2px solid rgba(255,255,255,0.25); }
+  .volt-touch button:active { background: rgba(255,255,255,0.35); transform: none; }
+  .volt-dpad { display: grid; grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 44px); }
+  .volt-dpad .u { grid-area: 1 / 2; } .volt-dpad .l { grid-area: 2 / 1; } .volt-dpad .r { grid-area: 2 / 3; } .volt-dpad .d { grid-area: 3 / 2; }
+  .volt-dpad button { border-radius: 12px; }
+  .volt-acts { display: flex; gap: 14px; align-items: end; }
+  .volt-acts button { width: 56px; height: 56px; }
+  .volt-acts button:nth-child(2) { margin-bottom: 34px; }`;
+
 // Removes one pair of outer brackets: "(a + b)" -> "a + b" (but not "(a) + (b)")
 function bare(code) {
   if (!code.startsWith('(') || !code.endsWith(')')) return code;
@@ -763,7 +1136,7 @@ function bare(code) {
   return code.slice(1, -1);
 }
 
-function generate(ast, target = 'cpp') {
+function generate(ast, target = 'cpp', options = {}) {
   const T = TARGETS[target];
   if (!T) throw new Error(`Compiler bug: unknown target ${target}`);
   const lang = T.lang;
@@ -795,6 +1168,9 @@ function generate(ast, target = 'cpp') {
   let usesServo = false;
   let usesStepper = false;
   let usesForever = false;
+  let usesGame = false;         // canvas, sprites, held keys ... (#html)
+  const images = new Map();     // name -> Image node
+  const sprites = new Map();    // name -> Sprite node
   let uid = 0;                  // makes hidden helper names unique
   let loopDepth = 0;            // inside repeat/while?
   let inFunction = false;       // inside fn?
@@ -820,6 +1196,13 @@ function generate(ast, target = 'cpp') {
   function htmlOnly(what, line) {
     if (!html) throw new VoltError(`${what} only works in #html programs (web pages)`, line);
   }
+  function gameOnly(what, line) {
+    if (!html) throw new VoltError(`${what} is for games, so it only works in #html programs`, line);
+    usesGame = true;
+  }
+  function listsOk(line) {
+    if (T.board) throw new VoltError('Lists work in #python, #ruby, #js and #html programs, not on boards (yet)', line);
+  }
 
   // Text in quotes, written safely for the output language
   function strLit(s) {
@@ -827,6 +1210,26 @@ function generate(ast, target = 'cpp') {
     if (rb) out = out.replace(/#/g, '\\#');               // Ruby would treat #{ } as code
     if (html) out = out.replace(/</g, '\\u003c');          // keep </script> from ending the page script
     return out;
+  }
+
+  // Where an image comes from. When Volt knows the .volt file's folder (Volt Studio's
+  // Run/Build and the command line), the picture is packed into the page itself,
+  // so the finished index.html works anywhere - even uploaded on its own.
+  const MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml' };
+  function imageSource(node) {
+    const f = node.file;
+    if (/^(https?:|data:)/.test(f)) return f;
+    const ext = (f.split('.').pop() || '').toLowerCase();
+    if (!MIME[ext]) throw new VoltError(`'${f}' isn't a picture Volt knows. Use a .png, .jpg, .gif, .webp or .svg file`, node.line);
+    // options.baseDir is the .volt file's folder; options.extraDirs are other places to look
+    // (Volt Studio passes an example's own folder, so a saved copy still finds its pictures)
+    const dirs = [options.baseDir, ...(options.extraDirs || [])].filter(Boolean);
+    if (dirs.length) {
+      const full = dirs.map((d) => path.resolve(d, f)).find((x) => fs.existsSync(x));
+      if (!full) throw new VoltError(`Can't find the image '${f}'. Put it in the same folder as your .volt file`, node.line);
+      return `data:${MIME[ext]};base64,${fs.readFileSync(full).toString('base64')}`;
+    }
+    return `../${f.replace(/\\/g, '/')}`;   // the page sits one folder down, in name/index.html
   }
 
   function clamp(code, lo, hi) {
@@ -851,7 +1254,7 @@ function generate(ast, target = 'cpp') {
       throw new VoltError(`In #ruby, names must start with a lowercase letter ('${name}' would be a Ruby constant)`, line);
     }
     // (a function parameter may share its name with a top-level variable; inside the function it means the parameter)
-    if (pins.has(name) || funcs.has(name) || (!isParam && lookupVar(name))) {
+    if (pins.has(name) || funcs.has(name) || images.has(name) || sprites.has(name) || (!isParam && lookupVar(name))) {
       throw new VoltError(`'${name}' already exists`, line);
     }
   }
@@ -875,8 +1278,10 @@ function generate(ast, target = 'cpp') {
   function staticType(e) {
     switch (e.kind) {
       case 'String': case 'Ask': return 'text';
+      case 'List': return 'list';
+      case 'Index': return 'any';
       case 'Call':
-        if (['text', 'upper', 'lower'].includes(e.name)) return 'text';
+        if (['text', 'upper', 'lower', 'part'].includes(e.name)) return 'text';
         if (BUILTINS[e.name] !== undefined) return 'num';
         return cpp ? 'num' : 'any';
       case 'Var': { const v = lookupVar(e.name); return v ? v.type : 'any'; }
@@ -936,6 +1341,19 @@ function generate(ast, target = 'cpp') {
     } else if (node.kind === 'Fn') {
       checkName(node.name, node.line);
       funcs.set(node.name, node);
+    } else if (node.kind === 'Image') {
+      gameOnly("'image'", node.line);
+      checkName(node.name, node.line);
+      images.set(node.name, node);
+      globals.push(`const ${node.name} = __image(${strLit(imageSource(node))}, ${strLit(node.file)});`);
+    } else if (node.kind === 'Sprite') {
+      gameOnly("'sprite'", node.line);
+      checkName(node.name, node.line);
+      if (!images.has(node.image)) {
+        throw new VoltError(`There is no image called '${node.image}'. Load it first, like: image ${node.image} = "tiles.png"`, node.line);
+      }
+      sprites.set(node.name, node);
+      globals.push(`let ${node.name} = null;`);
     } else if (node.kind === 'RawTop') {
       if (!cpp && node.code.startsWith('#')) {
         throw new VoltError(`'${node.code.split(/\s/)[0]}' only works in #c++ programs`, node.line);
@@ -951,8 +1369,9 @@ function generate(ast, target = 'cpp') {
     checkName(node.name, node.line);
     let type = staticType(node.value);
     if (type === 'bool' || (cpp && type === 'any')) type = 'num';
+    if (type === 'list') listsOk(node.line);
     scopes[0].set(node.name, type);
-    const empty = type === 'text' ? '""' : '0';
+    const empty = type === 'text' ? '""' : type === 'list' ? '[]' : '0';
     if (cpp) globals.push(type === 'text' ? `String ${node.name} = "";` : `long ${node.name} = 0;`);
     else if (js) globals.push(`let ${node.name} = ${empty};`);
     else globals.push(`${global(node.name)} = ${empty}`);
@@ -996,6 +1415,8 @@ function generate(ast, target = 'cpp') {
         if (funcs.has(e.name)) {
           throw new VoltError(`'${e.name}' is a function. Call it with ${e.name}(...)`, e.line);
         }
+        if (sprites.has(e.name)) throw new VoltError(`'${e.name}' is a sprite. Show it with: draw ${e.name} at x, y`, e.line);
+        if (images.has(e.name)) throw new VoltError(`'${e.name}' is an image. Cut sprites out of it with: sprite name = ${e.name} at x, y size w, h`, e.line);
         const v = lookupVar(e.name);
         if (!v) throw new VoltError(`Unknown variable '${e.name}'. Did you forget 'let ${e.name} = ...'?`, e.line);
         return { code: v.top ? global(e.name) : e.name, type: v.type, obj: cpp && v.type === 'text' };
@@ -1024,6 +1445,24 @@ function generate(ast, target = 'cpp') {
 
       case 'Call':
         return genCall(e);
+
+      // [1, 2, 3]
+      case 'List': {
+        listsOk(e.line);
+        const items = e.items.map((x) => bare(genExpr(x).code));
+        return { code: `[${items.join(', ')}]`, type: 'list' };
+      }
+
+      // scores[0]     rows[y][x]      (counting starts at 0)
+      case 'Index': {
+        listsOk(e.line);
+        const target = genExpr(e.target);
+        if (target.type === 'num' || target.type === 'bool') {
+          throw new VoltError("Only lists and text can be read with [ ], like scores[0] or name[0]", e.line);
+        }
+        const i = genNumber(e.index, "A list position");
+        return { code: `${target.code}[${bare(i)}]`, type: target.type === 'text' ? 'text' : 'any' };
+      }
 
       case 'Unary': {
         if (e.op === 'not') {
@@ -1135,7 +1574,7 @@ function generate(ast, target = 'cpp') {
       if (args.length !== need) {
         throw new VoltError(`'${e.name}' needs ${need} value${need === 1 ? '' : 's'}, got ${args.length}`, e.line);
       }
-      const numeric = ['random', 'abs', 'min', 'max', 'constrain', 'map'];
+      const numeric = ['random', 'abs', 'min', 'max', 'constrain', 'map', 'sign'];
       if (numeric.includes(e.name)) {
         args.forEach((a, i) => {
           if (a.type === 'text') throw new VoltError(`'${e.name}' needs numbers, not text. Use number(...) to turn text into a number`, e.args[i].line);
@@ -1186,15 +1625,47 @@ function generate(ast, target = 'cpp') {
           return { code: `${cppHelper(e.name)}(String(${a}))`, type: 'text', obj: true };
         }
         case 'contains':
+          if (args[0].type === 'list') {
+            if (py) return { code: `(${b} in ${a})`, type: 'bool' };
+            if (rb) return { code: `${a}.include?(${b})`, type: 'bool' };
+            return { code: `${a}.includes(${b})`, type: 'bool' };
+          }
           if (py) return { code: `(str(${b}) in str(${a}))`, type: 'bool' };
           if (rb) return { code: `(${a}).to_s.include?((${b}).to_s)`, type: 'bool' };
           if (js) return { code: `String(${a}).includes(String(${b}))`, type: 'bool' };
           return { code: `(String(${a}).indexOf(String(${b})) >= 0)`, type: 'bool' };
         case 'length':
+          if (args[0].type === 'list') {
+            if (py) return { code: `len(${a})`, type: 'num' };
+            return { code: `${a}.length`, type: 'num' };
+          }
+          if (args[0].type === 'any' && !T.board) {
+            // could be a list or text: only known when the program runs
+            if (py) return { code: `len(${a} if isinstance(${a}, list) else str(${a}))`, type: 'num' };
+            if (rb) return { code: `(${a}.is_a?(Array) ? ${a} : ${a}.to_s).length`, type: 'num' };
+            help('len');
+            return { code: `__len(${a})`, type: 'num' };
+          }
           if (py) return { code: `len(str(${a}))`, type: 'num' };
           if (rb) return { code: `(${a}).to_s.length`, type: 'num' };
           if (js) return { code: `String(${a}).length`, type: 'num' };
           return { code: `String(${a}).length()`, type: 'num' };
+        // part("Hello", 1, 3) -> "ell"      (from position 1, 3 letters)
+        case 'part':
+          if (py) return { code: `str(${a})[${b}:(${b}) + (${x})]`, type: 'text' };
+          if (rb) return { code: `((${a}).to_s[${b}, ${x}] || "")`, type: 'text' };
+          if (js) return { code: `String(${a}).substr(${b}, ${x})`, type: 'text' };
+          return { code: `String(${a}).substring(${b}, (${b}) + (${x}))`, type: 'text', obj: true };
+        // sign(x) -> -1, 0 or 1
+        case 'sign':
+          if (py) return { code: `((${a} > 0) - (${a} < 0))`, type: 'num' };
+          if (rb) return { code: `((${a}) <=> 0)`, type: 'num' };
+          if (js) return { code: `Math.sign(${a})`, type: 'num' };
+          return { code: `(((${a}) > 0) - ((${a}) < 0))`, type: 'num' };
+        // held("left") -> true while the key is down      (#html)
+        case 'held':
+          gameOnly("'held'", e.line);
+          return { code: `__held(${a})`, type: 'bool' };
       }
     }
 
@@ -1264,6 +1735,9 @@ function generate(ast, target = 'cpp') {
 
   function checkAssignType(name, varType, valueType, line) {
     if (varType === 'any' || valueType === 'any') return;
+    if ((varType === 'list') !== (valueType === 'list')) {
+      throw new VoltError(varType === 'list' ? `'${name}' is a list, so it can only be given another list` : `'${name}' isn't a list, so it can't be given one. Make a new variable for the list`, line);
+    }
     const isText = (t) => t === 'text';
     if (isText(varType) !== isText(valueType)) {
       throw new VoltError(varType === 'text'
@@ -1392,6 +1866,18 @@ function generate(ast, target = 'cpp') {
       }
 
       case 'Tone': {
+        if (!s.pin) {
+          // tone 440 for 100ms: a beep from the speakers on web pages (doesn't wait)
+          if (!html) {
+            throw new VoltError(T.board
+              ? "On a board, 'tone' needs the buzzer's pin, like: tone buzzer 440 for 200ms"
+              : "A 'tone' without a pin only works in #html pages", s.line);
+          }
+          usesGame = true;
+          const f2 = s.toFreq ? bare(genNumber(s.toFreq, "'tone'")) : 'null';
+          return [`${p}__beep(${bare(genNumber(s.freq, "'tone'"))}, ${f2}, ${bare(genNumber(s.time, "'tone'"))});`];
+        }
+        if (s.toFreq) throw new VoltError("Sliding tones ('to') only work in #html pages", s.line);
         getPin(s.pin, s.line, ['output'], "'tone'");
         const freq = genNumber(s.freq, "'tone'");
         const ms = genNumber(s.time, "'tone'");
@@ -1678,6 +2164,124 @@ function generate(ast, target = 'cpp') {
         ];
       }
 
+      // ---------- lists ----------
+      case 'IndexAssign': {
+        listsOk(s.line);
+        const v = lookupVar(s.name);
+        if (!v) throw new VoltError(`Unknown list '${s.name}'. Make it first, like: let ${s.name} = []`, s.line);
+        if (v.type !== 'list' && v.type !== 'any') throw new VoltError(`'${s.name}' isn't a list, so it can't use [ ]`, s.line);
+        const name = v.top ? global(s.name) : s.name;
+        const i = bare(genNumber(s.index, 'A list position'));
+        return [`${p}${name}[${i}] = ${bare(genExpr(s.value).code)}${END}`];
+      }
+
+      case 'ListAdd':
+      case 'ListRemove': {
+        listsOk(s.line);
+        const v = lookupVar(s.list);
+        if (!v) throw new VoltError(`Unknown list '${s.list}'. Make it first, like: let ${s.list} = []`, s.line);
+        if (v.type !== 'list' && v.type !== 'any') throw new VoltError(`'${s.list}' isn't a list`, s.line);
+        const name = v.top ? global(s.list) : s.list;
+        if (s.kind === 'ListAdd') {
+          const value = bare(genExpr(s.value).code);
+          if (py) return [`${p}${name}.append(${value})`];
+          return [`${p}${name}.push(${value})${END}`];
+        }
+        const i = bare(genNumber(s.index, 'A list position'));
+        if (py) return [`${p}del ${name}[${i}]`];
+        if (rb) return [`${p}${name}.delete_at(${i})`];
+        return [`${p}${name}.splice(${i}, 1);`];
+      }
+
+      case 'ForEach': {
+        listsOk(s.line);
+        const list = bare(genExpr(s.list).code);
+        scopes.push(new Map());
+        checkName(s.name, s.line);
+        scopes.pop();
+        loopDepth++;
+        const body = genBlock(s.body, depth + 1, [s.name], 'any');
+        loopDepth--;
+        // (loops over a copy, so removing items inside the loop is safe)
+        if (py) return [`${p}for ${s.name} in list(${list}):`, ...body];
+        if (rb) return [`${p}(${list}).dup.each do |${s.name}|`, ...body, `${p}end`];
+        return [`${p}for (const ${s.name} of [...${list}]) {`, ...body, `${p}}`];
+      }
+
+      // ---------- games (#html) ----------
+      case 'Canvas':
+        gameOnly("'canvas'", s.line);
+        return [`${p}__canvas(${bare(genNumber(s.w, "'canvas'"))}, ${bare(genNumber(s.h, "'canvas'"))});`];
+
+      case 'Image':
+        return [];  // loaded in pass 1
+
+      case 'Sprite': {
+        const n = (e, what) => bare(genNumber(e, `The sprite's ${what}`));
+        return [`${p}${s.name} = __sprite(${s.image}, ${n(s.x, 'x')}, ${n(s.y, 'y')}, ${n(s.w, 'width')}, ${n(s.h, 'height')}, ${n(s.frames, 'frames')});`];
+      }
+
+      case 'Draw': {
+        gameOnly("'draw'", s.line);
+        if (!sprites.has(s.sprite)) {
+          if (images.has(s.sprite)) throw new VoltError(`'${s.sprite}' is a whole image. Cut a sprite out of it first: sprite name = ${s.sprite} at x, y size w, h`, s.line);
+          throw new VoltError(`There is no sprite called '${s.sprite}'. Make it with: sprite ${s.sprite} = image at x, y size w, h`, s.line);
+        }
+        const o = s.opts;
+        const num = (e, what) => (e ? bare(genNumber(e, what)) : 'null');
+        const cond = (e) => (e ? genCond(e) : 'false');
+        const args = [
+          s.sprite, bare(genNumber(s.x, "'draw'")), bare(genNumber(s.y, "'draw'")),
+          num(o.frame, "'frame'"), cond(o.flip), num(o.angle, "'angle'"), num(o.size, "'size'"), num(o.alpha, "'alpha'"), cond(o.flash),
+        ];
+        while (args.length > 3 && (args[args.length - 1] === 'null' || args[args.length - 1] === 'false')) args.pop();
+        return [`${p}__draw(${args.join(', ')});`];
+      }
+
+      case 'Paint':
+        gameOnly("'paint'", s.line);
+        return [`${p}__paint(${bare(genExpr(s.color).code)});`];
+
+      case 'Box': {
+        gameOnly("'box'", s.line);
+        const n = (e) => bare(genNumber(e, "'box'"));
+        const color = s.color ? bare(genExpr(s.color).code) : '"#fff"';
+        return [`${p}__box(${n(s.x)}, ${n(s.y)}, ${n(s.w)}, ${n(s.h)}, ${color});`];
+      }
+
+      case 'WriteText': {
+        gameOnly("'write'", s.line);
+        const o = s.opts;
+        const args = [
+          bare(genExpr(s.value).code), bare(genNumber(s.x, "'write'")), bare(genNumber(s.y, "'write'")),
+          o.color ? bare(genExpr(o.color).code) : 'null', o.size ? bare(genNumber(o.size, "'size'")) : '1',
+          String(!!o.centered), String(!!o.shadow),
+        ];
+        const defaults = [null, null, null, 'null', '1', 'false', 'false'];
+        while (args.length > 3 && args[args.length - 1] === defaults[args.length - 1]) args.pop();
+        return [`${p}__write(${args.join(', ')});`];
+      }
+
+      case 'Camera':
+        gameOnly("'camera'", s.line);
+        return [`${p}__camera(${bare(genNumber(s.x, "'camera'"))}, ${bare(genNumber(s.y, "'camera'"))});`];
+
+      case 'Touchpad':
+        gameOnly("'touchpad'", s.line);
+        return [`${p}__touchpad([${s.keys.map(strLit).join(', ')}]);`];
+
+      case 'EveryFrame': {
+        if (!html) {
+          throw new VoltError("'every frame' is for #html games. Use a time instead, like: every 20ms { }", s.line);
+        }
+        usesGame = true;
+        const saved = loopDepth;
+        loopDepth = 0;
+        const body = genBlock(s.body, depth + 1);
+        loopDepth = saved;
+        return [`${p}// every frame (line ${s.line})`, `${p}__onFrame(async () => {`, ...body, `${p}});`];
+      }
+
       case 'Raw':
         // Volt doesn't check raw code - the language's own compiler or interpreter will
         if (s.code.includes('Serial.')) usesSerial = true;
@@ -1843,6 +2447,7 @@ function generate(ast, target = 'cpp') {
     ...block(globals),
     ...funcLines,
     'async function __main() {',
+    ...(images.size ? ['  await Promise.all(__imgs);   // wait for the pictures to load'] : []),
     ...setupLines,
     ...(loopLines.length
       ? ['  // runs forever', '  while (true) {', ...loopLines, `    await __sleep(${usesForever ? 0 : 5});`, '  }']
@@ -1879,6 +2484,7 @@ function generate(ast, target = 'cpp') {
     '<title>Volt page</title>',
     '<style>',
     HTML_CSS,
+    ...(usesGame ? [GAME_CSS] : []),
     ...(cssLines.length ? ['  /* your CSS (## lines) */', ...cssLines.map((l) => `  ${l}`)] : []),
     '</style>',
     '</head>',
@@ -1924,6 +2530,7 @@ function generate(ast, target = 'cpp') {
     '    __add(f); i.focus();',
     '  });',
     '}',
+    ...(usesGame ? GAME_RUNTIME : []),
     ...block(topLines),
     ...program,
     '',
@@ -1962,7 +2569,8 @@ function detectTarget(src) {
   return { target: 'cpp', src };
 }
 
-function compile(source) {
+// options.baseDir: the .volt file's folder, so 'image' can pack pictures into the page
+function compile(source, options = {}) {
   const detected = detectTarget(source.replace(/\r\n?/g, '\n'));
   const tokens = lex(detected.src);
   const ast = parse(tokens);
@@ -1970,7 +2578,7 @@ function compile(source) {
   let target = detected.target;
   if (target === 'python?') target = ast.some((n) => n.kind === 'Pin') ? 'micropython' : 'python';
   if (EXTRA_GENERATORS[target]) return { target, code: EXTRA_GENERATORS[target](ast) };
-  return { target, code: generate(ast, target) };
+  return { target, code: generate(ast, target, options) };
 }
 
 // Where the compiled file goes for a given .volt file
@@ -2011,7 +2619,7 @@ function main() {
 
   const src = fs.readFileSync(file, 'utf8');
   try {
-    const { target, code } = compile(src);
+    const { target, code } = compile(src, { baseDir: path.dirname(path.resolve(file)) });
     const { outDir, outFile } = outputPath(file, target);
     fs.mkdirSync(outDir, { recursive: true });
     fs.writeFileSync(outFile, code);

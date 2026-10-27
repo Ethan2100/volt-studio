@@ -284,14 +284,20 @@ ipcMain.handle('settings:set', (e, patch) => {
 
 ipcMain.handle('examples:list', () => {
   const dir = path.join(__dirname, 'examples');
-  return fs.readdirSync(dir)
-    .filter((f) => f.endsWith('.volt'))
-    .sort()
-    .map((f) => {
-      const content = fs.readFileSync(path.join(dir, f), 'utf8');
-      const firstComment = (content.match(/^\s*\/\/\s*(.+)$/m) || [])[1] || '';
-      return { name: f.replace(/\.volt$/, ''), description: firstComment, content };
-    });
+  // single-file examples, plus folders (like dungeon/) whose .volt uses pictures kept beside it
+  const files = [];
+  for (const f of fs.readdirSync(dir).sort()) {
+    const full = path.join(dir, f);
+    if (f.endsWith('.volt')) files.push({ file: full, assetDir: null });
+    else if (fs.statSync(full).isDirectory()) {
+      for (const g of fs.readdirSync(full).filter((x) => x.endsWith('.volt')).sort()) files.push({ file: path.join(full, g), assetDir: full });
+    }
+  }
+  return files.map(({ file, assetDir }) => {
+    const content = fs.readFileSync(file, 'utf8');
+    const firstComment = (content.match(/^\s*\/\/\s*(.+)$/m) || [])[1] || '';
+    return { name: path.basename(file, '.volt'), description: firstComment, content, assetDir };
+  });
 });
 
 ipcMain.handle('docs:reference', () => fs.readFileSync(path.join(__dirname, 'docs', 'REFERENCE.md'), 'utf8'));
@@ -397,9 +403,12 @@ ipcMain.handle('shell:openOutput', (e, filePath) => {
 // ---------------------------------------------------------------------
 //  Compiling
 // ---------------------------------------------------------------------
-function compileSource(source) {
+// filePath (when known) lets 'image' pack pictures from the .volt file's folder into the page;
+// assetDir is an example's own folder, so examples with pictures run before they're saved
+function compileSource(source, filePath, assetDir) {
   try {
-    const { target, code } = volt.compile(source);
+    const opts = { baseDir: filePath ? path.dirname(filePath) : null, extraDirs: assetDir ? [assetDir] : [] };
+    const { target, code } = volt.compile(source, opts);
     return { ok: true, target, code };
   } catch (e) {
     if (e instanceof volt.VoltError) return { ok: false, line: e.line, message: e.message };
@@ -411,8 +420,8 @@ function compileSource(source) {
 ipcMain.handle('volt:compile', (e, source) => compileSource(source));
 
 // Compile and save the output next to the .volt file
-ipcMain.handle('volt:build', (e, { filePath, source }) => {
-  const r = compileSource(source);
+ipcMain.handle('volt:build', (e, { filePath, source, assetDir }) => {
+  const r = compileSource(source, filePath, assetDir);
   if (!r.ok || !filePath) return r;
   const { outDir, outFile } = volt.outputPath(filePath, r.target);
   fs.mkdirSync(outDir, { recursive: true });
@@ -823,8 +832,8 @@ function openPreview(file) {
   previewWin.on('closed', () => { previewWin = null; });
 }
 
-ipcMain.handle('volt:run', async (e, { filePath, source }) => {
-  const compiled = compileSource(source);
+ipcMain.handle('volt:run', async (e, { filePath, source, assetDir }) => {
+  const compiled = compileSource(source, filePath, assetDir);
   if (!compiled.ok) return compiled;
   const { target, code } = compiled;
   if (volt.TARGETS[target].board) return { ok: false, message: 'This is a board program. Use Upload instead.' };
