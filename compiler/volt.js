@@ -1317,7 +1317,10 @@ const GAME_CSS = `  body.volt-game { background: #000; overflow: hidden; }
   .volt-touch button img { width: 46%; height: 46%; pointer-events: none; }
   .volt-touch button.volt-down { transform: scale(0.92); filter: brightness(1.35); }
   .volt-stick { position: relative; width: 132px; height: 132px; display: grid; place-items: center; background: center / contain no-repeat; pointer-events: auto; touch-action: none; }
-  .volt-nub { width: 48%; height: 48%; pointer-events: none; }`;
+  .volt-nub { width: 48%; height: 48%; pointer-events: none; }
+  body.volt-game .volt-ask { position: fixed; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 6; margin: 0; padding: 14px 16px; max-width: calc(100vw - 32px); background: rgba(11, 9, 18, 0.94); color: #e8f4ff; border: 1px solid #6b5b55; border-radius: 10px; font: 600 15px system-ui, sans-serif; }
+  body.volt-game .volt-ask input { border-color: #6b5b55; min-width: 180px; }
+  body.volt-game .volt-answer, body.volt-game .volt-line { display: none; }`;
 
 // Removes one pair of outer brackets: "(a + b)" -> "a + b" (but not "(a) + (b)")
 function bare(code) {
@@ -2781,7 +2784,7 @@ function generate(ast, target = 'cpp', options = {}) {
     "    const b = document.createElement('button'); b.textContent = 'OK';",
     '    f.append(l, i, b);',
     "    f.onsubmit = (e) => { e.preventDefault(); const d = document.createElement('div'); d.className = 'volt-line volt-answer'; d.textContent = String(q) + ' ' + i.value; f.replaceWith(d); resolve(i.value); };",
-    '    __add(f); i.focus();',
+    '    __add(f); setTimeout(() => i.focus(), 0);   // after the key that opened it, so that key isn\'t typed in',
     '  });',
     '}',
     ...(usesGame ? GAME_RUNTIME : []),

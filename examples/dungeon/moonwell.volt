@@ -7,7 +7,7 @@
 //
 //  Arrows / WASD  move          X (or space)  swing, open, talk, buy
 //  Z              dash          C             switch weapon
-//  V              summon ghostly skeletons to fight for you
+//  V              summon skeletons (Necromancer look only)
 //  M              music on/off  On phones, use the on-screen pad.
 //
 //  Your journey is saved at every floor, so you can continue later.
@@ -467,10 +467,10 @@ let wH = [0, 21, 23, 37, 22, 30, 30, 30]
 let shopName = ["", "Healing Potion", "Heart Vessel", "Knight Sword", "Big Hammer", "Golden Sword", "Ember Staff", "Moonblade", "Starfall Staff"]
 let shopCost = [0, 8, 35, 25, 45, 70, 60, 750, 850]
 // skins (yours forever, across every journey)
-let skinName = ["Knight", "Lady Knight", "Elf Ranger", "Lizardfolk", "Sorceress", "Celestial Knight", "Ember Knight"]
-let skinInfo = ["The classic.", "Same armour, better hair.", "Light on her feet.", "Scales, claws, attitude.", "Robes that crackle with magic.", "Starlight follows wherever you go.", "A secret, born in the campfire."]
-let skinCost = [0, 250, 350, 450, 600, 1000, 0]
-let skinTall = [22, 22, 22, 19, 28, 22, 22]
+let skinName = ["Knight", "Lady Knight", "Elf Ranger", "Lizardfolk", "Sorceress", "Celestial Knight", "Ember Knight", "Necromancer"]
+let skinInfo = ["The classic.", "Same armour, better hair.", "Light on her feet.", "Scales, claws, attitude.", "Robes that crackle with magic.", "Starlight follows wherever you go.", "A secret, born in the campfire.", "Commands the dead: press V to summon."]
+let skinCost = [0, 250, 350, 450, 600, 1000, 0, 800]
+let skinTall = [22, 22, 22, 19, 28, 22, 22, 20]
 // the vault (and the Celestial Knight) open once you've reached this floor
 let vaultFloor = 3
 
@@ -635,6 +635,8 @@ let skinsOwned = [0]
 let bank = 0
 let skx = []
 let sky = []
+let skIdx = []       // which skin each wardrobe stand holds
+let codesUsed = []
 let skinNear = -1
 let whiteT = 0
 // underlings: ghostly skeletons that fight for you (V)
@@ -787,6 +789,7 @@ fn clearLists() {
   orbLife = []
   skx = []
   sky = []
+  skIdx = []
   msgs = []
   shown = 0
 }
@@ -859,6 +862,7 @@ fn buildLevel() {
       } else if ch == "q" {
         add tx to skx
         add ty to sky
+        add length(skx) - 1 to skIdx
       } else if contains("12345678", ch) {
         add tx to shx
         add ty to shy
@@ -921,8 +925,11 @@ fn buildLevel() {
       add e to edge
     }
   }
-  if floor == 0 and contains(skinsOwned, 6) {
-    addSecretStand()
+  if floor == 0 {
+    addStand(32, 13, 7)
+    if contains(skinsOwned, 6) {
+      addSecretStand()
+    }
   }
   checkX = hx
   checkY = hy
@@ -1017,7 +1024,7 @@ fn newJourney() {
   say("Then the Ember King climbed up from the\ndeep, and one by one the lights went out.")
   say("Since then, a hundred moons have passed\nin darkness...")
   say("You are the last knight of the old order.\nGo down. Find the Ember King.")
-  say("ARROWS / WASD  move     X  swing, open, buy\nZ  dash     C  switch weapon     M  music\nV  summon underlings to fight beside you")
+  say("ARROWS / WASD  move     X  swing, open, buy\nZ  dash     C  switch weapon     M  music")
 }
 
 fn continueJourney() {
@@ -1222,6 +1229,11 @@ fn clearEffects() {
 // =====================================================================
 fn summon() {
   if mode != 1 or length(msgs) > 0 or dying > 0 {
+    return 0
+  }
+  if skin != 7 {
+    sound sndNope
+    say("Only a Necromancer can raise the dead.\nThe look waits in the Rest Camp's wardrobe.")
     return 0
   }
   if floor == 0 {
@@ -1943,7 +1955,7 @@ fn pressX() {
   n = 0
   while n < length(skx) {
     if abs(skx[n] * 16 + 8 - cx) < 14 and abs(sky[n] * 16 + 8 - cy) < 24 {
-      wardrobe(n)
+      wardrobe(skIdx[n])
       return 0
     }
     n += 1
@@ -2061,10 +2073,15 @@ fn buy(item) {
   saveGame()
 }
 
+fn addStand(tx, ty, which) {
+  add tx to skx
+  add ty to sky
+  add which to skIdx
+  grid[ty * MW + tx] = "q"
+}
+
 fn addSecretStand() {
-  add 29 to skx
-  add 13 to sky
-  grid[13 * MW + 29] = "q"
+  addStand(29, 13, 6)
 }
 
 fn vaultOpen() {
@@ -2108,7 +2125,7 @@ fn pokeFire() {
 }
 
 fn wardrobe(n) {
-  if n == 5 and not vaultOpen() {
+  if (n == 5 or n == 7) and not vaultOpen() and not contains(skinsOwned, n) {
     sound sndLocked
     say("MAGE:\nThat one's sealed until you've reached\nfloor " + vaultFloor + ".")
     return 0
@@ -3076,6 +3093,9 @@ fn drawBody(sk, x, y, f, run, left, see, white) {
     } else {
       draw lizardIdle at x, top frame f flip left alpha see flash white
     }
+  } else if sk == 7 {
+    draw fxGlow at x - 24, top - 22 tint "#7a3fb0" alpha see / 6 scale 60 glow
+    draw necro at x, top frame f flip left alpha see flash white
   } else if sk == 4 {
     if run {
       draw sorcRun at x, top frame f flip left alpha see flash white
@@ -3123,6 +3143,10 @@ fn drawHero() {
     draw fxCircle at hx + 5 - 32, hy + 6 - 32 tint "#c9a227" alpha 14 scale 40 angle tick * 2 glow
   }
   // Celestial Knights leave stars behind
+  if skin == 7 and moving and tick % 7 == 0 {
+    effect(10, hx + 5 + random(-4, 4), hy + random(-6, 4), 20, "#9b6bd6", 30, 5, 0, 0)
+    drift(0, -3)
+  }
   if skin == 6 and moving and tick % 6 == 0 {
     burst(hx + 5 + random(-4, 4), hy - 4, 1, "#ff8a3d", 6)
   }
@@ -3308,30 +3332,29 @@ fn drawShop() {
   while n < length(skx) {
     let x = skx[n] * 16
     let y = sky[n] * 16
+    let sk = skIdx[n]
     box x - 1, y + 10, 18, 6 color "#3a2f3a"
     box x - 1, y + 10, 18, 1 color "#aa8d7a"
-    if n == skin {
+    if sk == skin {
       box x - 1, y + 15, 18, 1 color "#7ee787"
     }
-    let veiled = n == 5 and not vaultOpen()
+    let veiled = (sk == 5 or sk == 7) and not vaultOpen() and not contains(skinsOwned, sk)
     if veiled {
       draw knightIdle at x, y - 10 tint "#0b0912" alpha 85
     } else {
-      drawBody(n, x, y - 10, tick / 9 + n, false, false, 100, false)
+      drawBody(sk, x, y - 10, tick / 9 + n, false, false, 100, false)
     }
     if veiled {
       write "???" at x + 8, y + 18 centered color "#8a7a6a" shadow
-    } else if n == 6 and n != skin and not contains(skinsOwned, n) {
-      write "FREE" at x + 8, y + 18 centered color "#ff8a3d" shadow
-    } else if n == skin {
+    } else if sk == skin {
       write "WORN" at x + 8, y + 18 centered color "#7ee787" shadow
-    } else if contains(skinsOwned, n) {
+    } else if contains(skinsOwned, sk) {
       box x + 6, y + 19, 4, 4 color "#7ee787"
     } else {
-      write "" + skinCost[n] at x + 8, y + 18 centered color "#ffd23f" shadow
+      write "" + skinCost[sk] at x + 8, y + 18 centered color "#ffd23f" shadow
     }
     if abs(x + 8 - (hx + 5)) < 14 and abs(y + 8 - (hy + 4)) < 24 {
-      near2 = n
+      near2 = sk
     }
     n += 1
   }
@@ -3339,7 +3362,7 @@ fn drawShop() {
 }
 
 fn drawShopInfo() {
-  if skinNear == 5 and not vaultOpen() and length(msgs) == 0 {
+  if (skinNear == 5 or skinNear == 7) and not vaultOpen() and not contains(skinsOwned, skinNear) and length(msgs) == 0 {
     box 34, 144, 282, 28 color "#0b0912"
     box 34, 144, 282, 1 color "#6b5b55"
     write "??? - sealed" at 175, 149 centered color "#8a7a6a"
@@ -3552,8 +3575,72 @@ fn bossTitle() {
   return "THE EMBER KING"
 }
 
+// =====================================================================
+//  Codes: press C on the title screen. Each code works once.
+// =====================================================================
+let typingCode = false
+
+fn enterCode() {
+  if typingCode {
+    return 0
+  }
+  typingCode = true
+  let code = upper(ask "Enter a code:")
+  typingCode = false
+  if code == "" {
+    return 0
+  }
+  if contains(codesUsed, code) {
+    sound sndNope
+    say("You've already used that code.")
+    return 0
+  }
+  let ok = true
+  if code == "NECROMANCER" {
+    unlockSkin(7)
+    say("CODE ACCEPTED: NECROMANCER!\nYou're wearing it now. Press V in the\ndungeon to raise the dead.")
+  } else if code == "STARLIGHT" {
+    unlockSkin(5)
+    say("CODE ACCEPTED: CELESTIAL KNIGHT!\nThe stars are yours.")
+  } else if code == "EMBERS" {
+    unlockSkin(6)
+    say("CODE ACCEPTED: EMBER KNIGHT!\nWho needs a campfire anyway?")
+  } else if code == "GOLDRUSH" {
+    bank += 500
+    save "bank", bank
+    if length(save0) > 0 {
+      save0[2] = save0[2] + 500
+      save "moonwell", save0
+    }
+    say("CODE ACCEPTED: +500 GOLD!\nIt'll be in your purse on your journey.")
+  } else if code == "DEEPDIVE" {
+    deepest = max(deepest, vaultFloor)
+    save "deepest", deepest
+    say("CODE ACCEPTED: THE VAULT IS OPEN!\nThe mage's treasures await at the camp.")
+  } else {
+    ok = false
+    sound sndNope
+    say("That code doesn't seem to work.")
+  }
+  if ok {
+    add code to codesUsed
+    save "codes", codesUsed
+    sound jingleTreasure
+    whiteT = 4
+  }
+}
+
+fn unlockSkin(n) {
+  if not contains(skinsOwned, n) {
+    add n to skinsOwned
+    save "skins", skinsOwned
+  }
+  skin = n
+  save "skin", skin
+}
+
 fn drawSummonHud() {
-  if floor == 0 {
+  if floor == 0 or skin != 7 {
     return 0
   }
   box 4, 122, 26, 26 color "#05040a99"
@@ -3687,7 +3774,7 @@ fn titleScreen() {
   if bank > 0 and length(save0) == 0 {
     write "treasury: " + bank + " gold" at 160, 144 centered color "#ffd23f"
   }
-  write "art: 0x72 (CC0)   M: music" at 160, 168 centered color "#5d5470"
+  write "C: enter a code   M: music   art: 0x72" at 160, 168 centered color "#5d5470"
 }
 
 fn endScreen() {
@@ -3727,6 +3814,7 @@ bank = saved("bank", 0)
 skinsOwned = saved("skins", [0])
 skin = saved("skin", 0)
 deepest = saved("deepest", 1)
+codesUsed = saved("codes", [])
 floor = 1
 buildLevel()
 
@@ -3746,7 +3834,11 @@ when key "shift" pressed {
   pressZ()
 }
 when key "c" pressed {
-  switchWeapon()
+  if mode == 0 and length(msgs) == 0 {
+    enterCode()
+  } else {
+    switchWeapon()
+  }
 }
 when key "v" pressed {
   summon()
