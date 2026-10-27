@@ -483,6 +483,35 @@ let goldT = 0                // frames of Fortune left
 let packTip = false
 let helpOpen = false
 let touch = false            // true on phones: the HUD moves out of the way of the buttons
+// ---------- the travellers: after the Ember King falls, three of them gather at camp ----------
+// each has two quests, one after the other (the Lady Knight isn't here: you are the last knight)
+let npcName = ["SSSORA", "LIRAEL", "VESPER"]
+let npcX = [24, 27, 34]
+let npcY = [14, 14, 14]
+let npcSkin = [3, 2, 4]
+let npcTitle = ["the lizard hunter", "the elf ranger", "the sorceress"]
+// quests 0-1 Sssora, 2-3 Lirael, 4-5 Vesper
+let qName = ["Cull the Vermin", "Orc Trophies", "Scout the Deep", "Silence the Warlord", "Moonsilver", "Taste the Brews"]
+let qGoal = ["Slay 15 monsters in the dungeon.", "Slay 6 orcs of any kind.", "Reach the Orc Warrens (floor 4).", "Defeat Warlord Krag on floor 4.", "Collect 120 gold in the dungeon.", "Drink 4 potions from your pack."]
+let qType = [1, 2, 3, 4, 5, 6]      // 1 any kill, 2 orc kill, 3 reach a floor, 4 boss kill, 5 gold, 6 potion drunk
+let qNeed = [15, 6, 4, 1, 120, 4]
+let qGold = [60, 120, 0, 150, 0, 200]
+let qItem = [1, 1, 0, 2, 2, 0]      // which potion: 0 healing, 1 strength, 2 fortune
+let qCount = [1, 2, 3, 1, 2, 2]
+let qOffer = [
+  "SSSORA:\nSo the Ember King fell. Sssplendid. But his\nbrood still crawls these halls. Thin them out\nand I'll make it worth your while.",
+  "SSSORA:\nGood claws, knight. Now the orcs: their\nwarlords wear trophies. Bring me ssix\norc kills.",
+  "LIRAEL:\nThe last knight, alive. I'd wondered. I map\nthe deep for the old order. Scout the Orc\nWarrens and tell me what you see.",
+  "LIRAEL:\nKrag's war drums keep me from sleeping.\nSilence the Warlord, would you?",
+  "VESPER:\nMoonsilver spills from every coin you\ncollect. Gather 120 gold for my research.",
+  "VESPER:\nNow the brews. Drink four potions and\ntell me how they feel. For science.",
+]
+let qState = [0, 0, 0, 0, 0, 0]     // 0 not offered, 1 active, 2 ready to hand in, 3 done
+let qProg = [0, 0, 0, 0, 0, 0]
+let won = 0                         // 1 once the Ember King has fallen
+let seenNpcs = false
+let toast = ""
+let toastT = 0
 // skins (yours forever, across every journey)
 let skinName = ["Knight", "Lady Knight", "Elf Ranger", "Lizardfolk", "Sorceress", "Celestial Knight", "Ember Knight", "Necromancer"]
 let skinInfo = ["Steadfast: a longer breather after every hit.", "Swift: dash again almost twice as fast.", "Eagle Eye: every 3rd swing looses a piercing arrow.", "Regrowth: slowly heals while you fight on.", "Gold Touch: coins are worth half again as much.", "Comet Dash: your dash leaves stars that hurt.", "Burning Aura: scorches monsters that get close.", "Commands the dead: press V to summon."]
@@ -901,6 +930,14 @@ fn buildLevel() {
       add keep to grid
     }
   }
+  // the travellers stand where they can't be walked through
+  if floor == 0 and questsOpen() {
+    let nn = 0
+    while nn < 3 {
+      grid[npcY[nn] * MW + npcX[nn]] = "K"
+      nn += 1
+    }
+  }
   // choose a picture for every cell
   for ty from 0 to MH - 1 {
     for tx from 0 to MW - 1 {
@@ -999,6 +1036,9 @@ fn enterFloor(f) {
   }
   fireTaps = 0
   invOpen = false
+  if f > 0 {
+    questAdd(3, 0, f)
+  }
   buildLevel()
   hp = maxHp
   fadeIn = 30
@@ -1017,6 +1057,10 @@ fn enterFloor(f) {
     }
     if length(skinsOwned) < 6 {
       say("MAGE:\nAnd new looks in the wardrobe, if you\nfancy dressing like a hero.")
+    }
+    if questsOpen() and not seenNpcs {
+      seenNpcs = true
+      say("Three travellers have gathered by the fire\nnow that the Ember King is gone. Perhaps\nthey have work for the last knight.")
     }
   } else if floor == 2 {
     say("FLOOR 2: THE DROWNED CRYPT\nCold water drips. Something shuffles in the dark.")
@@ -1148,6 +1192,7 @@ fn usePotion(slot) {
     burst(hx + 5, hy - 6, 14, "#ffd23f", 18)
     effect(16, hx + 5, hy - 6, 30, "#ffd23f", 30, 100, 0, 4)
   }
+  questAdd(6, 0, 1)
   saveGame()
   // drinking from the pack closes it, so the fight goes on
   invOpen = false
@@ -1157,6 +1202,8 @@ fn useLadder() {
   if floor == lastFloor {
     mode = 3
     winAt = tick
+    won = 1
+    save "won", 1
     bank = coins
     save "bank", bank
     sound jingleWin
@@ -2168,6 +2215,17 @@ fn pressX() {
     say("MAGE:\nStand by a pedestal and press X to buy.\nPress C to switch between your weapons.")
     return 0
   }
+  // a traveller?
+  if floor == 0 and questsOpen() {
+    n = 0
+    while n < 3 {
+      if abs(npcX[n] * 16 + 8 - cx) < 24 and abs(npcY[n] * 16 + 8 - cy) < 26 {
+        talkNpc(n)
+        return 0
+      }
+      n += 1
+    }
+  }
   // a door?
   n = 0
   while n < length(drx) {
@@ -2273,6 +2331,117 @@ fn buy(item) {
     say("You bought the " + shopName[item] + ".\n" + wInfo[item - 1])
   }
   saveGame()
+}
+
+// ---------- quests ----------
+fn questsOpen() {
+  return won == 1 or deepest >= lastFloor
+}
+
+fn saveQuests() {
+  let data = []
+  for each qv in qState {
+    add qv to data
+  }
+  for each qv in qProg {
+    add qv to data
+  }
+  save "quests", data
+}
+
+fn showToast(words) {
+  toast = words
+  toastT = 240
+  sound sndSwitch volume 50
+}
+
+// something happened that quests might care about
+fn questAdd(kind, param, amount) {
+  if not questsOpen() {
+    return 0
+  }
+  let q = 0
+  let changed = false
+  while q < 6 {
+    if qState[q] == 1 and qType[q] == kind {
+      let ok = true
+      if kind == 2 and param != 3 and param != 9 {
+        ok = false
+      }
+      if kind == 4 and param != 17 {
+        ok = false
+      }
+      if ok {
+        if kind == 3 {
+          qProg[q] = max(qProg[q], amount)
+        } else {
+          qProg[q] += amount
+        }
+        changed = true
+        if qProg[q] >= qNeed[q] {
+          qProg[q] = qNeed[q]
+          qState[q] = 2
+          showToast("Quest ready: " + qName[q] + " - see " + npcName[q / 2])
+        }
+      }
+    }
+    q += 1
+  }
+  if changed {
+    saveQuests()
+  }
+}
+
+fn talkNpc(n) {
+  let q = n * 2
+  if qState[q] == 3 {
+    q += 1
+  }
+  if qState[q] == 3 {
+    if n == 0 {
+      say("SSSORA:\nThe warrens ssing your name, knight.\nSssleep well.")
+    } else if n == 1 {
+      say("LIRAEL:\nThe deep is quieter now. Thank you.\nThe old order lives on in you.")
+    } else {
+      say("VESPER:\nFascinating. The old order was braver\nthan the books say.")
+    }
+    return 0
+  }
+  if qState[q] == 0 {
+    say(qOffer[q])
+    say("NEW QUEST: " + qName[q] + "\n" + qGoal[q])
+    qState[q] = 1
+    sound sndSwitch
+    saveQuests()
+  } else if qState[q] == 1 {
+    say(npcName[n] + ":\n" + qName[q] + ": " + qProg[q] + " / " + qNeed[q] + "\n" + qGoal[q])
+  } else {
+    finishQuest(q)
+  }
+}
+
+fn finishQuest(q) {
+  let reward = ""
+  if qGold[q] > 0 {
+    coins += qGold[q]
+    reward = "+" + qGold[q] + " gold"
+  }
+  if qCount[q] > 0 {
+    inv[qItem[q]] = min(invMax, inv[qItem[q]] + qCount[q])
+    if reward != "" {
+      reward = reward + ", "
+    }
+    reward = reward + qCount[q] + " x " + invName[qItem[q]]
+  }
+  qState[q] = 3
+  saveQuests()
+  saveGame()
+  sound jingleTreasure
+  whiteT = 3
+  burst(hx + 5, hy - 8, 20, "#ffd23f", 20)
+  effect(16, hx + 5, hy - 6, 30, "#ffd23f", 30, 120, 0, 4)
+  say(npcName[q / 2] + ":\nWell done, knight. Here, you've earned it.")
+  say("QUEST COMPLETE: " + qName[q] + "\n" + reward)
 }
 
 fn potionSlot(item) {
@@ -2432,6 +2601,7 @@ fn gain(n) {
     amount = n * 2
   }
   coins += amount
+  questAdd(5, 0, amount)
 }
 
 fn openChest(n) {
@@ -2615,6 +2785,9 @@ fn killEnemy(n) {
   effect(15, px, py - 6, 14, "#ff8a3d", 70, 10, 0, 0)
   sound sndHeavy volume 70
   shake = max(shake, 6)
+  questAdd(1, k, 1)
+  questAdd(2, k, 1)
+  questAdd(4, k, 1)
   let roll = random(1, 100)
   if k != 12 or roll <= 25 {
     if roll <= 50 {
@@ -3647,6 +3820,33 @@ fn drawShop() {
     n += 1
   }
   skinNear = near2
+  if questsOpen() {
+    drawNpcs()
+  }
+}
+
+fn drawNpcs() {
+  let n = 0
+  while n < 3 {
+    let x = npcX[n] * 16
+    let y = npcY[n] * 16
+    box x + 2, y + 12, 12, 3 color "#00000055"
+    drawBody(npcSkin[n], x, y - 10, tick / 9 + n * 3, false, true, 100, false)
+    write npcName[n] at x + 8, y + 20 centered color "#c9c3d6" shadow
+    // a mark over their heads: ! has work, ! in green is ready to hand in
+    let q = n * 2
+    if qState[q] == 3 {
+      q += 1
+    }
+    if qState[q] == 0 or qState[q] == 2 {
+      let col = "#ffd23f"
+      if qState[q] == 2 {
+        col = "#7ee787"
+      }
+      write "!" at x + 8, y - 24 - (tick / 12) % 2 centered color col shadow
+    }
+    n += 1
+  }
 }
 
 fn drawShopInfo() {
@@ -3915,6 +4115,10 @@ fn enterCode() {
       save "moonwell", save0
     }
     say("CODE ACCEPTED: +500 GOLD!\nIt'll be in your purse on your journey.")
+  } else if code == "LASTKNIGHT" {
+    won = 1
+    save "won", 1
+    say("CODE ACCEPTED: THE LAST KNIGHT!\nThree travellers wait at your Rest Camp.")
   } else if code == "DEEPDIVE" {
     deepest = max(deepest, vaultFloor)
     save "deepest", deepest
@@ -3998,6 +4202,31 @@ fn drawPackHud() {
 fn drawHud() {
   drawSummonHud()
   drawPackHud()
+  // the quest you're on, and a note when one is ready
+  if floor > 0 and questsOpen() {
+    let q = 0
+    while q < 6 {
+      if qState[q] == 1 {
+        let line = qName[q] + " " + qProg[q] + "/" + qNeed[q]
+        write line at 316 - length(line) * 6, 30 color "#ffd23f" shadow
+        q = 99
+      } else if qState[q] == 2 and q < 90 {
+        let line = qName[q] + ": done!"
+        write line at 316 - length(line) * 6, 30 color "#7ee787" shadow
+        q = 99
+      }
+      q += 1
+    }
+  }
+  if toastT > 0 {
+    toastT -= 1
+    let ty = 46
+    if touch {
+      ty = 52
+    }
+    box 160 - length(toast) * 3 - 6, ty - 3, length(toast) * 6 + 12, 13 color "#05040acc"
+    write toast at 160, ty centered color "#7ee787" shadow
+  }
   let k = 0
   while k < maxHp / 2 {
     let v = hp - k * 2
@@ -4246,6 +4475,16 @@ skinsOwned = saved("skins", [0])
 skin = saved("skin", 0)
 deepest = saved("deepest", 1)
 codesUsed = saved("codes", [])
+won = saved("won", 0)
+let qSaved = saved("quests", [])
+if length(qSaved) == 12 {
+  let qi = 0
+  while qi < 6 {
+    qState[qi] = qSaved[qi]
+    qProg[qi] = qSaved[qi + 6]
+    qi += 1
+  }
+}
 touch = touchscreen()
 floor = 1
 buildLevel()
