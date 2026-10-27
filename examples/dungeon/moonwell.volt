@@ -154,18 +154,19 @@ sprite fxVortex = fxSheet at 256, 32 size 64, 64
 //            m slime  M masked orc  S shaman  N necromancer  t tiny zombie
 //            I imp    B the floor's boss
 let shopRows = [
-  "##########################",
-  "##########################",
-  "###b#f###b###b###b###b####",
-  "##...u..................##",
-  "##......7..K..8.........##",
-  "##...............q.q.q..##",
-  "##......................##",
-  "##.1.2.3..4.5.6.........##",
-  "##...............q.q.q..##",
-  "##.L.....P..............##",
-  "##......................##",
-  "##########################",
+  "##############################",
+  "##############################",
+  "####f###b#######b##b#####b####",
+  "##..u.......................##",
+  "##........7.K.8.............##",
+  "##..................q.q.q...##",
+  "##..........................##",
+  "##.1.2...3.4.5.6............##",
+  "##..................q.q.q...##",
+  "##..........P...............##",
+  "##.L........................##",
+  "##############################",
+  "##############################",
 ]
 let rows1 = [
   "##############################################",
@@ -934,7 +935,7 @@ fn enterFloor(f) {
   sound jingleFloor volume 80
   if floor == 0 {
     say("THE REST CAMP\nA quiet cave between the floors.")
-    say("MAGE:\nAh, a knight! Gold for steel. Have a look.")
+    say("MAGE:\nAh, a knight! Supplies and arms on the left,\nthe vault by me, fine clothes on the right.")
     if not contains(owned, 6) or not contains(owned, 7) {
       say("MAGE:\nThe Moonblade, 750 gold. The Starfall Staff,\n850. Worth every coin, I promise.")
     }
@@ -1452,9 +1453,7 @@ fn swordHits() {
   }
   let slashCol = "#ffffff"
   if weapon == 6 {
-    effect(1, ax + aw / 2, ay + ah / 2, 14, "#9bd3ff", 230, 320, arc, 0)
-    effect(16, ax + aw / 2, ay + ah / 2, 18, "#e8f4ff", 30, 110, 0, 8)
-    shake = max(shake, 3)
+    effect(1, ax + aw / 2, ay + ah / 2, 10, "#6fa8d6", 190, 240, arc, 0)
   }
   if weapon == 4 {
     slashCol = "#ffd23f"
@@ -1467,7 +1466,7 @@ fn swordHits() {
     effect(14, ax + aw / 2, ay + ah / 2, 16, "#c9a27e", 20, 80, 0, 0)
     effect(1, ax + aw / 2, ay + ah / 2, 12, "#ffe6c4", 220, 300, arc, 0)
   } else {
-    effect(1, ax + aw / 2, ay + ah / 2, 10, slashCol, 170, 230, arc, 0)
+    effect(1, ax + aw / 2, ay + ah / 2, 9, slashCol, 160, 210, arc, 0)
   }
 }
 
@@ -1492,7 +1491,7 @@ fn hitEnemy(n, dmg, pushX, pushY) {
   let my = ey[n] + enemyH(k) - kindTall[k] / 2
   burst(mx, my, 8, "#ffffff", 22)
   effect(2, mx, my, 10, "#fff4c2", 120, 30, random(0, 90), 6)
-  effect(4, mx, my, 8, "#ffffff", 140, 60, 0, 0)
+  effect(4, mx, my, 6, "#c9c3d6", 110, 50, 0, 0)
 }
 
 // the Ember Staff throws a flame that passes through monsters
@@ -1534,7 +1533,9 @@ fn updateFlames() {
     } else if fkind[n] == 2 and tick % 2 == 0 {
       effect(2, px, py, 10, "#fff4c2", 50, 10, random(0, 90), 9)
     } else if fkind[n] == 3 {
-      effect(1, px, py, 8, "#9bd3ff", 160, 120, fhitAngle(n), 0)
+      if tick % 3 == 0 {
+        effect(1, px, py, 6, "#4f7fa8", 140, 110, fhitAngle(n), 0)
+      }
     }
     // hit every monster it touches, once each
     let e2 = 0
@@ -1609,9 +1610,8 @@ fn updateStars() {
     let px = orbX[n] / 10
     let py = orbY[n] / 10
     // a glittering tail
-    effect(2, px + random(-3, 3), py + random(-3, 3), 14, "#ffe9a8", 70, 10, random(0, 90), 12)
     if tick % 2 == 0 {
-      effect(12, px, py, 12, "#ffd23f", 60, 110, random(0, 359), 15)
+      effect(2, px + random(-3, 3), py + random(-3, 3), 12, "#c9a227", 60, 10, random(0, 90), 12)
     }
     let boom = orbLife[n] <= 0 or isWall(px / 16, py / 16)
     let e2 = 0
@@ -1642,12 +1642,10 @@ fn starBurst(px, py) {
   freeze = 3
   sound sndSlam
   tone 200 to 40 for 500ms
-  effect(14, px, py, 30, "#ffd23f", 30, 380, 0, 0)
-  effect(14, px, py, 22, "#ffffff", 20, 240, 0, 0)
-  effect(16, px, py, 40, "#ffe9a8", 60, 230, 0, 9)
-  effect(15, px, py, 24, "#ffb34a", 220, 20, 0, 0)
-  effect(4, px, py, 14, "#ffffff", 300, 40, 0, 0)
-  repeat 10 {
+  effect(14, px, py, 28, "#c9a227", 30, 330, 0, 0)
+  effect(16, px, py, 36, "#b8963a", 60, 200, 0, 9)
+  effect(15, px, py, 20, "#a86a2a", 180, 20, 0, 0)
+  repeat 6 {
     effect(2, px + random(-30, 30), py + random(-30, 30), random(14, 26), "#fff4c2", 90, 10, random(0, 90), 14)
   }
   burst(px, py, 30, "#ffd23f", 40)
@@ -1882,8 +1880,7 @@ fn wardrobe(n) {
   saveGame()
   burst(hx + 5, hy - 8, 24, "#ffd23f", 20)
   effect(16, hx + 5, hy - 6, 30, "#e8f4ff", 30, 130, 0, 6)
-  effect(4, hx + 5, hy - 6, 14, "#ffffff", 200, 40, 0, 0)
-  whiteT = 6
+  effect(4, hx + 5, hy - 6, 12, "#c9c3d6", 140, 40, 0, 0)
 }
 
 fn pressZ() {
@@ -2790,12 +2787,11 @@ fn drawWeapon(wid, cx, cy, ang) {
     draw staff at x, y angle ang
   } else if wid == 6 {
     // the Moonblade shines
-    draw fxGlow at cx - 32, cy - 32 tint "#9bd3ff" alpha 35 + tick % 20 scale 55 glow
+    draw fxGlow at cx - 32, cy - 32 tint "#9bd3ff" alpha 14 scale 40 glow
     draw moonblade at x, y angle ang
-    draw moonblade at x, y angle ang tint "#9bd3ff" alpha 20 + tick % 30 glow
   } else {
     // the Starfall Staff: a little star circles its tip
-    draw fxGlow at cx - 32, cy - 32 tint "#ffd23f" alpha 30 + tick % 15 scale 50 glow
+    draw fxGlow at cx - 32, cy - 32 tint "#c9a227" alpha 14 scale 36 glow
     draw starStaff at x, y angle ang
     let ox = cx + (tick / 3 % 9) - 4
     draw fxStar at ox - 16, cy - 16 - 10 tint "#fff4c2" angle tick * 8 scale 45 glow
@@ -2839,11 +2835,11 @@ fn drawBody(sk, x, y, f, run, left, see, white) {
     if sk == 5 {
       // the Celestial Knight: starlight armour
       if run {
-        draw knightRun at x, top frame f flip left alpha see / 2 tint "#9bd3ff" glow
+        draw knightRun at x, top frame f flip left alpha see / 4 tint "#9bd3ff" glow
       } else {
-        draw knightIdle at x, top frame f flip left alpha see / 2 tint "#9bd3ff" glow
+        draw knightIdle at x, top frame f flip left alpha see / 4 tint "#9bd3ff" glow
       }
-      draw fxLight at x - 24, top - 21 tint "#9bd3ff" alpha see / 4 scale 90 glow
+      draw fxLight at x - 24, top - 21 tint "#6fa8d6" alpha see / 8 scale 80 glow
     }
   }
 }
@@ -2856,10 +2852,10 @@ fn drawHero() {
   box hx, hy + 6, 10, 3 color "#00000055"
   // the Starfall Staff draws a turning rune circle under you
   if weapon == 7 and dying == 0 {
-    draw fxCircle at hx + 5 - 32, hy + 6 - 32 tint "#ffd23f" alpha 30 scale 45 angle tick * 2 glow
+    draw fxCircle at hx + 5 - 32, hy + 6 - 32 tint "#c9a227" alpha 14 scale 40 angle tick * 2 glow
   }
   // Celestial Knights leave stars behind
-  if skin == 5 and moving and tick % 4 == 0 {
+  if skin == 5 and moving and tick % 8 == 0 {
     effect(2, hx + 5 + random(-5, 5), hy + random(-12, 4), 18, "#e8f4ff", 60, 10, random(0, 90), 10)
   }
   if dash > 0 {
@@ -2919,14 +2915,33 @@ fn drawHeld() {
   if weapon == 6 {
     let ghostX = cx + ox - 6
     let ghostY = cy + oy - 15
-    draw moonblade at ghostX, ghostY angle base + sweep - 25 tint "#9bd3ff" alpha 45 glow
-    draw moonblade at ghostX, ghostY angle base + sweep - 50 tint "#9bd3ff" alpha 22 glow
+    draw moonblade at ghostX, ghostY angle base + sweep - 25 tint "#9bd3ff" alpha 22
+    draw moonblade at ghostX, ghostY angle base + sweep - 50 tint "#9bd3ff" alpha 10
   }
   drawWeapon(weapon, cx + ox, cy + oy, base + sweep)
 }
 
+// a rug on the floor that marks out one part of the camp
+fn rug(tx, ty, w, h, color) {
+  box tx * 16 - 3, ty * 16 - 3, w * 16 + 6, h * 16 + 6 color "#00000040"
+  box tx * 16 - 2, ty * 16 - 2, w * 16 + 4, h * 16 + 4 color color
+  box tx * 16, ty * 16, w * 16, h * 16 color "#00000030"
+}
+
+// the camp's floor: rugs and signs (drawn under everyone)
+fn drawCampFloor() {
+  rug(2, 6, 5, 4, "#3b2a24")
+  rug(8, 6, 9, 4, "#3a2530")
+  rug(9, 3, 7, 3, "#2c2a40")
+  rug(19, 4, 7, 6, "#24303a")
+  write "SUPPLIES" at 4 * 16 + 8, 9 * 16 + 4 centered color "#c9a27e"
+  write "ARMOURY" at 12 * 16 + 8, 9 * 16 + 4 centered color "#c9a27e"
+  write "VAULT" at 12 * 16 + 8, 3 * 16 + 1 centered color "#ffd23f"
+  write "WARDROBE" at 22 * 16 + 8, 4 * 16 + 1 centered color "#9bd3ff"
+}
+
 fn drawShop() {
-  // the mage
+  // the mage, behind the vault
   box mageX * 16 + 2, mageY * 16 + 12, 12, 3 color "#00000055"
   draw mage at mageX * 16, mageY * 16 - 6 frame tick / 9 flipped
   let n = 0
@@ -2935,23 +2950,24 @@ fn drawShop() {
     let x = shx[n] * 16
     let y = shy[n] * 16
     let item = shItem[n]
-    let bob = (tick / 12 + n) % 2
-    // a stone pedestal
-    box x + 1, y + 6, 14, 10 color "#6b5b55"
-    box x + 1, y + 6, 14, 2 color "#aa8d7a"
-    box x + 3, y + 16, 10, 2 color "#00000055"
+    let bob = (tick / 16 + n) % 2
     let sold = item >= 3 and contains(owned, item - 1)
-    if item >= 7 and not sold {
-      let beam = "#9bd3ff"
-      if item == 8 {
-        beam = "#ffd23f"
+    // a stone pedestal (the vault's have a gold trim)
+    box x + 1, y + 6, 14, 10 color "#6b5b55"
+    if item >= 7 {
+      box x + 1, y + 6, 14, 2 color "#c9a227"
+      box x + 1, y + 15, 14, 1 color "#c9a227"
+      if not sold {
+        let beam = "#9bd3ff"
+        if item == 8 {
+          beam = "#ffd23f"
+        }
+        draw fxLight at x + 8 - 32, y - 4 - 32 tint beam alpha 16 + tick / 6 % 6 scale 70 glow
       }
-      draw fxLight at x + 8 - 32, y - 2 - 32 tint beam alpha 40 + tick % 25 scale 110 glow
-      draw fxCircle at x + 8 - 32, y + 10 - 32 tint beam alpha 25 scale 40 angle tick glow
-      if tick % 10 == 0 {
-        effect(2, x + random(2, 14), y - random(0, 16), 16, "#ffffff", 50, 10, 0, 6)
-      }
+    } else {
+      box x + 1, y + 6, 14, 2 color "#aa8d7a"
     }
+    box x + 3, y + 16, 10, 2 color "#00000055"
     if item == 1 {
       draw flask at x, y - 8 - bob
     } else if item == 2 {
@@ -2960,7 +2976,7 @@ fn drawShop() {
       drawWeapon(item - 1, x + 8, y - 4 - bob, 0)
     }
     if sold {
-      write "OWNED" at x + 8, y + 20 size 1 centered color "#7ee787" shadow
+      box x + 6, y + 21, 4, 4 color "#7ee787"
     } else {
       write "" + shopCost[item] at x + 8, y + 20 centered color "#ffd23f" shadow
     }
@@ -2971,7 +2987,6 @@ fn drawShop() {
   }
   shopNear = near
   // the wardrobe
-  write "WARDROBE" at 19 * 16 + 8, 3 * 16 + 2 centered color "#c9c3d6" shadow
   let near2 = -1
   n = 0
   while n < length(skx) {
@@ -2980,15 +2995,13 @@ fn drawShop() {
     box x - 1, y + 10, 18, 6 color "#3a2f3a"
     box x - 1, y + 10, 18, 1 color "#aa8d7a"
     if n == skin {
-      draw fxLight at x + 8 - 32, y + 4 - 32 tint "#7ee787" alpha 25 scale 70 glow
-    } else if n == 5 {
-      draw fxLight at x + 8 - 32, y + 4 - 32 tint "#9bd3ff" alpha 30 + tick % 20 scale 80 glow
+      box x - 1, y + 15, 18, 1 color "#7ee787"
     }
     drawBody(n, x, y - 10, tick / 9 + n, false, false, 100, false)
     if n == skin {
       write "WORN" at x + 8, y + 18 centered color "#7ee787" shadow
     } else if contains(skinsOwned, n) {
-      write "OWNED" at x + 8, y + 18 centered color "#c9c3d6" shadow
+      box x + 6, y + 19, 4, 4 color "#7ee787"
     } else {
       write "" + skinCost[n] at x + 8, y + 18 centered color "#ffd23f" shadow
     }
@@ -3002,31 +3015,36 @@ fn drawShop() {
 
 fn drawShopInfo() {
   if skinNear >= 0 and length(msgs) == 0 {
-    box 30, 22, 260, 24 color "#05040acc"
-    box 30, 22, 260, 1 color "#6b5b55"
+    box 34, 144, 282, 28 color "#0b0912"
+    box 34, 144, 282, 1 color "#6b5b55"
     let what = skinName[skinNear] + " - " + skinCost[skinNear] + " gold   (X to buy)"
     if skinNear == skin {
       what = skinName[skinNear] + " - you're wearing it"
     } else if contains(skinsOwned, skinNear) {
       what = skinName[skinNear] + " - yours   (X to wear)"
     }
-    write what at 160, 26 centered color "#ffd23f"
-    write skinInfo[skinNear] at 160, 36 centered color "#c9c3d6"
+    write what at 175, 149 centered color "#ffd23f"
+    write skinInfo[skinNear] at 175, 160 centered color "#c9c3d6"
     return 0
   }
   if shopNear < 0 or length(msgs) > 0 {
     return 0
   }
-  box 30, 22, 260, 24 color "#05040acc"
-  box 30, 22, 260, 1 color "#6b5b55"
+  box 34, 144, 282, 28 color "#0b0912"
+  box 34, 144, 282, 1 color "#6b5b55"
   let info = "Restores 2 hearts."
+  if shopNear >= 3 and contains(owned, shopNear - 1) {
+    write shopName[shopNear] + " - yours   (C to switch)" at 175, 149 centered color "#7ee787"
+    write wInfo[shopNear - 1] at 175, 160 centered color "#c9c3d6"
+    return 0
+  }
   if shopNear == 2 {
     info = "One more heart, for good."
   } else if shopNear >= 3 {
     info = wInfo[shopNear - 1]
   }
-  write shopName[shopNear] + " - " + shopCost[shopNear] + " gold   (X to buy)" at 160, 26 centered color "#ffd23f"
-  write info at 160, 36 centered color "#c9c3d6"
+  write shopName[shopNear] + " - " + shopCost[shopNear] + " gold   (X to buy)" at 175, 149 centered color "#ffd23f"
+  write info at 175, 160 centered color "#c9c3d6"
 }
 
 fn drawWorld() {
@@ -3046,6 +3064,10 @@ fn drawWorld() {
     }
   }
   drawLights()
+  if floor == 0 {
+    drawCampFloor()
+    drawShop()
+  }
   // the way down shimmers once the boss is gone
   if bossDead and floor > 0 {
     let lx = ladX * 16 + 8
@@ -3125,8 +3147,7 @@ fn drawWorld() {
       draw fxGlow at px - 32, py - 32 tint "#ffd23f" alpha 45 scale 25 glow
       draw fxStar at px - 16, py - 16 tint "#fff4c2" angle tick * 12 scale 60 glow
     } else {
-      draw fxGlow at px - 32, py - 32 tint "#9bd3ff" alpha 50 scale 60 glow
-      draw fxSlash at px - 16, py - 16 tint "#e8f4ff" angle fhitAngle(n) scale 220 glow
+      draw fxSlash at px - 16, py - 16 tint "#9bd3ff" angle fhitAngle(n) alpha 70 scale 170 glow
     }
     n += 1
   }
@@ -3144,16 +3165,11 @@ fn drawWorld() {
   while n < length(orbX) {
     let px = orbX[n] / 10
     let py = orbY[n] / 10
-    draw fxLight at px - 32, py - 32 tint "#ffd23f" alpha 60 scale 90 glow
-    draw fxGlow at px - 32, py - 32 tint "#ffffff" alpha 80 scale 35 glow
-    draw fxStar at px - 16, py - 16 tint "#fff4c2" angle tick * 9 scale 120 glow
-    draw fxCross at px - 16, py - 16 tint "#ffd23f" angle 0 - tick * 6 scale 90 glow
+    draw fxLight at px - 32, py - 32 tint "#c9a227" alpha 30 scale 70 glow
+    draw fxStar at px - 16, py - 16 tint "#fff4c2" angle tick * 9 scale 100 glow
     n += 1
   }
   drawEffects()
-  if floor == 0 {
-    drawShop()
-  }
   camera 0, 0
 }
 
@@ -3219,7 +3235,7 @@ fn drawHud() {
   box 4, 150, 26, 1 color "#6b5b55"
   drawWeapon(weapon, 17, 163, 45)
   let bossBar = bossAwake and not bossDead and length(msgs) == 0
-  if weaponShow > 0 and not bossBar {
+  if weaponShow > 0 and not bossBar and shopNear < 0 and skinNear < 0 {
     write wName[weapon] at 34, 160 color "#e8f4ff" shadow
     if length(owned) > 1 {
       write "C: switch" at 34, 169 color "#9a8fb0"
@@ -3411,7 +3427,7 @@ every frame {
       endScreen()
     }
     if whiteT > 0 {
-      box 0, 0, 320, 180 color "#fff4d0" + fadeHex[whiteT]
+      box 0, 0, 320, 180 color "#fff4d0" + fadeHex[whiteT / 3]
     }
     if fadeIn > 0 {
       box 0, 0, 320, 180 color "#000000" + fadeHex[fadeIn / 2]
