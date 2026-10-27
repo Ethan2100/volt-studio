@@ -3951,23 +3951,9 @@ fn drawEnemy(n) {
       draw wardenIdle at x, y frame f flip left flash hit
     }
   } else if k == 16 {
-    // Vael: a skeleton lord in violet, crowned with three drifting soul-orbs
+    // the new bosses are ordinary monsters drawn twice as big
     draw fxGlow at x - 16, y - 12 tint "#c77dff" alpha 25 scale 110 glow
-    if run {
-      draw skelRun at x, y + 2 frame f flip left flash hit size 2
-      draw skelRun at x, y + 2 frame f flip left alpha 45 tint "#7a3fd0" size 2
-    } else {
-      draw skelIdle at x, y + 2 frame f flip left flash hit size 2
-      draw skelIdle at x, y + 2 frame f flip left alpha 45 tint "#7a3fd0" size 2
-    }
-    let so = 0
-    while so < 3 {
-      let sx0 = x + 6 + so * 10
-      let sy0 = y - 4 - (tick / 6 + so * 2) % 4
-      box sx0, sy0, 4, 4 color "#c77dff"
-      box sx0 + 1, sy0 + 1, 2, 2 color "#f4e8ff"
-      so += 1
-    }
+    draw necro at x, y frame f flip left flash hit size 2
   } else if k == 17 {
     let rage = bossWind > 0 and tick % 6 < 3
     if bossWind > 0 {
