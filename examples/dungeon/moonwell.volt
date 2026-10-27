@@ -121,6 +121,8 @@ sprite tinyIdle = tiles at 368, 20 size 16, 12 frames 4
 sprite tinyRun = tiles at 432, 20 size 16, 12 frames 4
 sprite impIdle = tiles at 368, 48 size 16, 16 frames 4
 sprite impRun = tiles at 432, 48 size 16, 16 frames 4
+sprite angelIdle = tiles at 368, 368 size 16, 16 frames 4
+sprite angelRun = tiles at 432, 368 size 16, 16 frames 4
 // bosses
 sprite kingIdle = tiles at 16, 364 size 32, 36 frames 4
 sprite kingRun = tiles at 144, 364 size 32, 36 frames 4
@@ -443,21 +445,248 @@ let rows6 = [
   "##############################################",
   "##############################################",
 ]
-let maps = [shopRows, rows1, rows2, rows3, rows4, rows5, rows6]
-let floorNames = ["THE REST CAMP", "THE UPPER HALLS", "THE DROWNED CRYPT", "THE FROZEN OSSUARY", "THE ORC WARRENS", "THE IMP FURNACE", "THE EMBER THRONE"]
-let floorBoss = [0, 14, 15, 16, 17, 18, 5]
-let lastFloor = 6
+let rows7 = [
+  "##############################################",
+  "########b#########b###########################",
+  "###......................################b####",
+  "###.x..................x.#############......k#",
+  "###......................#############$......#",
+  "###.........B............#############..s....#",
+  "###......................#############.......#",
+  "###.x..................x.#############....N..#",
+  "###......................#############.....s.#",
+  "##############..######################.*.....#",
+  "##############..######################.......#",
+  "##############DD##b###########f###b######..###",
+  "##############................u.......h##..###",
+  "##############.$$.........S.........t..##..###",
+  "##############....S....................##..###",
+  "##############......^^^^^^....N............###",
+  "##############........N....................###",
+  "##############....................S....#######",
+  "##############..t...........t..........#######",
+  "##############.........................#######",
+  "#########################..###################",
+  "#########################..###################",
+  "#########################..###################",
+  "#########################..###################",
+  "#########################..###################",
+  "######################b##..##b################",
+  "###################.$...........$#############",
+  "###################..s...^.......#############",
+  "###################...........s..#############",
+  "######b###b########...#......#...#############",
+  "###.........h######...#......#...#############",
+  "###..s..t....######........m.....#############",
+  "###..............................#############",
+  "###....P..............#......#...#############",
+  "###..........######...#......#...#############",
+  "###.......s..######......s.......#############",
+  "###$$........######..m...^.....c.#############",
+  "###################..............#############",
+  "##############################################",
+  "##############################################",
+]
+let rows8 = [
+  "##################################################",
+  "########b#########b###############################",
+  "###......................#################b#######",
+  "###.x..................x.#############........k###",
+  "###......................#############.....t...###",
+  "###......................#############..N......###",
+  "###.........B............#############.........###",
+  "###......................#############.........###",
+  "###.x..................x.#############......N..###",
+  "###......................#############.......S.###",
+  "################..####################h........###",
+  "################..#######################..#######",
+  "################..#######################..#######",
+  "################..######################b..#b#####",
+  "################..###################..........###",
+  "################..###################.......s..###",
+  "################..###################..........###",
+  "##############f#DD############b######..Z.....Z.###",
+  "############$.u..................####..........###",
+  "############..............s....S.####.....N....###",
+  "############...Z....t^...........####..^^^^....###",
+  "############.........^......t..................###",
+  "############.........^Z....................Z...###",
+  "############..................Z..####..........###",
+  "############.S....s.....t........####...s......###",
+  "############.$..................h####..........###",
+  "######################..#############$........*###",
+  "######################..##########################",
+  "######################..##########################",
+  "######################..##########################",
+  "######################..##########################",
+  "####################b#..##b#######################",
+  "##################...........#####################",
+  "##################.........s.#####################",
+  "##################..Z........#####################",
+  "#####b###b########....^......#####################",
+  "###........#######.s..^......#####################",
+  "###..t..s..#######....^......#####################",
+  "###.......................Z..#####################",
+  "###...P......................#####################",
+  "###......t.#######.....Z.....#####################",
+  "###.$$.....#######c.........h#####################",
+  "##################################################",
+  "##################################################",
+]
+let rows9 = [
+  "##############################################",
+  "##############b#f#####f#####f#b###############",
+  "########........u.....u.....u.........########",
+  "########.x..........................x.########",
+  "########..L...........................########",
+  "########..............................########",
+  "########..............................########",
+  "########..............B...............########",
+  "########..............................########",
+  "########..............................########",
+  "########..............................########",
+  "########.x..........................x.########",
+  "########..............................########",
+  "######################..######################",
+  "######################..######################",
+  "######################..######################",
+  "######################..######################",
+  "##############f###b###DD###b###f##############",
+  "############..u................u..############",
+  "#####b######....................i.######b#####",
+  "###.h......#..W.........S.........#........k##",
+  "###.......$#....#............#....#.....N...##",
+  "###..W..........#...^^..^^...#........W.....##",
+  "###.......................................h.##",
+  "###...i...............W.....................##",
+  "###.....W..#....#............#....#.i....W..##",
+  "###c.......#....#...S........#....#........$##",
+  "############.i.................W..############",
+  "############......................############",
+  "######################..######################",
+  "######################..######################",
+  "######################..######################",
+  "######################..######################",
+  "###################b##..##b###################",
+  "##################..........##################",
+  "##################.$......$.##################",
+  "##################..u....u..##################",
+  "##################....P.....##################",
+  "##################..........##################",
+  "##################.....h....##################",
+  "##############################################",
+  "##############################################",
+]
+let rows10 = [
+  "##################################################",
+  "##############b###################b###############",
+  "########.................................#########",
+  "########.xL............................x.#########",
+  "########.................................#########",
+  "########................B................#########",
+  "########.................................#########",
+  "########.................................#########",
+  "########.x.............................x.#########",
+  "########.................................b#r#b####",
+  "#######################..##############....v...###",
+  "#######################..##############.......M###",
+  "#######################..##############..z.....###",
+  "#######################..##############........###",
+  "#######################..##############........###",
+  "##################r####DD#########r####....z...###",
+  "#####br###b#####..v...............v..##........###",
+  "###k..v.....$###.....z............S............###",
+  "###..........###..........o..................z.###",
+  "###..I.......###...o.................##.I......###",
+  "###......................^^^..M......##h.......###",
+  "###..................................#############",
+  "###....I................S........o...#############",
+  "###..........###..M..................#############",
+  "###.......I..###.............z.......#############",
+  "###.z........###$...................h#############",
+  "###c.........#############..######################",
+  "##########################..######################",
+  "##########################..######################",
+  "##########################..######################",
+  "##########################..######################",
+  "#######################b##..###b##################",
+  "######################h..........#################",
+  "######################.........M.#################",
+  "######################..o........#################",
+  "######################...........#####.........###",
+  "######################.....^o....#####..I...h..###",
+  "######################.....^...................###",
+  "######################.....^..............P....###",
+  "######################........o..#####.........###",
+  "######################.M.........#####.......$.###",
+  "######################..........c#####.........###",
+  "##################################################",
+  "##################################################",
+]
+let rows11 = [
+  "##################################################",
+  "############r###b###############b###r#############",
+  "########....v.......................v....#########",
+  "########.xL............................x.#########",
+  "########.................................#########",
+  "########................B................#########",
+  "########.................................#########",
+  "########.................................#########",
+  "########.x.............................x.#########",
+  "########.................................#########",
+  "########################..########################",
+  "########################..########################",
+  "########################..########################",
+  "########################..########################",
+  "########################..########################",
+  "########################..########################",
+  "########################..########################",
+  "################r#######DD#######r################",
+  "##############$.v................v..##############",
+  "##############........I.....S.......##############",
+  "##############..z................z..##############",
+  "##############.....#..........#.....##############",
+  "##############.....#....z.....#.....##############",
+  "##############..........S...........##############",
+  "##############I....................I##############",
+  "##############.....#.....M....#.....##############",
+  "##############.....#..^^..^^..#.....##############",
+  "##############...z...M...........z..##############",
+  "##############.$...........I........##############",
+  "##############.....................h##############",
+  "########################..########################",
+  "####b##r##b#############..#############b##r#b#####",
+  "###k...v.......#########..#########h......v....###",
+  "###............#########..#########..........M.###",
+  "###.........I..#########..#########...o........###",
+  "###...z........#####b###..###b#####......S.....###",
+  "###...^^^^.....#####..........#####...^^^......###",
+  "###.....z......#####.$......$.#####.....o......###",
+  "###...................I....I...................###",
+  "###........z............P..................o...###",
+  "###..I.........#####..........#####.M..........###",
+  "###.$.........h#####....h.....#####...........c###",
+  "##################################################",
+  "##################################################",
+]
+let maps = [shopRows, rows1, rows2, rows3, rows4, rows5, rows6, rows7, rows8, rows9, rows10, rows11]
+let floorNames = ["THE REST CAMP", "THE UPPER HALLS", "THE DROWNED CRYPT", "THE FROZEN OSSUARY", "THE ORC WARRENS", "THE IMP FURNACE", "THE EMBER THRONE", "THE SUNKEN ARCHIVE", "THE BONE ORCHARD", "THE MOONWELL SOURCE", "THE ASHEN CITADEL", "THE HEART OF EMBERS"]
+let floorMood = ["", "", "", "", "", "", "", "#0a2a4a16", "#2a281016", "#9bd3ff10", "#3a100a1a", "#ff5a1f14"]
+let floorBoss = [0, 14, 15, 16, 17, 18, 5, 19, 20, 21, 22, 23]
+let lastFloor = 11
 
 // ---------- monsters: one entry per kind ----------
 // kinds: 1 goblin, 2 skeleton, 3 orc, 4 chort, 5 Ember King, 6 zombie, 7 ice zombie,
 //        8 slime, 9 masked orc, 10 shaman, 11 necromancer, 12 tiny zombie, 13 imp,
 //        14 Grukk the ogre, 15 the Rotting Warden, 16 Vael the necromancer lord,
-//        17 Warlord Krag, 18 Ignis the chort queen
-let kindLetters = "-gsozBZimMSNtI"
-let kindLife = [0, 2, 3, 5, 3, 52, 4, 7, 3, 7, 4, 5, 1, 2, 20, 38, 42, 46, 46]
-let kindTall = [0, 11, 16, 20, 24, 36, 16, 16, 16, 20, 20, 20, 12, 16, 32, 34, 40, 40, 48]
-let kindHit = [0, 1, 1, 2, 1, 2, 1, 2, 1, 2, 1, 1, 1, 1, 2, 2, 2, 2, 2]
-let kindPace = [0, 1, 3, 2, 1, 2, 2, 3, 2, 2, 2, 3, 1, 1, 2, 3, 2, 2, 1]
+//        17 Warlord Krag, 18 Ignis the chort queen,
+//        19 Archivist Morwen, 20 the Bone Colossus, 21 the Hollow Moon, 22 Warlord Zorn,
+//        23 the Cinder God, 24 moon wisp
+let kindLetters = "-gsozBZimMSNtIAEFGHJOQRTW"
+let kindLife = [0, 2, 3, 5, 3, 52, 4, 7, 3, 7, 4, 5, 1, 2, 20, 38, 42, 46, 46, 52, 58, 60, 64, 84, 4]
+let kindTall = [0, 11, 16, 20, 24, 36, 16, 16, 16, 20, 20, 20, 12, 16, 32, 34, 40, 40, 48, 40, 32, 34, 40, 36, 16]
+let kindHit = [0, 1, 1, 2, 1, 2, 1, 2, 1, 2, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1]
+let kindPace = [0, 1, 3, 2, 1, 2, 2, 3, 2, 2, 2, 3, 1, 1, 2, 3, 2, 2, 1, 2, 2, 3, 2, 1, 2]
 
 // ---------- weapons ----------
 let wName = ["", "Rusty Sword", "Knight Sword", "Big Hammer", "Golden Sword", "Ember Staff", "Moonblade", "Starfall Staff"]
@@ -489,15 +718,17 @@ let npcName = ["SSSORA", "LIRAEL", "VESPER"]
 let npcX = [24, 27, 34]
 let npcY = [14, 14, 14]
 let npcSkin = [3, 2, 4]
+let npcFirst = [0, 2, 4]
+let npcLast = [1, 3, 6]
 let npcTitle = ["the lizard hunter", "the elf ranger", "the sorceress"]
 // quests 0-1 Sssora, 2-3 Lirael, 4-5 Vesper
-let qName = ["Cull the Vermin", "Orc Trophies", "Scout the Deep", "Silence the Warlord", "Moonsilver", "Taste the Brews"]
-let qGoal = ["Slay 15 monsters in the dungeon.", "Slay 6 orcs of any kind.", "Reach the Orc Warrens (floor 4).", "Defeat Warlord Krag on floor 4.", "Collect 120 gold in the dungeon.", "Drink 4 potions from your pack."]
-let qType = [1, 2, 3, 4, 5, 6]      // 1 any kill, 2 orc kill, 3 reach a floor, 4 boss kill, 5 gold, 6 potion drunk
-let qNeed = [15, 6, 4, 1, 120, 4]
-let qGold = [60, 120, 0, 150, 0, 200]
-let qItem = [1, 1, 0, 2, 2, 0]      // which potion: 0 healing, 1 strength, 2 fortune
-let qCount = [1, 2, 3, 1, 2, 2]
+let qName = ["Cull the Vermin", "Orc Trophies", "Scout the Deep", "Silence the Warlord", "Moonsilver", "Taste the Brews", "The Sealed Stair"]
+let qGoal = ["Slay 15 monsters in the dungeon.", "Slay 6 orcs of any kind.", "Reach the Orc Warrens (floor 4).", "Defeat Warlord Krag on floor 4.", "Collect 120 gold in the dungeon.", "Drink 4 potions from your pack.", "Find the Moon Shards on floors 7 and 8."]
+let qType = [1, 2, 3, 4, 5, 6, 7]      // 1 any kill, 2 orc kill, 3 reach a floor, 4 boss kill, 5 gold, 6 potion drunk
+let qNeed = [15, 6, 4, 1, 120, 4, 2]
+let qGold = [60, 120, 0, 150, 0, 200, 500]
+let qItem = [1, 1, 0, 2, 2, 0, 0]      // which potion: 0 healing, 1 strength, 2 fortune
+let qCount = [1, 2, 3, 1, 2, 2, 3]
 let qOffer = [
   "SSSORA:\nSo the Ember King fell. Sssplendid. But his\nbrood still crawls these halls. Thin them out\nand I'll make it worth your while.",
   "SSSORA:\nGood claws, knight. Now the orcs: their\nwarlords wear trophies. Bring me ssix\norc kills.",
@@ -505,10 +736,14 @@ let qOffer = [
   "LIRAEL:\nKrag's war drums keep me from sleeping.\nSilence the Warlord, would you?",
   "VESPER:\nMoonsilver spills from every coin you\ncollect. Gather 120 gold for my research.",
   "VESPER:\nNow the brews. Drink four potions and\ntell me how they feel. For science.",
+  "VESPER:\nSomething beneath the Moonwell drinks its\nlight. Two Moon Shards lie in the Archive and\nthe Orchard. Bring them and I can open the\nsealed stair.",
 ]
-let qState = [0, 0, 0, 0, 0, 0]     // 0 not offered, 1 active, 2 ready to hand in, 3 done
-let qProg = [0, 0, 0, 0, 0, 0]
+let qState = [0, 0, 0, 0, 0, 0, 0]     // 0 not offered, 1 active, 2 ready to hand in, 3 done
+let qProg = [0, 0, 0, 0, 0, 0, 0]
 let won = 0                         // 1 once the Ember King has fallen
+let epilogue = 0                    // 1: the Ember King just fell (the story goes on), 2: the true ending
+let shardFloors = []                // floors whose Moon Shard you already hold
+let cutT = 0                        // frames left in a cutscene
 let seenNpcs = false
 let toast = ""
 let toastT = 0
@@ -740,7 +975,27 @@ fn solidCell(tx, ty) {
 }
 
 fn isBoss(k) {
-  return k == 5 or k >= 14
+  return k == 5 or (k >= 14 and k <= 23)
+}
+
+// the new bosses move and fight like an older boss
+fn bossAi(k) {
+  if k == 19 {
+    return 16
+  }
+  if k == 20 {
+    return 14
+  }
+  if k == 21 {
+    return 15
+  }
+  if k == 22 {
+    return 17
+  }
+  if k == 23 {
+    return 18
+  }
+  return k
 }
 
 fn spawnEnemy(kind, tx, ty) {
@@ -896,6 +1151,13 @@ fn buildLevel() {
       } else if ch == "L" {
         ladX = tx
         ladY = ty
+        keep = "."
+      } else if ch == "*" {
+        if not contains(shardFloors, floor) {
+          add tx * 16 + 8 to ix
+          add ty * 16 + 8 to iy
+          add 3 to ikind
+        }
         keep = "."
       } else if ch == "u" or ch == "v" {
         add tx * 16 + 8 to lightX
@@ -1077,6 +1339,21 @@ fn enterFloor(f) {
   } else if floor == 6 {
     say("FLOOR 6: THE EMBER THRONE\nThe walls glow red. He is close now.")
     say("Two keys, two doors. Then the throne.")
+  } else if floor == 7 {
+    say("FLOOR 7: THE SUNKEN ARCHIVE\nWater laps at ruined shelves. Loose pages\ndrift like ghosts.")
+    say("Archivist Morwen guards the vault. Somewhere\nhere a silver glint: a Moon Shard? Vesper\nwould want to know.")
+  } else if floor == 8 {
+    say("FLOOR 8: THE BONE ORCHARD\nWhite trees, pale fruit, and no birds.")
+    say("The Bone Colossus is rooted at the far end.\nFind the key, and look for another\nMoon Shard.")
+  } else if floor == 9 {
+    say("FLOOR 9: THE MOONWELL SOURCE\nSilver water wells up from below. The light\nhere is almost alive.")
+    say("Something hollow sits at its heart, drinking\nthe moon. End it, knight.")
+  } else if floor == 10 {
+    say("FLOOR 10: THE ASHEN CITADEL\nThe Ember King's fortress, or what is left.")
+    say("Warlord Zorn commands the last of his army.\nBeyond him, the fire's heart.")
+  } else if floor == 11 {
+    say("FLOOR 11: THE HEART OF EMBERS\nThe air roars. This is where the fire began.")
+    say("The Cinder God waits. Finish it, last knight.")
   }
 }
 
@@ -1199,8 +1476,28 @@ fn usePotion(slot) {
 }
 
 fn useLadder() {
+  // the Ember King falls: the first ending, but the journey goes on
+  if floor == 6 {
+    won = 1
+    save "won", 1
+    if bestTime == 0 or playTime < bestTime {
+      bestTime = playTime
+      save "best", bestTime
+    }
+    nextFloor = 7
+    let wasFloor = floor
+    floor = 0
+    saveGame()
+    floor = wasFloor
+    mode = 3
+    epilogue = 1
+    winAt = tick
+    sound jingleWin
+    return 0
+  }
   if floor == lastFloor {
     mode = 3
+    epilogue = 2
     winAt = tick
     won = 1
     save "won", 1
@@ -1215,6 +1512,11 @@ fn useLadder() {
     return 0
   }
   if floor == 0 {
+    if nextFloor == 9 and not stairOpen() {
+      sound sndLocked
+      say("The stair down to the Moonwell Source is\nsealed with silver light. Vesper may know\nhow to open it.")
+      return 0
+    }
     enterFloor(nextFloor)
   } else {
     nextFloor = floor + 1
@@ -2169,6 +2471,13 @@ fn pressX() {
     return 0
   }
   if mode == 3 {
+    if epilogue == 1 {
+      epilogue = 0
+      enterFloor(0)
+      say("MAGE:\nYou did it! The Ember King is ash... but\nlook, the Moonwell only flickers. Something\ndeeper is drinking its light.")
+      say("The ladder at the camp leads on to floor 7.\nThe travellers by the fire may have news.")
+      return 0
+    }
     mode = 0
     save0 = []
     return 0
@@ -2335,7 +2644,16 @@ fn buy(item) {
 
 // ---------- quests ----------
 fn questsOpen() {
-  return won == 1 or deepest >= lastFloor
+  return won == 1 or deepest >= 6
+}
+
+fn questNpc(q) {
+  return min(2, q / 2)
+}
+
+// the stair to the Moonwell Source opens when Vesper's story quest is done
+fn stairOpen() {
+  return qState[6] == 3
 }
 
 fn saveQuests() {
@@ -2362,7 +2680,7 @@ fn questAdd(kind, param, amount) {
   }
   let q = 0
   let changed = false
-  while q < 6 {
+  while q < length(qName) {
     if qState[q] == 1 and qType[q] == kind {
       let ok = true
       if kind == 2 and param != 3 and param != 9 {
@@ -2381,7 +2699,7 @@ fn questAdd(kind, param, amount) {
         if qProg[q] >= qNeed[q] {
           qProg[q] = qNeed[q]
           qState[q] = 2
-          showToast("Quest ready: " + qName[q] + " - see " + npcName[q / 2])
+          showToast("Quest ready: " + qName[q] + " - see " + npcName[questNpc(q)])
         }
       }
     }
@@ -2392,19 +2710,36 @@ fn questAdd(kind, param, amount) {
   }
 }
 
+// Moon Shards count whenever you find them, even before Vesper asks
+fn syncShards() {
+  if qState[6] == 1 {
+    qProg[6] = length(shardFloors)
+    if qProg[6] >= qNeed[6] {
+      qProg[6] = qNeed[6]
+      qState[6] = 2
+      showToast("Quest ready: " + qName[6] + " - see VESPER")
+    }
+    saveQuests()
+  }
+}
+
 fn talkNpc(n) {
-  let q = n * 2
-  if qState[q] == 3 {
+  let q = npcFirst[n]
+  while q <= npcLast[n] and qState[q] == 3 {
     q += 1
   }
-  if qState[q] == 3 {
+  if q > npcLast[n] {
     if n == 0 {
       say("SSSORA:\nThe warrens ssing your name, knight.\nSssleep well.")
     } else if n == 1 {
       say("LIRAEL:\nThe deep is quieter now. Thank you.\nThe old order lives on in you.")
     } else {
-      say("VESPER:\nFascinating. The old order was braver\nthan the books say.")
+      say("VESPER:\nThe Source is open to you. May its light\nguide you, last knight.")
     }
+    return 0
+  }
+  if q == 6 and deepest < 7 {
+    say("VESPER:\nCome back once you've been deeper than the\nEmber Throne, knight. I'll have a task.")
     return 0
   }
   if qState[q] == 0 {
@@ -2413,6 +2748,9 @@ fn talkNpc(n) {
     qState[q] = 1
     sound sndSwitch
     saveQuests()
+    if q == 6 {
+      syncShards()
+    }
   } else if qState[q] == 1 {
     say(npcName[n] + ":\n" + qName[q] + ": " + qProg[q] + " / " + qNeed[q] + "\n" + qGoal[q])
   } else {
@@ -2440,8 +2778,11 @@ fn finishQuest(q) {
   whiteT = 3
   burst(hx + 5, hy - 8, 20, "#ffd23f", 20)
   effect(16, hx + 5, hy - 6, 30, "#ffd23f", 30, 120, 0, 4)
-  say(npcName[q / 2] + ":\nWell done, knight. Here, you've earned it.")
+  say(npcName[questNpc(q)] + ":\nWell done, knight. Here, you've earned it.")
   say("QUEST COMPLETE: " + qName[q] + "\n" + reward)
+  if q == 6 {
+    say("VESPER:\nTwo shards, one key. The sealed stair is\nopen! Beyond the Bone Orchard, the Moonwell\nSource awaits.")
+  }
 }
 
 fn potionSlot(item) {
@@ -2490,18 +2831,65 @@ fn pokeFire() {
   } else if fireTaps == 4 {
     say("The fire roars hotter! Once more...")
   } else {
+    cutT = 330
+    sound sndSwitch
+  }
+}
+
+// the Ember Knight cutscene, played on the fifth poke
+fn playCut() {
+  let t = 330 - cutT
+  let fx0 = 14 * 16 + 8
+  let fy0 = 12 * 16 + 8
+  if t < 120 {
+    if t % 4 == 0 {
+      burst(fx0, fy0 - 8, 3, "#ffb34a", 12 + t / 8)
+    }
+    if t % 20 == 0 {
+      effect(16, fx0, fy0 - 6, 30, "#ff6a1f", 20, 90 + t, 0, 4)
+    }
+    if t % 10 == 0 {
+      shake = 3 + t / 30
+      tone 120 + t * 3 to 100 for 100ms
+    }
+  } else if t < 210 {
+    if t % 3 == 0 {
+      burst(fx0 + random(-30, 30), fy0 - 8 + random(-18, 18), 1, "#ff9a2a", 10)
+    }
+    if t % 15 == 0 {
+      effect(14, hx + 5, hy - 6, 20, "#ffb34a", 10, 80, 0, 0)
+    }
+  } else if t == 210 {
     add 6 to skinsOwned
     save "skins", skinsOwned
     addSecretStand()
-    shake = 14
+    skin = 6
+    save "skin", skin
+    whiteT = 45
+    shake = 16
     sound jingleTreasure
     effect(14, fx0, fy0 - 6, 30, "#ff6a1f", 30, 300, 0, 0)
-    effect(16, fx0, fy0 - 6, 40, "#ffb34a", 50, 180, 0, 8)
+    effect(16, hx + 5, hy - 6, 40, "#ffb34a", 50, 180, 0, 8)
     repeat 6 {
       puff(fx0, fy0 - 6, "#5a3a2a")
     }
-    say("A knight of embers steps out of the fire,\nbows... and vanishes.")
-    say("SECRET LOOK FOUND: EMBER KNIGHT!\nIt waits for you in the wardrobe, free.")
+  }
+  cutT -= 1
+  if cutT == 0 {
+    say("A knight of embers steps out of the fire,\nbows... and joins you.")
+    say("SECRET LOOK FOUND: EMBER KNIGHT!\nYou are wearing it now. It waits in the\nwardrobe, free.")
+  }
+}
+
+fn drawCut() {
+  let t = 330 - cutT
+  let bar = min(24, min(t / 2, cutT / 2))
+  box 0, 0, 320, bar color "#000000"
+  box 0, 180 - bar, 320, bar color "#000000"
+  if t > 215 and t < 320 {
+    let a = min(15, min((t - 215) / 3, (320 - t) / 3))
+    write "EMBER KNIGHT" at 160, 78 size 2 centered color "#ffb34a" + fadeHex[a] shadow
+    write "born of the campfire" at 160, 98 centered color "#e8f4ff" + fadeHex[a]
   }
 }
 
@@ -2833,9 +3221,24 @@ fn killEnemy(n) {
     } else if k == 18 {
       say("IGNIS:\nMy king... will... avenge me...")
       say("The ladder leads down to the Ember Throne.\nThis is it, knight.")
+    } else if k == 19 {
+      say("ARCHIVIST MORWEN:\nThe last page... is blank...")
+      say("A ladder leads down. The ink-dark water\nstirs below.")
+    } else if k == 20 {
+      say("THE BONE COLOSSUS:\n...rest...")
+      say("The ladder leads down, toward a pale light.")
+    } else if k == 21 {
+      say("THE HOLLOW MOON:\nI only wanted... to be full...")
+      say("The Source flows silver again. The ladder\nleads down to the fire's last stronghold.")
+    } else if k == 22 {
+      say("WARLORD ZORN:\nThe fire... will not... forgive...")
+      say("Heat pours up the ladder. The heart of the\nfire is close.")
+    } else if k == 23 {
+      say("THE CINDER GOD:\nI was only... a spark. You... are the\nlight...")
+      say("The fire gutters out. For the first time in a\nhundred moons, the Moonwell blazes with silver.")
     } else {
       say("The Ember King crumbles into cinders...")
-      say("Silver light floods the halls once more.\nThe ladder leads home, to the surface.")
+      say("Silver light floods the halls once more...\nbut it flickers. The ladder leads on.")
     }
   }
   remove ex[n]
@@ -2867,9 +3270,51 @@ fn wakeBoss() {
     say("WARLORD KRAG:\nWAAAGH! Krag eats knights for breakfast!")
   } else if bossKind == 18 {
     say("IGNIS, THE CHORT QUEEN:\nCatch me if you can, little knight!")
+  } else if bossKind == 19 {
+    say("ARCHIVIST MORWEN:\nSilence, please. This is an archive.")
+  } else if bossKind == 20 {
+    say("THE BONE COLOSSUS:\n*the trees rattle as it stands*")
+  } else if bossKind == 21 {
+    say("THE HOLLOW MOON:\nYou carry light. Give it... give it...")
+  } else if bossKind == 22 {
+    say("WARLORD ZORN:\nThe Ember King was soft. I am IRON!")
+  } else if bossKind == 23 {
+    say("THE CINDER GOD:\nA hundred moons I burned. Now, YOU.")
   } else {
     say("THE EMBER KING:\nAnother little knight, come to be ash?")
     say("THE EMBER KING:\nThe Moonwell is MINE. Burn!")
+  }
+}
+
+fn bossAngryNew(n, k) {
+  let tx = ex[n] / 16
+  let ty = ey[n] / 16
+  if k == 19 {
+    say("ARCHIVIST MORWEN:\nEvery story ends. Yours ends HERE.")
+    spawnNear(2, tx - 3, ty)
+    spawnNear(2, tx + 4, ty)
+    spawnNear(10, tx, ty + 3)
+  } else if k == 20 {
+    say("THE BONE COLOSSUS:\n*CRACK*  ...MORE BONES...")
+    spawnNear(2, tx - 3, ty)
+    spawnNear(2, tx + 4, ty)
+    spawnNear(6, tx, ty + 3)
+  } else if k == 21 {
+    say("THE HOLLOW MOON:\nThe light is MINE to swallow.")
+    spawnNear(24, tx - 3, ty)
+    spawnNear(24, tx + 4, ty)
+    spawnNear(7, tx, ty + 3)
+  } else if k == 22 {
+    say("WARLORD ZORN:\nASH AND IRON! ARISE, MY LEGION!")
+    spawnNear(9, tx - 3, ty)
+    spawnNear(3, tx + 4, ty)
+    spawnNear(10, tx, ty + 3)
+  } else {
+    say("THE CINDER GOD:\nI AM THE HEART OF THE FIRE!")
+    spawnNear(13, tx - 4, ty)
+    spawnNear(13, tx + 5, ty)
+    spawnNear(4, tx, ty + 4)
+    spawnNear(9, tx + 2, ty + 4)
   }
 }
 
@@ -2881,13 +3326,16 @@ fn updateBoss(n, dx, dy, far) {
     return 0
   }
   let k = ekind[n]
+  let ai = bossAi(k)
   let px = ex[n] + 12
   let py = ey[n] - 8
   eleft[n] = dx < 0
   if ehp[n] * 2 <= bossMax and not bossAngry {
     bossAngry = true
     shake = 16
-    if k == 14 {
+    if k >= 19 {
+      bossAngryNew(n, k)
+    } else if k == 14 {
       say("GRUKK THE GATEKEEPER:\nGrukk ANGRY now!")
     } else if k == 16 {
       say("VAEL:\nMy servants! Bring me his bones!")
@@ -2915,12 +3363,12 @@ fn updateBoss(n, dx, dy, far) {
     }
   }
   // Grukk and Krag: wind up, then charge (Krag is faster)
-  if k == 14 or k == 17 {
+  if ai == 14 or ai == 17 {
     if bossRush > 0 {
       bossRush -= 1
       moveEnemy(n, bossRushX, bossRushY)
       moveEnemy(n, bossRushX, bossRushY)
-      if k == 17 {
+      if ai == 17 {
         moveEnemy(n, bossRushX, bossRushY)
       }
       if tick % 3 == 0 {
@@ -2933,10 +3381,10 @@ fn updateBoss(n, dx, dy, far) {
         }
         shake = 10
         sound sndSlam
-        if bossAngry or k == 17 {
+        if bossAngry or ai == 17 {
           ring(px, py + 6, tick % 2 == 0, "#c9a27e")
         }
-        if k == 17 and bossAngry {
+        if ai == 17 and bossAngry {
           aimAt(px, py, 20, 3, "#ff8a3d")
         }
       }
@@ -2963,7 +3411,7 @@ fn updateBoss(n, dx, dy, far) {
     }
     bossShot += 1
     let gap = 150
-    if k == 17 {
+    if ai == 17 {
       gap = 110
     }
     if bossAngry {
@@ -2977,7 +3425,7 @@ fn updateBoss(n, dx, dy, far) {
     return 0
   }
   // Vael: keeps his distance, throws rings of cold fire and raises skeletons
-  if k == 16 {
+  if ai == 16 {
     if tick % 2 == 0 {
       if far < 90 {
         moveEnemy(n, 0 - sign(dx), 0 - sign(dy))
@@ -3010,7 +3458,7 @@ fn updateBoss(n, dx, dy, far) {
     return 0
   }
   // Ignis: fades out, appears beside the knight and fires a fan
-  if k == 18 {
+  if ai == 18 {
     if bossWind > 0 {
       bossWind -= 1
       if bossWind == 12 {
@@ -3052,7 +3500,7 @@ fn updateBoss(n, dx, dy, far) {
     return 0
   }
   // the Warden: slow, spits and calls the dead
-  if k == 15 {
+  if ai == 15 {
     if tick % 3 == 0 {
       moveEnemy(n, sign(dx), sign(dy))
     }
@@ -3142,7 +3590,16 @@ fn updateItems() {
       }
     }
     if abs(ix[n] - (hx + 5)) < 11 and abs(iy[n] - (hy + 2)) < 12 {
-      if ikind[n] == 1 {
+      if ikind[n] == 3 {
+        add floor to shardFloors
+        save "shards", shardFloors
+        sound jingleKey
+        burst(ix[n], iy[n], 16, "#9bd3ff", 20)
+        effect(16, ix[n], iy[n], 30, "#9bd3ff", 30, 120, 0, 4)
+        say("A MOON SHARD!\nIt hums with silver light. Vesper, back at\ncamp, will want to see this.")
+        syncShards()
+        took = true
+      } else if ikind[n] == 1 {
         let worth = 1 + max(1, floor)
         if skin == 4 {
           worth += max(1, worth / 2)
@@ -3298,8 +3755,18 @@ fn pickMusic() {
     music songWarrens, bassWarrens tempo 150
   } else if floor == 5 {
     music songFurnace, bassFurnace tempo 170
-  } else {
+  } else if floor == 6 {
     music songThrone, bassThrone tempo 160
+  } else if floor == 7 {
+    music songCrypt, bassCrypt tempo 92
+  } else if floor == 8 {
+    music songOssuary, bassOssuary tempo 112
+  } else if floor == 9 {
+    music songTitle, bassTitle tempo 100
+  } else if floor == 10 {
+    music songFurnace, bassFurnace tempo 150
+  } else {
+    music songThrone, bassThrone tempo 178
   }
 }
 
@@ -3486,6 +3953,68 @@ fn drawEnemy(n) {
       draw chortRun at x, y frame f flip left flash hit size 2 alpha see
     } else {
       draw chortIdle at x, y frame f flip left flash hit size 2 alpha see
+    }
+  } else if k == 19 {
+    // Morwen: Vael's cousin, drawn big and drowned-teal
+    draw necro at x, y frame f flip left flash hit size 2
+  } else if k == 20 {
+    // the Bone Colossus winds up like Grukk
+    let windup = bossWind > 0 and tick % 6 < 3
+    if bossWind > 0 {
+      draw fxGlow at ex[n] + 12 - 32, ey[n] - 10 - 32 tint "#e8e0c8" alpha 30 + (30 - bossWind) * 2 scale 90 glow
+    }
+    if run {
+      draw ogreRun at x, y frame f flip left flash hit or windup
+      draw ogreRun at x, y frame f flip left alpha 55 tint "#e8e0c8"
+    } else {
+      draw ogreIdle at x, y frame f flip left flash hit
+      draw ogreIdle at x, y frame f flip left alpha 55 tint "#e8e0c8"
+    }
+  } else if k == 21 {
+    draw fxGlow at x - 16, y - 12 tint "#bcd8ff" alpha 22 scale 110 glow
+    if run {
+      draw wardenRun at x, y frame f flip left flash hit
+      draw wardenRun at x, y frame f flip left alpha 50 tint "#bcd8ff"
+    } else {
+      draw wardenIdle at x, y frame f flip left flash hit
+      draw wardenIdle at x, y frame f flip left alpha 50 tint "#bcd8ff"
+    }
+  } else if k == 22 {
+    let rage = bossWind > 0 and tick % 6 < 3
+    if bossWind > 0 {
+      draw fxGlow at x - 16, y - 12 tint "#ff4d4d" alpha 30 + (30 - bossWind) * 2 scale 90 glow
+    }
+    if run {
+      draw maskRun at x, y frame f flip left flash hit or rage size 2
+      draw maskRun at x, y frame f flip left alpha 55 tint "#241830" size 2
+    } else {
+      draw maskIdle at x, y frame f flip left flash hit size 2
+      draw maskIdle at x, y frame f flip left alpha 55 tint "#241830" size 2
+    }
+  } else if k == 23 {
+    // the Cinder God fades while he jumps, like Ignis
+    let see = 100
+    if bossWind > 12 {
+      see = (bossWind - 12) * 8
+    } else if bossWind > 0 {
+      see = (12 - bossWind) * 8
+    }
+    draw fxGlow at x - 16, y - 8 tint "#9bd3ff" alpha see / 3 scale 120 glow
+    if run {
+      draw kingRun at x, y frame f flip left flash hit alpha see
+      draw kingRun at x, y frame f flip left alpha see / 3 tint "#9bd3ff" glow
+    } else {
+      draw kingIdle at x, y frame f flip left flash hit alpha see
+      draw kingIdle at x, y frame f flip left alpha see / 3 tint "#9bd3ff" glow
+    }
+  } else if k == 24 {
+    // a moon wisp bobs as it floats
+    let bobY = (tick / 10 + n) % 3
+    draw fxGlow at x - 24, y - 28 tint "#bcd8ff" alpha 14 scale 40 glow
+    if run {
+      draw angelRun at x, y - bobY frame f flip left flash hit
+    } else {
+      draw angelIdle at x, y - bobY frame f flip left flash hit
     }
   } else {
     if run {
@@ -3957,6 +4486,9 @@ fn drawWorld() {
     }
     if ikind[n] == 1 {
       draw coin at ix[n] - 4, iy[n] - 6 - bob frame tick / 6 + n
+    } else if ikind[n] == 3 {
+      draw fxLight at ix[n] - 32, iy[n] - 32 tint "#9bd3ff" alpha 40 scale 55 glow
+      draw fxStar at ix[n] - 16, iy[n] - 16 - bob tint "#e8f4ff" angle tick * 4 scale 60 glow
     } else {
       draw flask at ix[n] - 8, iy[n] - 12 - bob
     }
@@ -4040,6 +4572,9 @@ fn drawWorld() {
 }
 
 fn drawVignette() {
+  if floorMood[floor] != "" {
+    box 0, 0, 320, 180 color floorMood[floor]
+  }
   let k = 0
   while k < 6 {
     box 0, k * 3, 320, 3 color "#0000001a"
@@ -4073,6 +4608,21 @@ fn bossTitle() {
   }
   if bossKind == 18 {
     return "IGNIS, THE CHORT QUEEN"
+  }
+  if bossKind == 19 {
+    return "ARCHIVIST MORWEN"
+  }
+  if bossKind == 20 {
+    return "THE BONE COLOSSUS"
+  }
+  if bossKind == 21 {
+    return "THE HOLLOW MOON"
+  }
+  if bossKind == 22 {
+    return "WARLORD ZORN"
+  }
+  if bossKind == 23 {
+    return "THE CINDER GOD"
   }
   return "THE EMBER KING"
 }
@@ -4205,7 +4755,7 @@ fn drawHud() {
   // the quest you're on, and a note when one is ready
   if floor > 0 and questsOpen() {
     let q = 0
-    while q < 6 {
+    while q < length(qName) {
       if qState[q] == 1 {
         let line = qName[q] + " " + qProg[q] + "/" + qNeed[q]
         write line at 316 - length(line) * 6, 30 color "#ffd23f" shadow
@@ -4442,6 +4992,16 @@ fn endScreen() {
   if mode == 2 {
     write "YOU FELL" at 160, 62 size 3 centered color "#ff4d6d" shadow
     write "Press X to rise again" at 160, 104 centered shadow
+  } else if epilogue == 1 {
+    if tick % 4 == 0 {
+      burst(random(0, 320) + camX, random(0, 180) + camY, 1, "#ffb34a", 8)
+    }
+    drawMoon(160, 34)
+    write "THE EMBER KING HAS FALLEN" at 160, 66 size 2 centered color "#ffd23f" shadow
+    write "Silver light creeps back into the halls..." at 160, 90 centered color "#e8f4ff" shadow
+    write "...but it flickers. Something stirs far below." at 160, 102 centered color "#c9c3d6" shadow
+    write "Gold: " + coins + "     Time: " + clock(playTime) at 160, 120 centered color "#ffd23f" shadow
+    write "Press X to return to camp" at 160, 140 centered shadow
   } else {
     if tick % 4 == 0 {
       burst(random(0, 320) + camX, random(0, 180) + camY, 1, "#e8f4ff", 8)
@@ -4477,14 +5037,16 @@ deepest = saved("deepest", 1)
 codesUsed = saved("codes", [])
 won = saved("won", 0)
 let qSaved = saved("quests", [])
-if length(qSaved) == 12 {
+if length(qSaved) == 12 or length(qSaved) == 14 {
+  let qHalf = length(qSaved) / 2
   let qi = 0
-  while qi < 6 {
+  while qi < qHalf {
     qState[qi] = qSaved[qi]
-    qProg[qi] = qSaved[qi + 6]
+    qProg[qi] = qSaved[qi + qHalf]
     qi += 1
   }
 }
+shardFloors = saved("shards", [])
 touch = touchscreen()
 floor = 1
 buildLevel()
@@ -4574,7 +5136,9 @@ every frame {
   if mode == 0 {
     titleScreen()
   } else {
-    if mode == 1 and length(msgs) == 0 and not invOpen and not helpOpen {
+    if cutT > 0 {
+      playCut()
+    } else if mode == 1 and length(msgs) == 0 and not invOpen and not helpOpen {
       update()
     }
     updateSparks()
@@ -4586,6 +5150,9 @@ every frame {
     drawWorld()
     drawVignette()
     drawHud()
+    if cutT > 0 {
+      drawCut()
+    }
     if invOpen and mode == 1 and length(msgs) == 0 {
       drawInv()
     }
