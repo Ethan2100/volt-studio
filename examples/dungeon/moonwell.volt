@@ -24,7 +24,7 @@ canvas 320, 180
 // saves belong to the game, not to the page's address: itch.io gives every upload its own folder,
 // so without this every update you upload would start a brand new save
 # window.__voltSaveId = 'moonwell';
-# const __mwKeys = ['moonwell', 'pack', 'bank', 'best', 'skins', 'skin', 'deepest', 'codes', 'won', 'quests', 'shards', 'ctl', 'set', 'gear', 'stats', 'ach', 'secrets', 'true', 'layout', 'ench'];
+# const __mwKeys = ['moonwell', 'pack', 'bank', 'best', 'skins', 'skin', 'deepest', 'codes', 'won', 'quests', 'shards', 'ctl', 'set', 'gear', 'stats', 'ach', 'secrets', 'true', 'layout', 'ench', 'tabs', 'will', 'heir', 'seenmon'];
 # window.__mwBox = function (mode) {
 #   const old = document.getElementById('mw-box'); if (old) old.remove();
 #   const box = document.createElement('div'); box.id = 'mw-box';
@@ -760,6 +760,28 @@ let wH = [0, 21, 23, 37, 22, 30, 30, 30]
 let shopName = ["", "Healing Potion", "Heart Vessel", "Knight Sword", "Big Hammer", "Golden Sword", "Ember Staff", "Moonblade", "Starfall Staff", "Strength Potion", "Fortune Potion", "Swiftness Potion", "Ward Potion", "Bomb", "Whetstone", "Lucky Charm", "Vampire Fang", "Flame Ward", "Tide Ward", "Shade Ward", "Searing Edge", "Featherstep"]
 let shopCost = [0, 8, 35, 25, 45, 70, 60, 500, 550, 30, 25, 30, 40, 15, 80, 90, 120, 60, 60, 60, 60, 60]
 let ench = [0, 0, 0, 0, 0]
+
+// ---------- lore: tablets, the bestiary, relic stories ----------
+let tabText1 = ["", "A WORN TABLET\n'Grukk kept the gate of the lower stair, an\nogre of the old order's own making. He\nasked only for bread and a quiet door.'", "A WARDEN'S LOG\n'The crypt flooded the winter the moon dimmed.\nWarden Osric swore to keep the dead dry,\nand would not leave his post.'", "A FROST-COVERED NOTE\n'Vael was the order's finest scholar. He\nstudied death to cure it, and found a\nwhisper beneath the Moonwell instead.'", "ORC WAR-STONE\n'Krag was chieftain of the warrens and a\nsworn friend to the knights. The dark took\nhis clan's hearth, then his mind.'", "A SOOT-BLACK PLAQUE\n'Ignis tended the furnace that warmed the\nhalls. She loved the fire the way a queen\nloves a crown.'", "THE EMBER THRONE\n'Aldric, captain of the order, went down to\nthe Source to seal a crack in the world.\nHe came back burning.'", "WATER-STAINED PAGE\n'Morwen kept the order's records for three\nhundred years. When the water rose, she\nbound herself to the shelves to save them.'", "A MOSS-GROWN STONE\n'Every knight who fell below was buried in\nthis orchard, and a tree planted for each.\nThe trees remember.'", "A GLOWING FRAGMENT\n'This was the true Moon, once, reflected in\nthe Source. Something drank its light and\nleft only the shape behind.'", "A BLACKENED BANNER\n'Zorn was a warlord before the order, bound\nto serve whoever held the deepest flame.\nHe served the knights. Then he served it.'", "A MOLTEN GLYPH\n'The Cinder God fell from the sky before the\norder, and the first knights bound it\nbeneath the mountain with moonlight.'"]
+let tabText2 = ["", "'When the lights failed, Grukk's hunger grew.\nNow he guards the stair out of habit, and\nanyone who passes becomes his supper.'", "'He is still here. The water keeps him, and\nhe keeps the key. Some oaths outlast the\none who swore them.'", "'The whisper taught him to raise the dead.\nHe thought it a gift. It was a hunger\nlooking for hands.'", "'He leads his warband against the light,\ncertain it betrayed him. The old knights\nnever did. The dark lied.'", "'The Ember King's heat found her first. Her\nforge became his, her imps his army. She\nstill calls it a promotion.'", "'The thing below had lit him like a lamp.\nHe climbed the stair to warn us, and every\nlight he passed went out.'", "'Her pages are safe now. So is her ink,\nwhich she drinks. Do not read what she\nwrites in the margins.'", "'Something stirred the bones together into\none vast guardian. It bears no malice, only\na duty it cannot forget: keep the dead.'", "'The Hollow Moon is not a monster. It is the\nmemory of one, wearing the Moonwell's face.\nIt weeps, and it strikes, and it weeps.'", "'He believes the Cinder God will make him\nimmortal. It will. That is the cruelty of\nit: he will burn forever.'", "'That binding is the Moonwell. As its light\nweakens, the god drinks. It does not want\nto rule. It wants to be warm.'"]
+let willText = ["", "THE KING'S WILL (1/11)\n'If you read this, you carry my ember. Good.\nI could not bear it. Perhaps you can.'", "THE KING'S WILL (2/11)\n'Do not hate Osric, or any of the fallen.\nThe thing below wears their grief.'", "THE KING'S WILL (3/11)\n'Vael heard it first. I should have listened\nto his warnings and not his rank.'", "THE KING'S WILL (4/11)\n'Krag will not know you. Strike true. He\nwould want it quick.'", "THE KING'S WILL (5/11)\n'Ignis loved the flame too well. Be kinder to\nyours than I was to mine.'", "THE KING'S WILL (6/11)\n'Here I burned, and here I wrote this. The\nember is no curse unless you hoard it.'", "THE KING'S WILL (7/11)\n'Morwen's archive holds how to bind the\nthing. I never finished reading it.'", "THE KING'S WILL (8/11)\n'The orchard keeps faith. Bring it a flower\nwhen this is over.'", "THE KING'S WILL (9/11)\n'The Moon was once whole. Return what was\ntaken, shard by shard.'", "THE KING'S WILL (10/11)\n'Zorn will bargain. Do not.'", "THE KING'S WILL (11/11)\n'At the Heart, the god only wants warmth.\nGive it yours, but not all. -- Aldric'"]
+let kindName = ["", "Goblin", "Skeleton", "Orc", "Chort", "The Ember King", "Zombie", "Ice Zombie", "Slime", "Masked Orc", "Shaman", "Necromancer", "Tiny Zombie", "Imp", "Grukk the Ogre", "The Rotting Warden", "Vael the Necromancer", "Warlord Krag", "Ignis, Chort Queen", "Archivist Morwen", "The Bone Colossus", "The Hollow Moon", "Warlord Zorn", "The Cinder God", "Moon Wisp"]
+let monLore = ["", "Thieves of the upper halls.\nBrave in packs, cowardly\nalone. They stole the first\nlamps.", "The order's old guards. They\nstill walk their rounds,\nthough none remember why.", "Clansmen of the warrens,\nhonor-bound and hard to\nfrighten. Krag's own kin.", "Horned fire-spirits that\ndrift toward the Ember\nKing's heat. Cold sends them\nrunning.", "Aldric, captain of the\norder. The thing below lit\nhim like a lamp, and he\ncannot put himself out.", "The drowned and the\nforgotten. They do not hate\nyou. They simply cannot\nstop.", "The Ossuary's dead, frozen\nmid-step. Their touch drains\nwarmth, the one thing you\ncannot spare.", "Moonwater gone wrong. It\nremembers nothing, and wants\nonly to cover everything.", "Krag's elite. The mask is\nnot for show: it hides the\nburns the dark left behind.", "Orc seers who listen to the\ndark. It lies to them, and\nthey pass the lies along.", "Vael's apprentices, raising\nthe dead with borrowed\nwords. They are rarely\nsorry.", "Small. Quick. Please do not\nthink too hard about where\nthey came from.", "Ignis's furnace-sparks given\nlegs. They giggle when they\nset things alight.", "An ogre made gatekeeper by\nthe order. Hunger took his\nmanners, but not his post.", "Warden Osric kept the crypt\ndry until it flooded. He is\nkeeping it still.", "The order's finest scholar.\nHe studied death to cure it,\nand a whisper taught him\notherwise.", "Chieftain of the warrens and\na friend to knights, until\nthe dark took his hearth.", "Queen of the furnace. She\nloved the fire like a crown.\nNow the fire wears her.", "She bound herself to the\nshelves to save them. Do not\nread her margins.", "The orchard's dead, gathered\ninto one guardian. It has a\nduty, not a grudge.", "The shape of the Moon with\nnothing inside. It weeps,\nand it strikes, and it\nweeps.", "He serves whoever holds the\ndeepest flame. Right now,\nthat is not you.", "Fell from the sky before the\norder. It does not want to\nrule. It wants to be warm.", "A scrap of the true Moon.\nGentle and fragile. It hurts\nto watch it fade."]
+let relicName = ["Rusty Sword", "Knight Sword", "Big Hammer", "Golden Sword", "Ember Staff", "Moonblade", "Starfall Staff", "Lucky Charm", "Vampire Fang", "Moon Shard", "Bomb", "Enchanting", "The King's Will"]
+let relicLore = ["Issued to every recruit of\nthe order. This one has\nnever once been cleaned.", "Forged for the order's\ncaptains. Heavier than it\nlooks, and twice as\nhonest.", "Grukk's kin used these to\ncrack gates. Someone\nkindly gave this one a\nhandle.", "A parade blade that turned\nout to be sharp. The order\nnever quite forgave\nitself.", "Cut from a tree in the\nBone Orchard and lit with\na spark of Aldric's own\nfire.", "Moonsilver, beaten for a\nhundred nights. It\nremembers the light the\nMoonwell gave.", "Calls down a piece of the\nsky. The mage will not say\nwhose sky it was.", "A clover pressed in\nsilver. Sssora swears it\ncame from a goblin who\nnever lost at dice.", "From a creature the order\nnever named. It hums when\nsomething nearby is dying.", "A splinter of the true\nMoon. Vesper says it is\nstill cold.", "Marrow's recipe: Archive\ndust, a pinch of grudge,\nand a very short fuse.", "The mage's lessons:\nmoonlight, written down,\nbound to your gear.", "Aldric's last words. Read\nthe lore tablets as the\nEmber Knight to find the\nrest."]
+let relicSay = ["Issued to every recruit of the order. This\none has never once been cleaned.", "Forged for the order's captains. Heavier\nthan it looks, and twice as honest.", "Grukk's kin used these to crack gates.\nSomeone kindly gave this one a handle.", "A parade blade that turned out to be sharp.\nThe order never quite forgave itself.", "Cut from a tree in the Bone Orchard and lit\nwith a spark of Aldric's own fire.", "Moonsilver, beaten for a hundred nights. It\nremembers the light the Moonwell gave.", "Calls down a piece of the sky. The mage will\nnot say whose sky it was.", "A clover pressed in silver. Sssora swears it\ncame from a goblin who never lost at dice.", "From a creature the order never named. It\nhums when something nearby is dying.", "A splinter of the true Moon. Vesper says it\nis still cold.", "Marrow's recipe: Archive dust, a pinch of\ngrudge, and a very short fuse.", "The mage's lessons: moonlight, written down,\nbound to your gear.", "Aldric's last words. Read the lore tablets\nas the Ember Knight to find the rest."]
+let tbx = []
+let tby = []
+let tabRead = []
+let willFound = []
+let seenMon = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+let heirEnd = 0
+let bestOpen = false
+let bestLater = false
+let bestTab = 0
+let bestSel = 0
+let bestTop = 0
+let elemName = ["Steel", "Fire", "Water", "Dark"]
 let hurtElem = 0
 let enchInfo = ["Resist fire damage.", "Resist water and frost damage.", "Resist dark magic and the undead.", "Chance for a hit to sear for +2.", "Your dash recovers faster."]
 let enchCol = ["#ff8a3d", "#4fd1ff", "#b57bff", "#ffd23f", "#7ee787"]
@@ -782,8 +804,8 @@ let ach = []
 let achSel = 0
 let secX = -1
 let secY = -1
-let achName = ["First Blood", "Monster Slayer", "Bossbreaker", "Ember Bane", "Moonwell Reborn", "Deep Diver", "Gold Hoarder", "Bomber", "Secret Keeper", "Treasure Hunter", "Well Armed", "Fashionable", "Potion Master", "Honed Edge", "Fully Geared", "Tough Luck", "Odd Jobs"]
-let achInfo = ["Defeat a monster.", "Defeat 100 monsters.", "Defeat a boss.", "Defeat the Ember King.", "See the true ending.", "Reach floor 11.", "Earn 1000 gold.", "Use 10 bombs.", "Open a secret room.", "Open 5 secret rooms.", "Own 5 weapons.", "Own 4 outfits.", "Drink 20 potions.", "Max the whetstone.", "Wear both trinkets.", "Fall 10 times.", "Finish every quest."]
+let achName = ["First Blood", "Monster Slayer", "Bossbreaker", "Ember Bane", "Moonwell Reborn", "Deep Diver", "Gold Hoarder", "Bomber", "Secret Keeper", "Treasure Hunter", "Well Armed", "Fashionable", "Potion Master", "Honed Edge", "Fully Geared", "Tough Luck", "Odd Jobs", "Heir of Embers", "Lorekeeper", "Naturalist"]
+let achInfo = ["Defeat a monster.", "Defeat 100 monsters.", "Defeat a boss.", "Defeat the Ember King.", "See the true ending.", "Reach floor 11.", "Earn 1000 gold.", "Use 10 bombs.", "Open a secret room.", "Open 5 secret rooms.", "Own 5 weapons.", "Own 4 outfits.", "Drink 20 potions.", "Max the whetstone.", "Wear both trinkets.", "Fall 10 times.", "Finish every quest.", "Finish as the Ember Knight.", "Read all 11 lore tablets.", "See every monster."]
 let invMax = 9
 let invOpen = false
 let invSel = 0
@@ -1130,6 +1152,8 @@ fn spawnNear(kind, tx, ty) {
 
 fn clearLists() {
   clearEffects()
+  tbx = []
+  tby = []
   lightX = []
   lightY = []
   lightCol = []
@@ -1329,6 +1353,7 @@ fn buildLevel() {
     }
   }
   placeSecret()
+  placeTablet()
   // choose a picture for every cell
   for ty from 0 to MH - 1 {
     for tx from 0 to MW - 1 {
@@ -1576,6 +1601,7 @@ fn setIds() {
   add 4 to ids
   add 5 to ids
   add 6 to ids
+  add 11 to ids
   add 7 to ids
   add 8 to ids
   add 9 to ids
@@ -1596,7 +1622,7 @@ fn openSettings() {
   if setOpen {
     return 0
   }
-  if (mode != 0 and mode != 1) or length(msgs) > 0 or dying > 0 or typingCode or cutT > 0 or ctlEditing or enchOpen {
+  if (mode != 0 and mode != 1) or length(msgs) > 0 or dying > 0 or typingCode or cutT > 0 or ctlEditing or enchOpen or bestOpen {
     return 0
   }
   invOpen = false
@@ -1643,6 +1669,9 @@ fn setAct() {
   let rowId = setIds()[setSel]
   if rowId <= 3 {
     setAdjust(1)
+  } else if rowId == 11 {
+    setOpen = false
+    openBest()
   } else if rowId == 10 {
     setOpen = false
     ctlEditing = true
@@ -1674,14 +1703,14 @@ fn drawSettings() {
   box 287, 6, 1, 152 color "#d3bfa9"
   write "SETTINGS" at 160, 11 centered color "#e8f4ff" shadow
   let ids = setIds()
-  let names = ["MUSIC", "SOUND", "SCREEN SHAKE", "BUTTON SIDE", "CONTROLS", "ACHIEVEMENTS", "STATS", "EXPORT SAVE", "IMPORT SAVE", "CLOSE", "MOVE BUTTONS"]
+  let names = ["MUSIC", "SOUND", "SCREEN SHAKE", "BUTTON SIDE", "CONTROLS", "ACHIEVEMENTS", "STATS", "EXPORT SAVE", "IMPORT SAVE", "CLOSE", "MOVE BUTTONS", "BESTIARY"]
   let r = 0
   while r < length(ids) {
     let rowId = ids[r]
-    let ry = 21 + r * 11
+    let ry = 20 + r * 10
     if r == setSel {
-      box 36, ry - 2, 248, 11 color "#2a2036"
-      box 36, ry - 2, 2, 11 color "#ffd23f"
+      box 36, ry - 2, 248, 10 color "#2a2036"
+      box 36, ry - 2, 2, 10 color "#ffd23f"
     }
     let col = "#c9c3d6"
     if r == setSel {
@@ -1727,7 +1756,7 @@ fn toggleHelp() {
 }
 
 fn toggleInv() {
-  if enchOpen {
+  if enchOpen or bestOpen {
     return 0
   }
   if setOpen {
@@ -1750,6 +1779,14 @@ fn toggleInv() {
 }
 
 fn invMove(d) {
+  if bestOpen {
+    bestTabMove()
+    return 0
+  }
+  if mode == 0 and won == 1 and length(msgs) == 0 and not setOpen and not typingCode {
+    titleSkin(d)
+    return 0
+  }
   if enchOpen {
     return 0
   }
@@ -1765,7 +1802,7 @@ fn invMove(d) {
 }
 
 fn usePotion(slot) {
-  if helpOpen or enchOpen {
+  if helpOpen or enchOpen or bestOpen {
     return 0
   }
   if mode != 1 or length(msgs) > 0 or dying > 0 {
@@ -1844,6 +1881,10 @@ fn useLadder() {
   if floor == lastFloor {
     mode = 3
     epilogue = 2
+    if skin == 6 {
+      heirEnd = 1
+      save "heir", 1
+    }
     trueEnd = 1
     save "true", 1
     winAt = tick
@@ -2032,7 +2073,7 @@ fn clearEffects() {
 //  Underlings: press V to raise ghostly skeletons that fight for you
 // =====================================================================
 fn summon() {
-  if invOpen or helpOpen or setOpen or achOpen or statsOpen or enchOpen {
+  if invOpen or helpOpen or setOpen or achOpen or statsOpen or enchOpen or bestOpen {
     return 0
   }
   if mode != 1 or length(msgs) > 0 or dying > 0 {
@@ -2413,6 +2454,231 @@ fn drawEnch() {
     write "Stick: choose   SWORD: buy" at 160, 168 centered color "#9a8fb0"
   } else {
     write "Up/Down: choose   X: buy   Z: close" at 160, 168 centered color "#9a8fb0"
+  }
+}
+
+fn seenCount() {
+  let c = 0
+  let k = 1
+  while k <= 24 {
+    c += seenMon[k]
+    k += 1
+  }
+  return c
+}
+
+fn markSeen() {
+  let n = 0
+  while n < length(ex) {
+    let k = ekind[n]
+    if seenMon[k] == 0 and abs(ex[n] - hx) + abs(ey[n] - hy) < 170 {
+      seenMon[k] = 1
+      save "seenmon", seenMon
+      showToast("BESTIARY: " + kindName[k])
+    }
+    n += 1
+  }
+}
+
+fn relicOwned(i) {
+  if i <= 6 {
+    return contains(owned, i + 1)
+  } else if i == 7 {
+    return hasCharm == 1
+  } else if i == 8 {
+    return hasFang == 1
+  } else if i == 9 {
+    return length(shardFloors) > 0
+  } else if i == 10 {
+    return stats[3] > 0 or inv[5] > 0
+  } else if i == 11 {
+    return ench[0] + ench[1] + ench[2] + ench[3] + ench[4] > 0
+  }
+  return length(willFound) > 0
+}
+
+fn relicStory(i) {
+  say("RELIC STORY: " + upper(relicName[i]) + "\n" + relicSay[i])
+}
+
+fn bestCount() {
+  if bestTab == 0 {
+    return 24
+  }
+  return 13
+}
+
+fn openBest() {
+  if (mode != 0 and mode != 1) or length(msgs) > 0 or dying > 0 or setOpen or invOpen or helpOpen or enchOpen or typingCode or cutT > 0 {
+    return 0
+  }
+  bestOpen = true
+  sound sndSwitch volume 50
+}
+
+fn closeBest() {
+  bestOpen = false
+  sound sndSwitch volume 50
+}
+
+fn bestMove(d) {
+  let n = bestCount()
+  bestSel = (bestSel + d + n) % n
+  if bestSel < bestTop {
+    bestTop = bestSel
+  }
+  if bestSel >= bestTop + 10 {
+    bestTop = bestSel - 9
+  }
+  sound sndTick volume 40
+}
+
+fn bestTabMove() {
+  bestTab = 1 - bestTab
+  bestSel = 0
+  bestTop = 0
+  sound sndTick volume 40
+}
+
+fn drawBest() {
+  box 0, 0, 320, 180 color "#0b0912"
+  write "LIRAEL'S NOTEBOOK" at 160, 4 centered color "#7ee787" shadow
+  let tabNames = ["MONSTERS " + seenCount() + "/24", "RELICS"]
+  let t = 0
+  while t < 2 {
+    let tc = "#6a6280"
+    if t == bestTab {
+      tc = "#ffd23f"
+      box 8 + t * 100, 24, 96, 1 color "#ffd23f"
+    }
+    write tabNames[t] at 12 + t * 100, 15 color tc
+    t += 1
+  }
+  let r = 0
+  while r < 10 {
+    let i = bestTop + r
+    if i < bestCount() {
+      let ry = 30 + r * 11
+      let known = false
+      let nm = "???"
+      if bestTab == 0 {
+        known = seenMon[i + 1] == 1
+        if known {
+          nm = kindName[i + 1]
+        }
+      } else {
+        known = relicOwned(i)
+        if known {
+          nm = relicName[i]
+        }
+      }
+      if i == bestSel {
+        box 6, ry - 1, 128, 10 color "#2a2036"
+        box 6, ry - 1, 2, 10 color "#ffd23f"
+      }
+      let nc = "#6a6280"
+      if known {
+        nc = "#c9c3d6"
+      }
+      if i == bestSel {
+        nc = "#ffd23f"
+      }
+      write nm at 12, ry color nc
+    }
+    r += 1
+  }
+  box 138, 28, 176, 130 color "#15101e"
+  if bestTab == 0 {
+    let k = bestSel + 1
+    if seenMon[k] == 1 {
+      write kindName[k] at 144, 33 color "#ffd23f"
+      write "HP " + kindLife[k] + "    " + elemName[kindElem(k)] at 144, 44 color "#9a8fb0"
+      write monLore[k] at 144, 58 color "#c9c3d6"
+    } else {
+      write "???" at 144, 33 color "#6a6280"
+      write "Meet it to learn more." at 144, 46 color "#6a6280"
+    }
+  } else {
+    if relicOwned(bestSel) {
+      write relicName[bestSel] at 144, 33 color "#ffd23f"
+      if bestSel == 12 {
+        write "Fragments: " + length(willFound) + "/11" at 144, 44 color "#9a8fb0"
+      }
+      write relicLore[bestSel] at 144, 58 color "#c9c3d6"
+    } else {
+      write "???" at 144, 33 color "#6a6280"
+      write "Find it to learn its story." at 144, 46 color "#6a6280"
+    }
+  }
+  if touch {
+    write "Stick: browse   SWORD: close" at 160, 168 centered color "#9a8fb0"
+  } else {
+    write "Up/Down: browse   Left/Right: tab   X: close" at 160, 168 centered color "#9a8fb0"
+  }
+}
+
+// ---------- lore tablets ----------
+fn placeTablet() {
+  if floor == 0 {
+    return 0
+  }
+  let cands = []
+  let ty = 3
+  while ty < MH - 2 {
+    let tx = 2
+    while tx < MW - 2 {
+      let i = ty * MW + tx
+      if grid[i] == "." and grid[i - MW] == "#" and grid[i + MW] == "." and grid[i - 1] == "." and grid[i + 1] == "." {
+        if abs(tx * 16 - hx) + abs(ty * 16 - hy) > 120 and abs(tx - ladX) + abs(ty - ladY) > 3 {
+          add i to cands
+        }
+      }
+      tx += 1
+    }
+    ty += 1
+  }
+  if length(cands) == 0 {
+    return 0
+  }
+  let pick = cands[(floor * 53 + 7) % length(cands)]
+  add pick % MW to tbx
+  add pick / MW to tby
+}
+
+fn readTablet() {
+  say(tabText1[floor])
+  say(tabText2[floor])
+  if skin == 6 {
+    say(willText[floor])
+    if not contains(willFound, floor) {
+      add floor to willFound
+      save "will", willFound
+    }
+  }
+  if not contains(tabRead, floor) {
+    add floor to tabRead
+    save "tabs", tabRead
+    showToast("Lore tablets read: " + length(tabRead) + "/11")
+  }
+}
+
+fn drawTablets() {
+  let n = 0
+  while n < length(tbx) {
+    let x = tbx[n] * 16
+    let y = tby[n] * 16
+    box x + 3, y + 14, 10, 2 color "#00000066"
+    box x + 3, y + 2, 10, 13 color "#6b5b55"
+    box x + 4, y + 1, 8, 1 color "#6b5b55"
+    box x + 4, y + 3, 8, 11 color "#8a7a6a"
+    box x + 6, y + 5, 4, 1 color "#3a2f3a"
+    box x + 6, y + 8, 4, 1 color "#3a2f3a"
+    box x + 6, y + 11, 3, 1 color "#3a2f3a"
+    if not contains(tabRead, floor) {
+      draw fxLight at x + 8 - 32, y + 8 - 32 tint "#9bd3ff" alpha 14 + tick / 8 % 6 scale 60 glow
+      write "!" at x + 8, y - 8 - (tick / 14) % 2 centered color "#9bd3ff" shadow
+    }
+    n += 1
   }
 }
 
@@ -2942,7 +3208,7 @@ fn starBurst(px, py) {
 }
 
 fn switchWeapon() {
-  if invOpen or helpOpen or setOpen or achOpen or statsOpen or enchOpen {
+  if invOpen or helpOpen or setOpen or achOpen or statsOpen or enchOpen or bestOpen {
     return 0
   }
   if mode != 1 or length(owned) < 2 or swing > 0 {
@@ -2973,6 +3239,10 @@ fn giveWeapon(wid) {
 fn pressX() {
   if enchOpen {
     enchBuy()
+    return 0
+  }
+  if bestOpen {
+    closeBest()
     return 0
   }
   if setOpen {
@@ -3035,6 +3305,15 @@ fn pressX() {
   while n < length(chx) {
     if chOpen[n] == 0 and abs(chx[n] * 16 + 8 - cx) < 22 and abs(chy[n] * 16 + 8 - cy) < 22 {
       openChest(n)
+      return 0
+    }
+    n += 1
+  }
+  // a lore tablet?
+  n = 0
+  while n < length(tbx) {
+    if abs(tbx[n] * 16 + 8 - cx) < 20 and abs(tby[n] * 16 + 8 - cy) < 22 {
+      readTablet()
       return 0
     }
     n += 1
@@ -3213,10 +3492,12 @@ fn buy(item) {
     hasCharm = 1
     sound jingleTreasure
     say("You tuck the Lucky Charm away.\nCoins are worth half again as much!")
+    relicStory(7)
   } else if item == 16 {
     hasFang = 1
     sound jingleTreasure
     say("The Vampire Fang hums on your belt.\nEvery sixth kill heals you a little.")
+    relicStory(8)
   } else if item == 2 {
     maxHp += 2
     hp = maxHp
@@ -3224,6 +3505,7 @@ fn buy(item) {
   } else {
     giveWeapon(item - 1)
     say("You bought the " + shopName[item] + ".\n" + wInfo[item - 1])
+    relicStory(item - 2)
   }
   saveGame()
 }
@@ -3339,6 +3621,8 @@ fn talkNpc(n) {
       say("SSSORA:\nThe warrens ssing your name, knight.\nSssleep well.")
     } else if n == 1 {
       say("LIRAEL:\nThe deep is quieter now. Thank you.\nThe old order lives on in you.")
+      say("LIRAEL:\nMy notebook is yours to read, if you like.")
+      bestLater = true
     } else if n == 2 {
       say("VESPER:\nThe Source is open to you. May its light\nguide you, last knight.")
     } else {
@@ -3543,6 +3827,10 @@ fn wardrobe(n) {
 }
 
 fn pressZ() {
+  if bestOpen {
+    closeBest()
+    return 0
+  }
   if enchOpen {
     closeEnch()
     return 0
@@ -3662,6 +3950,7 @@ fn openChest(n) {
       giveWeapon(wid)
       sound jingleTreasure
       say("You found the " + upper(wName[wid]) + "!\n" + wInfo[wid] + "  (C switches weapons)")
+      relicStory(wid - 1)
     }
   } else {
     gain(10)
@@ -4401,6 +4690,9 @@ fn update() {
   updateUnderlings()
   updateItems()
   updateBombs()
+  if tick % 20 == 0 {
+    markSeen()
+  }
   checkRooms()
   if tick % 60 == 0 {
     checkAch()
@@ -5269,6 +5561,13 @@ fn achTest(a) {
   } else if a == 15 {
     return stats[1] >= 10
   }
+  if a == 17 {
+    return heirEnd == 1
+  } else if a == 18 {
+    return length(tabRead) >= 11
+  } else if a == 19 {
+    return seenCount() >= 24
+  }
   let q = 0
   while q < length(qState) {
     if qState[q] != 3 {
@@ -5302,15 +5601,15 @@ fn achCount() {
 
 fn drawAch() {
   box 0, 0, 320, 180 color "#0b0912"
-  write "ACHIEVEMENTS  " + achCount() + "/" + length(achName) at 160, 3 centered color "#e8f4ff" shadow
+  write "ACHIEVEMENTS  " + achCount() + "/" + length(achName) at 8, 3 color "#e8f4ff" shadow
   let a = 0
   while a < length(achName) {
-    let y = 15 + a * 9
+    let y = 13 + a * 8
     if a % 2 == 0 {
-      box 8, y - 1, 304, 9 color "#15101e"
+      box 8, y - 1, 304, 8 color "#15101e"
     }
     if ach[a] == 1 {
-      box 8, y - 1, 2, 9 color "#ffd23f"
+      box 8, y - 1, 2, 8 color "#ffd23f"
       write achName[a] at 14 + 0, y color "#ffd23f"
       write achInfo[a] at 124, y color "#c9c3d6"
     } else {
@@ -5320,9 +5619,9 @@ fn drawAch() {
     a += 1
   }
   if touch {
-    write "SWORD: back" at 160, 170 centered color "#9a8fb0"
+    write "SWORD: back" at 312 - 66, 3 color "#9a8fb0"
   } else {
-    write "X / ESC: back" at 160, 170 centered color "#9a8fb0"
+    write "X/ESC: back" at 312 - 66, 3 color "#9a8fb0"
   }
 }
 
@@ -5593,6 +5892,7 @@ fn drawWorld() {
     drawShop()
   }
   drawBombs()
+  drawTablets()
   // the way down shimmers once the boss is gone
   if bossDead and floor > 0 {
     let lx = ladX * 16 + 8
@@ -6142,6 +6442,21 @@ fn clock(frames) {
   return mins + ":" + secs
 }
 
+fn titleSkin(d) {
+  let idx = 0
+  let n = 0
+  while n < length(skinsOwned) {
+    if skinsOwned[n] == skin {
+      idx = n
+    }
+    n += 1
+  }
+  idx = (idx + d + length(skinsOwned)) % length(skinsOwned)
+  skin = skinsOwned[idx]
+  save "skin", skin
+  sound sndSwitch volume 50
+}
+
 fn titleScreen() {
   // the first floor slowly drifts past behind the title
   camX = 120 + (tick / 3) % 400
@@ -6150,7 +6465,10 @@ fn titleScreen() {
   box 0, 0, 320, 180 color "#0b0814bb"
   drawMoon(160, 36)
   write "MOONWELL" at 160, 64 size 4 centered color "#e8f4ff" shadow
-  write "a dungeon crawler written in Volt" at 160, 102 centered color "#9a8fb0"
+  write "a dungeon crawler written in Volt" at 160, 96 centered color "#9a8fb0"
+  if won == 1 and length(skinsOwned) > 1 {
+    write "<  " + skinName[skin] + "  >" at 160, 108 centered color "#9bd3ff" shadow
+  }
   if length(save0) > 0 {
     if tick / 30 % 2 == 0 {
       if touch {
@@ -6204,13 +6522,23 @@ fn endScreen() {
       burst(random(0, 320) + camX, random(0, 180) + camY, 1, "#e8f4ff", 8)
     }
     drawMoon(160, 34)
-    write "THE MOONWELL WAKES" at 160, 70 size 2 centered color "#e8f4ff" shadow
-    write "Gold: " + coins + "     Time: " + clock(playTime) at 160, 98 centered color "#ffd23f" shadow
-    if playTime == bestTime {
-      write "A new best time!" at 160, 110 centered color "#7ee787" shadow
+    if skin == 6 {
+      write "THE EMBER AND THE MOON" at 160, 62 size 2 centered color "#ffb34a" shadow
+      write "You carry Aldric's ember, and it warms the well." at 160, 84 centered color "#e8f4ff" shadow
+      if length(willFound) >= 11 {
+        write "The King's Will is read in full. He is forgiven." at 160, 94 centered color "#7ee787" shadow
+      } else {
+        write "Part of the King's Will remains unread." at 160, 94 centered color "#c9c3d6" shadow
+      }
+    } else {
+      write "THE MOONWELL WAKES" at 160, 70 size 2 centered color "#e8f4ff" shadow
     }
-    write "Your gold is kept for your next journey." at 160, 116 centered color "#c9c3d6" shadow
-    write "Thanks for playing!   Press X" at 160, 130 centered shadow
+    write "Gold: " + coins + "     Time: " + clock(playTime) at 160, 106 centered color "#ffd23f" shadow
+    if playTime == bestTime {
+      write "A new best time!" at 160, 118 centered color "#7ee787" shadow
+    }
+    write "Your gold is kept for your next journey." at 160, 130 centered color "#c9c3d6" shadow
+    write "Thanks for playing!   Press X" at 160, 144 centered shadow
   }
 }
 
@@ -6245,6 +6573,13 @@ if length(qSaved) >= 12 and length(qSaved) % 2 == 0 {
 }
 shardFloors = saved("shards", [])
 trueEnd = saved("true", 0)
+heirEnd = saved("heir", 0)
+tabRead = saved("tabs", [])
+willFound = saved("will", [])
+seenMon = saved("seenmon", seenMon)
+while length(seenMon) < 25 {
+  add 0 to seenMon
+}
 secFound = saved("secrets", [])
 stats = saved("stats", stats)
 while length(stats) < 8 {
@@ -6303,7 +6638,9 @@ when key "i" pressed {
   toggleInv()
 }
 when key "escape" pressed {
-  if enchOpen {
+  if bestOpen {
+    closeBest()
+  } else if enchOpen {
     closeEnch()
   } else if setOpen {
     closeSettings()
@@ -6327,6 +6664,8 @@ when key "o" pressed {
 when key "up" pressed {
   if enchOpen {
     enchMove(-1)
+  } else if bestOpen {
+    bestMove(-1)
   } else if setOpen {
     setMove(-1)
   }
@@ -6334,6 +6673,8 @@ when key "up" pressed {
 when key "down" pressed {
   if enchOpen {
     enchMove(1)
+  } else if bestOpen {
+    bestMove(1)
   } else if setOpen {
     setMove(1)
   }
@@ -6341,6 +6682,8 @@ when key "down" pressed {
 when key "w" pressed {
   if enchOpen {
     enchMove(-1)
+  } else if bestOpen {
+    bestMove(-1)
   } else if setOpen {
     setMove(-1)
   }
@@ -6348,6 +6691,8 @@ when key "w" pressed {
 when key "s" pressed {
   if enchOpen {
     enchMove(1)
+  } else if bestOpen {
+    bestMove(1)
   } else if setOpen {
     setMove(1)
   }
@@ -6407,13 +6752,17 @@ when key "n" pressed {
 
 every frame {
   tick += 1
+  if bestLater and length(msgs) == 0 {
+    bestLater = false
+    openBest()
+  }
   pickMusic()
   if mode == 0 {
     titleScreen()
   } else {
     if cutT > 0 {
       playCut()
-    } else if mode == 1 and length(msgs) == 0 and not invOpen and not helpOpen and not setOpen and not achOpen and not statsOpen and not ctlEditing and not enchOpen {
+    } else if mode == 1 and length(msgs) == 0 and not invOpen and not helpOpen and not setOpen and not achOpen and not statsOpen and not ctlEditing and not enchOpen and not bestOpen {
       update()
     }
     updateSparks()
@@ -6450,6 +6799,9 @@ every frame {
   }
   if enchOpen {
     drawEnch()
+  }
+  if bestOpen {
+    drawBest()
   }
   if achOpen {
     drawAch()
