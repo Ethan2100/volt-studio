@@ -2343,7 +2343,7 @@ fn enchBuy() {
 
 fn enchVal(e, lv) {
   if e <= 2 {
-    return "" + [0, 40, 70, 100][lv] + "%"
+    return "" + [0, 25, 50, 75][lv] + "%"
   }
   if e == 3 {
     return "" + [0, 15, 30, 45][lv] + "%"
@@ -2441,7 +2441,7 @@ fn hurtHero(amount, fromX, fromY) {
     return 0
   }
   if elem > 0 and ench[elem - 1] > 0 {
-    if random(1, 100) <= [0, 40, 70, 100][ench[elem - 1]] {
+    if random(1, 100) <= [0, 25, 50, 75][ench[elem - 1]] {
       hurt = 30
       shake = 3
       sound sndHit volume 50
