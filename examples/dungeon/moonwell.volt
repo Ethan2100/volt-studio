@@ -24,7 +24,7 @@ canvas 320, 180
 // saves belong to the game, not to the page's address: itch.io gives every upload its own folder,
 // so without this every update you upload would start a brand new save
 # window.__voltSaveId = 'moonwell';
-# const __mwKeys = ['moonwell', 'pack', 'bank', 'best', 'skins', 'skin', 'deepest', 'codes', 'won', 'quests', 'shards', 'ctl', 'set', 'gear', 'stats', 'ach', 'secrets', 'true'];
+# const __mwKeys = ['moonwell', 'pack', 'bank', 'best', 'skins', 'skin', 'deepest', 'codes', 'won', 'quests', 'shards', 'ctl', 'set', 'gear', 'stats', 'ach', 'secrets', 'true', 'layout'];
 # window.__mwBox = function (mode) {
 #   const old = document.getElementById('mw-box'); if (old) old.remove();
 #   const box = document.createElement('div'); box.id = 'mw-box';
@@ -785,6 +785,7 @@ let setSel = 0
 let setMusic = 100                  // 0-100
 let setSfx = 100
 let setShake = 2                    // 2 full, 1 less, 0 off
+let ctlEditing = false
 let setLefty = 0                    // phones: 1 puts the stick on the right
 let achOpen = false
 let statsOpen = false
@@ -1537,6 +1538,7 @@ fn setIds() {
   let ids = [0, 1, 2]
   if touch {
     add 3 to ids
+    add 10 to ids
   }
   add 4 to ids
   add 5 to ids
@@ -1561,7 +1563,7 @@ fn openSettings() {
   if setOpen {
     return 0
   }
-  if (mode != 0 and mode != 1) or length(msgs) > 0 or dying > 0 or typingCode or cutT > 0 {
+  if (mode != 0 and mode != 1) or length(msgs) > 0 or dying > 0 or typingCode or cutT > 0 or ctlEditing {
     return 0
   }
   invOpen = false
@@ -1608,6 +1610,10 @@ fn setAct() {
   let rowId = setIds()[setSel]
   if rowId <= 3 {
     setAdjust(1)
+  } else if rowId == 10 {
+    setOpen = false
+    ctlEditing = true
+    # window.__ctlEdit(true);
   } else if rowId == 4 {
     setOpen = false
     helpOpen = true
@@ -1628,14 +1634,14 @@ fn setAct() {
 
 fn drawSettings() {
   box 0, 0, 320, 180 color "#000000b0"
-  box 32, 6, 256, 140 color "#0b0912f4"
+  box 32, 6, 256, 152 color "#0b0912f4"
   box 32, 6, 256, 1 color "#d3bfa9"
-  box 32, 145, 256, 1 color "#d3bfa9"
-  box 32, 6, 1, 140 color "#d3bfa9"
-  box 287, 6, 1, 140 color "#d3bfa9"
+  box 32, 157, 256, 1 color "#d3bfa9"
+  box 32, 6, 1, 152 color "#d3bfa9"
+  box 287, 6, 1, 152 color "#d3bfa9"
   write "SETTINGS" at 160, 11 centered color "#e8f4ff" shadow
   let ids = setIds()
-  let names = ["MUSIC", "SOUND", "SCREEN SHAKE", "BUTTON SIDE", "CONTROLS", "ACHIEVEMENTS", "STATS", "EXPORT SAVE", "IMPORT SAVE", "CLOSE"]
+  let names = ["MUSIC", "SOUND", "SCREEN SHAKE", "BUTTON SIDE", "CONTROLS", "ACHIEVEMENTS", "STATS", "EXPORT SAVE", "IMPORT SAVE", "CLOSE", "MOVE BUTTONS"]
   let r = 0
   while r < length(ids) {
     let rowId = ids[r]
@@ -1672,7 +1678,7 @@ fn drawSettings() {
     }
     r += 1
   }
-  write "Stick: choose / change    SWORD: use" at 160, 134 centered color "#9a8fb0"
+  write "Stick: choose / change    SWORD: use" at 160, 146 centered color "#9a8fb0"
 }
 
 fn toggleHelp() {
@@ -5996,6 +6002,7 @@ if length(setSaved) == 4 {
   setLefty = setSaved[3]
 }
 touch = touchscreen()
+# window.__ctlDone = () => { ctlEditing = false; };
 applySettings()
 floor = 1
 buildLevel()
@@ -6135,7 +6142,7 @@ every frame {
   } else {
     if cutT > 0 {
       playCut()
-    } else if mode == 1 and length(msgs) == 0 and not invOpen and not helpOpen and not setOpen and not achOpen and not statsOpen {
+    } else if mode == 1 and length(msgs) == 0 and not invOpen and not helpOpen and not setOpen and not achOpen and not statsOpen and not ctlEditing {
       update()
     }
     updateSparks()

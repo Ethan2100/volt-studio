@@ -1196,6 +1196,62 @@ const GAME_RUNTIME = [
   "  keys.forEach((k, i) => acts.append(btn(String(k).toUpperCase(), k, 'a', art.icons && art.icons[i])));",
   "  pad.append(left, acts);",
   "  document.body.appendChild(pad);",
+  "  // --- movable, resizable controls (window.__ctlEdit(true) opens the editor) ---",
+  "  const items = [];",
+  "  const reg = (el, id) => { el.dataset.ctl = id; items.push({ el, id }); };",
+  "  reg(left, 'move');",
+  "  Array.from(acts.children).forEach((el, i) => reg(el, 'k' + i));",
+  "  let lay = {};",
+  "  try { lay = JSON.parse(localStorage.getItem(__saveKey('layout')) || '{}') || {}; } catch (e) { lay = {}; }",
+  "  const getv = (id) => lay[id] || [0, 0, 1];",
+  "  const apply = () => items.forEach((it) => {",
+  "    const v = getv(it.id);",
+  "    it.el.style.setProperty('--tx', v[0] + 'px'); it.el.style.setProperty('--ty', v[1] + 'px'); it.el.style.setProperty('--ts', v[2]);",
+  "  });",
+  "  const fit = (it) => {",
+  "    const r = it.el.getBoundingClientRect(); let dx = 0, dy = 0;",
+  "    if (r.left < 4) dx = 4 - r.left; if (r.right > innerWidth - 4) dx = innerWidth - 4 - r.right;",
+  "    if (r.top < 4) dy = 4 - r.top; if (r.bottom > innerHeight - 4) dy = innerHeight - 4 - r.bottom;",
+  "    if (dx || dy) { const v = getv(it.id); lay[it.id] = [v[0] + dx, v[1] + dy, v[2]]; apply(); }",
+  "  };",
+  "  const store = () => { try { localStorage.setItem(__saveKey('layout'), JSON.stringify(lay)); } catch (e) { /* skip */ } };",
+  "  apply();",
+  "  addEventListener('resize', () => { apply(); items.forEach(fit); });",
+  "  let editing = false, sel = items[1], bar = null, label = null;",
+  "  const mark = () => items.forEach((it) => it.el.classList.toggle('volt-sel', editing && it === sel));",
+  "  const size = (d) => {",
+  "    const v = getv(sel.id); const s = Math.max(0.6, Math.min(1.8, Math.round((v[2] + d) * 10) / 10));",
+  "    lay[sel.id] = [v[0], v[1], s]; apply(); fit(sel); label.textContent = 'SIZE ' + Math.round(s * 100) + '%';",
+  "  };",
+  "  const done = () => {",
+  "    editing = false; pad.classList.remove('volt-editing'); mark(); store();",
+  "    if (bar) { bar.remove(); bar = null; }",
+  "    if (window.__ctlDone) window.__ctlDone();",
+  "  };",
+  "  const tb = (txt, fn) => { const b = document.createElement('button'); b.textContent = txt; b.addEventListener('click', fn); return b; };",
+  "  window.__ctlEdit = (on) => {",
+  "    if (!on) { if (editing) done(); return; }",
+  "    if (editing) return;",
+  "    editing = true; pad.classList.add('volt-editing'); __down.clear();",
+  "    bar = document.createElement('div'); bar.className = 'volt-ctlbar';",
+  "    label = document.createElement('span'); label.textContent = 'SIZE ' + Math.round(getv(sel.id)[2] * 100) + '%';",
+  "    const hint = document.createElement('div'); hint.textContent = 'Drag to move. Tap one, then - or + to resize.';",
+  "    const row = document.createElement('div');",
+  "    row.append(tb('\u2212', () => size(-0.1)), label, tb('+', () => size(0.1)), tb('RESET', () => { lay = {}; apply(); store(); items.forEach(fit); size(0); }), tb('DONE', done));",
+  "    bar.append(hint, row); document.body.appendChild(bar); mark();",
+  "  };",
+  "  pad.addEventListener('pointerdown', (e) => {",
+  "    if (!editing) return;",
+  "    const el = e.target.closest && e.target.closest('[data-ctl]');",
+  "    if (!el) return;",
+  "    e.stopPropagation(); e.preventDefault();",
+  "    const it = items.find((x) => x.el === el); sel = it; mark();",
+  "    label.textContent = 'SIZE ' + Math.round(getv(it.id)[2] * 100) + '%';",
+  "    const v0 = getv(it.id), sx = e.clientX, sy = e.clientY;",
+  "    const mv = (ev) => { lay[it.id] = [v0[0] + ev.clientX - sx, v0[1] + ev.clientY - sy, v0[2]]; apply(); };",
+  "    const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); fit(it); store(); };",
+  "    addEventListener('pointermove', mv); addEventListener('pointerup', up); addEventListener('pointercancel', up);",
+  "  }, true);",
   "}",
   "// volume 50: loudness of everything (0 is silent). audio/sound: sound files, picked at random when there are several",
   "let __vol = 1, __master = null;",
@@ -1329,7 +1385,7 @@ const GAME_CSS = `  body.volt-game { background: #000; overflow: hidden; }
   .volt-touch { position: fixed; inset: auto 0 0 0; display: flex; justify-content: space-between; align-items: end; padding: 18px max(18px, env(safe-area-inset-right, 0px)) max(18px, env(safe-area-inset-bottom, 0px)) max(18px, env(safe-area-inset-left, 0px)); pointer-events: none; z-index: 4; user-select: none; -webkit-user-select: none; }
   .volt-touch.volt-lefty { flex-direction: row-reverse; }
   .volt-touch button { pointer-events: auto; margin: 0; padding: 0; border-radius: 50%; background: rgba(255,255,255,0.10); color: rgba(255,255,255,0.75); font: 700 18px system-ui, sans-serif; touch-action: none; border: 2px solid rgba(255,255,255,0.25); }
-  .volt-touch button:active { background: rgba(255,255,255,0.35); transform: none; }
+  .volt-touch button:active { background: rgba(255,255,255,0.35); }
   .volt-dpad { display: grid; grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 44px); }
   .volt-dpad .u { grid-area: 1 / 2; } .volt-dpad .l { grid-area: 2 / 1; } .volt-dpad .r { grid-area: 2 / 3; } .volt-dpad .d { grid-area: 3 / 2; }
   .volt-dpad button { border-radius: 12px; }
@@ -1346,7 +1402,15 @@ const GAME_CSS = `  body.volt-game { background: #000; overflow: hidden; }
   .volt-acts5 button:nth-child(5) { grid-area: 1 / 1; }
   .volt-touch button.volt-art { background: center / contain no-repeat; border: 0; display: grid; place-items: center; }
   .volt-touch button img { width: 46%; height: 46%; pointer-events: none; }
-  .volt-touch button.volt-down { transform: scale(0.92); filter: brightness(1.35); }
+  .volt-touch [data-ctl] { transform: translate(var(--tx, 0px), var(--ty, 0px)) scale(var(--ts, 1)); }
+  .volt-touch button.volt-down { transform: translate(var(--tx, 0px), var(--ty, 0px)) scale(calc(var(--ts, 1) * 0.92)); filter: brightness(1.35); }
+  .volt-touch.volt-editing [data-ctl] { outline: 2px dashed rgba(255,210,63,0.7); outline-offset: 3px; background-color: rgba(255,255,255,0.18); }
+  .volt-touch.volt-editing [data-ctl].volt-sel { outline: 3px solid #ffd23f; }
+  .volt-ctlbar { position: fixed; top: 8px; left: 50%; transform: translateX(-50%); z-index: 9; background: rgba(11,9,18,0.94); border: 2px solid #d3bfa9; padding: 8px 10px; text-align: center; color: #e8f4ff; font: 700 12px "Courier New", ui-monospace, monospace; max-width: calc(100vw - 24px); box-sizing: border-box; }
+  .volt-ctlbar div { margin: 2px 0 6px; color: #c9c3d6; }
+  .volt-ctlbar div + div { margin: 0; display: flex; gap: 8px; align-items: center; justify-content: center; }
+  .volt-ctlbar button { margin: 0; padding: 8px 14px; min-width: 44px; border: 2px solid #ffd23f; border-radius: 0; background: #ffd23f; color: #05040a; font: 700 14px "Courier New", ui-monospace, monospace; }
+  .volt-ctlbar span { min-width: 76px; color: #ffd23f; }
   @media (pointer: coarse) and (max-height: 520px) {
     .volt-touch { padding: 6px max(14px, env(safe-area-inset-right, 0px)) max(8px, env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left, 0px)); }
     .volt-stick { width: 104px !important; height: 104px !important; opacity: 0.8; }
