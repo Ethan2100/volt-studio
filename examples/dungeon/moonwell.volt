@@ -24,7 +24,7 @@ canvas 320, 180
 // saves belong to the game, not to the page's address: itch.io gives every upload its own folder,
 // so without this every update you upload would start a brand new save
 # window.__voltSaveId = 'moonwell';
-# const __mwKeys = ['moonwell', 'pack', 'bank', 'best', 'skins', 'skin', 'deepest', 'codes', 'won', 'quests', 'shards', 'ctl', 'set', 'gear', 'stats', 'ach', 'secrets', 'true', 'layout'];
+# const __mwKeys = ['moonwell', 'pack', 'bank', 'best', 'skins', 'skin', 'deepest', 'codes', 'won', 'quests', 'shards', 'ctl', 'set', 'gear', 'stats', 'ach', 'secrets', 'true', 'layout', 'ench'];
 # window.__mwBox = function (mode) {
 #   const old = document.getElementById('mw-box'); if (old) old.remove();
 #   const box = document.createElement('div'); box.id = 'mw-box';
@@ -222,12 +222,20 @@ let shopRows = [
   "##.............7.....8....q..q..q..##",
   "##..1..2..9..0.....................##",
   "##.................................##",
-  "##...a..d..e......j..l..n..........##",
+  "##.................................##",
   "##........................q..q..q..##",
   "##..3...4..........................##",
   "##............y....................##",
   "##.................................##",
   "##..5...6.........P...L............##",
+  "##.................................##",
+  "##.................................##",
+  "##.................................##",
+  "##..a...d...e...j...l...n..........##",
+  "##.................................##",
+  "##.................................##",
+  "##..p....U....V....X....Y..........##",
+  "##.................................##",
   "##.................................##",
   "#####################################",
   "#####################################",
@@ -749,8 +757,12 @@ let wReach = [0, 0, 2, 9, 2, 0, 7, 0]
 let wW = [0, 10, 10, 10, 10, 8, 12, 8]
 let wH = [0, 21, 23, 37, 22, 30, 30, 30]
 // the shop: 1 healing potion, 2 heart vessel, 3-8 weapons 2-7, 9 strength potion, 10 fortune potion (0 on the map)
-let shopName = ["", "Healing Potion", "Heart Vessel", "Knight Sword", "Big Hammer", "Golden Sword", "Ember Staff", "Moonblade", "Starfall Staff", "Strength Potion", "Fortune Potion", "Swiftness Potion", "Ward Potion", "Bomb", "Whetstone", "Lucky Charm", "Vampire Fang"]
-let shopCost = [0, 8, 35, 25, 45, 70, 60, 500, 550, 30, 25, 30, 40, 15, 80, 90, 120]
+let shopName = ["", "Healing Potion", "Heart Vessel", "Knight Sword", "Big Hammer", "Golden Sword", "Ember Staff", "Moonblade", "Starfall Staff", "Strength Potion", "Fortune Potion", "Swiftness Potion", "Ward Potion", "Bomb", "Whetstone", "Lucky Charm", "Vampire Fang", "Flame Ward", "Tide Ward", "Shade Ward", "Searing Edge", "Featherstep"]
+let shopCost = [0, 8, 35, 25, 45, 70, 60, 500, 550, 30, 25, 30, 40, 15, 80, 90, 120, 60, 60, 60, 60, 60]
+let ench = [0, 0, 0, 0, 0]
+let hurtElem = 0
+let enchInfo = ["Resist fire: 40 / 70 / 100%.", "Resist water and frost: 40 / 70 / 100%.", "Resist dark magic: 40 / 70 / 100%.", "Hits may sear for +2: 15 / 30 / 45%.", "Dash recovers 8 frames faster per level."]
+let enchCol = ["#ff8a3d", "#4fd1ff", "#b57bff", "#ffd23f", "#7ee787"]
 let gearInfo = ["+1 sword damage. Up to 3 times.", "Coins are worth half again as much.", "Every 6th kill restores a half heart."]
 // ---------- the pack: potions you carry (B opens it) ----------
 let inv = [0, 0, 0, 0, 0, 0]   // healing, strength, fortune, swiftness, ward, bomb
@@ -1275,6 +1287,21 @@ fn buildLevel() {
         }
         add gItem to shItem
         keep = "1"
+      } else if floor == 0 and contains("pUVXY", ch) {
+        add tx to shx
+        add ty to shy
+        let eItem = 17
+        if ch == "U" {
+          eItem = 18
+        } else if ch == "V" {
+          eItem = 19
+        } else if ch == "X" {
+          eItem = 20
+        } else if ch == "Y" {
+          eItem = 21
+        }
+        add eItem to shItem
+        keep = "1"
       } else if contains("1234567890", ch) {
         add tx to shx
         add ty to shy
@@ -1386,6 +1413,7 @@ fn saveGame() {
   save "moonwell", data
   save "pack", inv
   save "gear", [smithLv, hasCharm, hasFang]
+  save "ench", ench
   save "stats", stats
   save "ach", ach
 }
@@ -1418,7 +1446,7 @@ fn enterFloor(f) {
     if deepest < vaultFloor {
       say("MAGE:\nMy vault stays sealed until you've\nreached floor " + vaultFloor + ". Its treasures are... special.")
     } else if wasLocked {
-      say("MAGE:\nYou've come far. The VAULT is open!\nThe Moonblade, the Starfall Staff... and\na Celestial look in the wardrobe.")
+      say("MAGE:\nYou've come far. The VAULT is open!\nThe Moonblade, the Starfall Staff... and\na Celestial look, and enchanting altars!")
     } else if not contains(owned, 6) or not contains(owned, 7) {
       say("MAGE:\nThe Moonblade, 500 gold. The Starfall Staff,\n550. Worth every coin, I promise.")
     }
@@ -1475,6 +1503,7 @@ fn newJourney() {
   smithLv = 0
   hasCharm = 0
   hasFang = 0
+  ench = [0, 0, 0, 0, 0]
   strT = 0
   goldT = 0
   playTime = 0
@@ -1512,6 +1541,10 @@ fn continueJourney() {
     smithLv = gear[0]
     hasCharm = gear[1]
     hasFang = gear[2]
+  }
+  ench = saved("ench", [0, 0, 0, 0, 0])
+  while length(ench) < 5 {
+    add 0 to ench
   }
   swiftT = 0
   wardN = 0
@@ -2252,9 +2285,39 @@ fn drawLights() {
 // =====================================================================
 //  The hero
 // =====================================================================
+fn enchCost(i) {
+  return [60, 120, 200][ench[i]]
+}
+
+// which element a monster fights with: 1 fire, 2 water, 3 dark, 0 plain steel
+fn kindElem(k) {
+  if contains([4, 5, 13, 18, 23], k) {
+    return 1
+  }
+  if contains([7, 8, 15, 21, 24], k) {
+    return 2
+  }
+  if contains([2, 6, 10, 11, 12, 16, 19, 20], k) {
+    return 3
+  }
+  return 0
+}
+
 fn hurtHero(amount, fromX, fromY) {
+  let elem = hurtElem
+  hurtElem = 0
   if hurt > 0 or dash > 0 or dying > 0 or mode != 1 {
     return 0
+  }
+  if elem > 0 and ench[elem - 1] > 0 {
+    if random(1, 100) <= [0, 40, 70, 100][ench[elem - 1]] {
+      hurt = 30
+      shake = 3
+      sound sndHit volume 50
+      burst(hx + 5, hy - 4, 10, enchCol[elem - 1], 22)
+      effect(13, hx + 5, hy - 6, 12, enchCol[elem - 1], 90, 120, random(0, 90), 0)
+      return 0
+    }
   }
   if wardN > 0 {
     wardN -= 1
@@ -2529,6 +2592,10 @@ fn hitEnemy(n, dmg, pushX, pushY) {
   }
   if strT > 0 and weapon != 6 {
     hit = hit * 2
+  }
+  if ench[3] > 0 and random(1, 100) <= ench[3] * 15 {
+    hit += 2
+    burst(ex[n] + enemyW(k) / 2, ey[n] + enemyH(k) / 2, 8, "#ff8a3d", 20)
   }
   ehp[n] -= hit
   ehurt[n] = 12
@@ -2952,6 +3019,19 @@ fn buy(item) {
     say("Five hearts is as strong as a knight gets.")
     return 0
   }
+  if item >= 17 {
+    if not vaultOpen() {
+      sound sndLocked
+      say("The altars are sealed. Reach floor " + vaultFloor + "\nand the mage will wake them.")
+      return 0
+    }
+    if ench[item - 17] >= 3 {
+      sound sndNope
+      say("The " + shopName[item] + " enchantment is at its\npeak (level 3).")
+      return 0
+    }
+    cost = enchCost(item - 17)
+  }
   if item == 14 and smithLv >= 3 {
     sound sndNope
     say("The blade can't be honed any sharper.")
@@ -2982,6 +3062,10 @@ fn buy(item) {
       packTip = true
       say("It goes in your pack. Press B to open it.\n1 2 3 4 5 drink potions, G drops a bomb.")
     }
+  } else if item >= 17 {
+    ench[item - 17] += 1
+    sound jingleTreasure
+    say(upper(shopName[item]) + " is now level " + ench[item - 17] + "!\n" + enchInfo[item - 17])
   } else if item == 14 {
     smithLv += 1
     sound jingleTreasure
@@ -3346,9 +3430,9 @@ fn pressZ() {
   }
   if dashCool == 0 and swing == 0 {
     dash = 9
-    dashCool = 36
+    dashCool = 36 - ench[4] * 8
     if skin == 1 {
-      dashCool = 20
+      dashCool = 20 - ench[4] * 4
     }
     sound sndDash
     if skin == 5 {
@@ -3573,6 +3657,7 @@ fn updateEnemies() {
     }
     // touching the hero hurts
     if overlap(hx, hy, 10, 8, ex[n] - 2, ey[n] - 2, w + 4, h + 4) {
+      hurtElem = kindElem(k)
       hurtHero(kindHit[k], ex[n] + w / 2, ey[n] + h / 2)
     }
     if ehp[n] <= 0 {
@@ -3990,6 +4075,7 @@ fn updateFireballs() {
       gone = true
       burst(px, py, 5, bcol[n], 14)
     } else if overlap(hx, hy - 12, 10, 20, px - 3, py - 3, 6, 6) {
+      hurtElem = kindElem(bossKind)
       hurtHero(1, px, py)
       gone = true
     }
@@ -4761,6 +4847,10 @@ fn drawCampFloor() {
   rug(13, 3, 11, 5, "#2c2a40")
   rug(24, 4, 11, 11, "#24303a")
   rug(2, 9, 8, 7, "#3a2530")
+  rug(2, 16, 27, 4, "#2a2a30")
+  rug(2, 20, 27, 4, "#2a2440")
+  write "CURIOS" at 15 * 16, 16 * 16 + 4 centered color "#c9c3d6"
+  write "ENCHANTING" at 15 * 16, 20 * 16 + 4 centered color "#b57bff"
   write "SUPPLIES" at 6 * 16, 5 * 16 + 4 centered color "#c9a27e"
   write "VAULT" at 18 * 16 + 8, 3 * 16 + 4 centered color "#ffd23f"
   write "WARDROBE" at 29 * 16 + 8, 4 * 16 + 4 centered color "#9bd3ff"
@@ -4830,6 +4920,14 @@ fn drawIcon(it, x, y, dim) {
     } else {
       box x + 11, y + 1, 2, 2 color "#ff6a1f" + sf
     }
+  } else if it >= 17 {
+    let bc = enchCol[it - 17]
+    box x + 3, y + 2, 11, 13 color "#2a2036" + sf
+    box x + 4, y + 3, 9, 11 color bc + sf
+    box x + 3, y + 2, 2, 13 color "#00000066"
+    box x + 6, y + 5, 5, 1 color "#ffffff" + "99"
+    box x + 6, y + 8, 5, 1 color "#ffffff" + "99"
+    box x + 6, y + 11, 3, 1 color "#ffffff" + "99"
   } else if it == 14 {
     box x + 2, y + 8, 12, 5 color "#8a8f99" + sf
     box x + 2, y + 8, 12, 1 color "#c0c5cf" + sf
@@ -5120,10 +5218,10 @@ fn drawShop() {
     let y = shy[n] * 16
     let item = shItem[n]
     let bob = (tick / 16 + n) % 2
-    let sold = (item >= 3 and item <= 8 and contains(owned, item - 1)) or (item == 14 and smithLv >= 3) or (item == 15 and hasCharm == 1) or (item == 16 and hasFang == 1)
+    let sold = (item >= 17 and ench[item - 17] >= 3) or (item >= 3 and item <= 8 and contains(owned, item - 1)) or (item == 14 and smithLv >= 3) or (item == 15 and hasCharm == 1) or (item == 16 and hasFang == 1)
     // a stone pedestal (the vault's have a gold trim)
     box x + 1, y + 6, 14, 10 color "#6b5b55"
-    let locked = (item == 7 or item == 8) and not vaultOpen()
+    let locked = ((item == 7 or item == 8) or item >= 17) and not vaultOpen()
     if item == 7 or item == 8 {
       box x + 1, y + 6, 14, 2 color "#c9a227"
       box x + 1, y + 15, 14, 1 color "#c9a227"
@@ -5161,6 +5259,8 @@ fn drawShop() {
       write "FLOOR " + vaultFloor at x + 8, y + 20 centered color "#8a7a6a" shadow
     } else if sold {
       box x + 6, y + 21, 4, 4 color "#7ee787"
+    } else if item >= 17 {
+      write "L" + (ench[item - 17] + 1) + " " + enchCost(item - 17) at x + 8, y + 20 centered color "#ffd23f" shadow
     } else {
       write "" + shopCost[item] at x + 8, y + 20 centered color "#ffd23f" shadow
     }
@@ -5283,6 +5383,16 @@ fn drawShopInfo() {
     write wInfo[shopNear - 1] at 175, 160 + oy centered color "#c9c3d6"
     return 0
   }
+  if shopNear >= 17 and not vaultOpen() {
+    write "Sealed altar" at 175, 149 + oy centered color "#8a7a6a"
+    write "It wakes once you reach floor " + vaultFloor + "." at 175, 160 + oy centered color "#c9c3d6"
+    return 0
+  }
+  if shopNear >= 17 and ench[shopNear - 17] >= 3 {
+    write shopName[shopNear] + " - level 3 (max)" at 175, 149 + oy centered color "#7ee787"
+    write enchInfo[shopNear - 17] at 175, 160 + oy centered color "#c9c3d6"
+    return 0
+  }
   if (shopNear == 14 and smithLv >= 3) or (shopNear == 15 and hasCharm == 1) or (shopNear == 16 and hasFang == 1) {
     write shopName[shopNear] + " - yours" at 175, 149 + oy centered color "#7ee787"
     write gearInfo[shopNear - 14] at 175, 160 + oy centered color "#c9c3d6"
@@ -5290,6 +5400,8 @@ fn drawShopInfo() {
   }
   if shopNear == 2 {
     info = "One more heart, for good."
+  } else if shopNear >= 17 {
+    info = enchInfo[shopNear - 17]
   } else if shopNear >= 14 {
     info = gearInfo[shopNear - 14]
     if shopNear == 14 {
@@ -5302,7 +5414,11 @@ fn drawShopInfo() {
   } else if shopNear >= 3 {
     info = wInfo[shopNear - 1]
   }
-  write shopName[shopNear] + " - " + shopCost[shopNear] + " gold   (X to buy)" at 175, 149 + oy centered color "#ffd23f"
+  if shopNear >= 17 {
+    write shopName[shopNear] + " Lv" + (ench[shopNear - 17] + 1) + " - " + enchCost(shopNear - 17) + " gold   (X)" at 175, 149 + oy centered color "#ffd23f"
+  } else {
+    write shopName[shopNear] + " - " + shopCost[shopNear] + " gold   (X to buy)" at 175, 149 + oy centered color "#ffd23f"
+  }
   write info at 175, 160 + oy centered color "#c9c3d6"
 }
 
