@@ -1192,7 +1192,7 @@ const GAME_RUNTIME = [
   "    left = document.createElement('div'); left.className = 'volt-dpad';",
   "    left.append(btn('\u25b2', 'up', 'u'), btn('\u25c0', 'left', 'l'), btn('\u25b6', 'right', 'r'), btn('\u25bc', 'down', 'd'));",
   "  }",
-  "  const acts = document.createElement('div'); acts.className = 'volt-acts';",
+  "  const acts = document.createElement('div'); acts.className = 'volt-acts' + (keys.length === 5 ? ' volt-acts5' : '');",
   "  keys.forEach((k, i) => acts.append(btn(String(k).toUpperCase(), k, 'a', art.icons && art.icons[i])));",
   "  pad.append(left, acts);",
   "  document.body.appendChild(pad);",
@@ -1336,6 +1336,14 @@ const GAME_CSS = `  body.volt-game { background: #000; overflow: hidden; }
   .volt-acts { display: flex; gap: 14px; align-items: end; }
   .volt-acts button { width: 56px; height: 56px; }
   .volt-acts button:nth-child(2) { margin-bottom: 34px; }
+  /* five buttons: a thumb cluster in two rows, the first key (the main action) big at the bottom right */
+  .volt-acts5 { display: grid; grid-template-columns: repeat(3, 58px); grid-template-rows: repeat(2, 58px); gap: 14px 12px; align-items: center; justify-items: center; }
+  .volt-acts5 button { width: 58px; height: 58px; margin: 0 !important; }
+  .volt-acts5 button:nth-child(1) { grid-area: 2 / 3; width: 70px; height: 70px; }
+  .volt-acts5 button:nth-child(2) { grid-area: 2 / 2; }
+  .volt-acts5 button:nth-child(3) { grid-area: 1 / 3; }
+  .volt-acts5 button:nth-child(4) { grid-area: 1 / 2; }
+  .volt-acts5 button:nth-child(5) { grid-area: 1 / 1; }
   .volt-touch button.volt-art { background: center / contain no-repeat; border: 0; display: grid; place-items: center; }
   .volt-touch button img { width: 46%; height: 46%; pointer-events: none; }
   .volt-touch button.volt-down { transform: scale(0.92); filter: brightness(1.35); }
@@ -1345,6 +1353,9 @@ const GAME_CSS = `  body.volt-game { background: #000; overflow: hidden; }
     .volt-acts { gap: 8px; }
     .volt-acts button { width: 46px; height: 46px; opacity: 0.8; }
     .volt-acts button:nth-child(2n) { margin-bottom: 26px; }
+    .volt-acts5 { grid-template-columns: repeat(3, 50px); grid-template-rows: repeat(2, 50px); gap: 10px 10px; }
+    .volt-acts5 button { width: 50px; height: 50px; opacity: 0.85; }
+    .volt-acts5 button:nth-child(1) { width: 62px; height: 62px; }
   }
   .volt-stick { position: relative; width: 132px; height: 132px; display: grid; place-items: center; background: center / contain no-repeat; pointer-events: auto; touch-action: none; }
   .volt-nub { width: 48%; height: 48%; pointer-events: none; }

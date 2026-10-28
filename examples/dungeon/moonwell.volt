@@ -5807,7 +5807,7 @@ fn drawHelpPhone() {
     write uses[r] at 98, ry + 3 color "#c9c3d6"
     r += 1
   }
-  write "SWORD closes.  Reopen: PACK, SWITCH, CONTROLS" at 160, 128 centered color "#9a8fb0"
+  write "SWORD: close   (reopen: PACK, SWITCH)" at 160, 128 centered color "#9a8fb0"
 }
 
 // the pack: three slots, one potion kind each
