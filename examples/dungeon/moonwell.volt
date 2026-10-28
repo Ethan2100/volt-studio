@@ -229,14 +229,14 @@ let shopRows = [
   "##.................................##",
   "##..5...6.........P...L............##",
   "##.................................##",
-  "##.................................##",
-  "##.................................##",
-  "##..a...d...e...j...l...n..........##",
-  "##.................................##",
-  "##.................................##",
-  "##..p....U....V....X....Y..........##",
-  "##.................................##",
-  "##.................................##",
+  "#################...#################",
+  "#################...#################",
+  "########.u.................u.########",
+  "########.....................########",
+  "########..a..d..e..j..l..n...########",
+  "########.....................########",
+  "########.....................########",
+  "#####################################",
   "#####################################",
   "#####################################",
 ]
@@ -1446,7 +1446,7 @@ fn enterFloor(f) {
     if deepest < vaultFloor {
       say("MAGE:\nMy vault stays sealed until you've\nreached floor " + vaultFloor + ". Its treasures are... special.")
     } else if wasLocked {
-      say("MAGE:\nYou've come far. The VAULT is open!\nThe Moonblade, the Starfall Staff... and\na Celestial look, and enchanting altars!")
+      say("MAGE:\nYou've come far. The VAULT is open!\nThe Moonblade, the Starfall Staff... and\na Celestial look... and I can enchant your\ngear. Just talk to me!")
     } else if not contains(owned, 6) or not contains(owned, 7) {
       say("MAGE:\nThe Moonblade, 500 gold. The Starfall Staff,\n550. Worth every coin, I promise.")
     }
@@ -1596,7 +1596,7 @@ fn openSettings() {
   if setOpen {
     return 0
   }
-  if (mode != 0 and mode != 1) or length(msgs) > 0 or dying > 0 or typingCode or cutT > 0 or ctlEditing {
+  if (mode != 0 and mode != 1) or length(msgs) > 0 or dying > 0 or typingCode or cutT > 0 or ctlEditing or enchOpen {
     return 0
   }
   invOpen = false
@@ -1727,6 +1727,9 @@ fn toggleHelp() {
 }
 
 fn toggleInv() {
+  if enchOpen {
+    return 0
+  }
   if setOpen {
     closeSettings()
     return 0
@@ -1747,6 +1750,9 @@ fn toggleInv() {
 }
 
 fn invMove(d) {
+  if enchOpen {
+    return 0
+  }
   if setOpen {
     setAdjust(d)
     return 0
@@ -1759,7 +1765,7 @@ fn invMove(d) {
 }
 
 fn usePotion(slot) {
-  if helpOpen {
+  if helpOpen or enchOpen {
     return 0
   }
   if mode != 1 or length(msgs) > 0 or dying > 0 {
@@ -2026,7 +2032,7 @@ fn clearEffects() {
 //  Underlings: press V to raise ghostly skeletons that fight for you
 // =====================================================================
 fn summon() {
-  if invOpen or helpOpen or setOpen or achOpen or statsOpen {
+  if invOpen or helpOpen or setOpen or achOpen or statsOpen or enchOpen {
     return 0
   }
   if mode != 1 or length(msgs) > 0 or dying > 0 {
@@ -2285,6 +2291,108 @@ fn drawLights() {
 // =====================================================================
 //  The hero
 // =====================================================================
+
+// ---------- the mage's enchanting menu ----------
+let enchOpen = false
+let enchSel = 0
+
+fn openEnch() {
+  if mode != 1 or length(msgs) > 0 or dying > 0 or setOpen or invOpen or helpOpen {
+    return 0
+  }
+  enchOpen = true
+  enchSel = 0
+  sound sndSwitch volume 50
+}
+
+fn closeEnch() {
+  enchOpen = false
+  sound sndSwitch volume 50
+}
+
+fn enchMove(d) {
+  enchSel = (enchSel + d + 6) % 6
+  sound sndTick volume 40
+}
+
+fn enchBuy() {
+  if enchSel >= 5 {
+    closeEnch()
+    return 0
+  }
+  let e = enchSel
+  if ench[e] >= 3 {
+    sound sndNope
+    showToast(shopName[17 + e] + " is at its peak")
+    return 0
+  }
+  let cost = enchCost(e)
+  if coins < cost {
+    sound sndNope
+    showToast("That's " + cost + " gold. You have " + coins + ".")
+    return 0
+  }
+  coins -= cost
+  ench[e] += 1
+  sound jingleTreasure
+  burst(hx + 5, hy - 8, 16, enchCol[e], 22)
+  effect(16, hx + 5, hy - 6, 30, enchCol[e], 30, 110, 0, 4)
+  saveGame()
+  showToast(shopName[17 + e] + " is now level " + ench[e])
+}
+
+fn drawEnch() {
+  box 0, 0, 320, 180 color "#000000b0"
+  box 32, 8, 256, 148 color "#0b0912f4"
+  box 32, 8, 256, 1 color "#d3bfa9"
+  box 32, 155, 256, 1 color "#d3bfa9"
+  box 32, 8, 1, 148 color "#d3bfa9"
+  box 287, 8, 1, 148 color "#d3bfa9"
+  write "THE MAGE'S ENCHANTING" at 160, 14 centered color "#b57bff" shadow
+  write "" + coins + " gold" at 160, 25 centered color "#ffd23f"
+  let r = 0
+  while r < 6 {
+    let ry = 40 + r * 15
+    if r == enchSel {
+      box 36, ry - 3, 248, 14 color "#2a2036"
+      box 36, ry - 3, 2, 14 color "#ffd23f"
+    }
+    let col = "#c9c3d6"
+    if r == enchSel {
+      col = "#ffd23f"
+    }
+    if r < 5 {
+      box 44, ry - 1, 8, 10 color enchCol[r]
+      write shopName[17 + r] at 58, ry color col
+      let pip = 0
+      while pip < 3 {
+        let pc = "#3a3346"
+        if pip < ench[r] {
+          pc = enchCol[r]
+        }
+        box 168 + pip * 12, ry + 1, 9, 6 color pc
+        pip += 1
+      }
+      if ench[r] >= 3 {
+        write "MAX" at 222, ry color "#7ee787"
+      } else {
+        write enchCost(r) + " gold" at 222, ry color "#ffd23f"
+      }
+    } else {
+      write "CLOSE" at 58, ry color col
+    }
+    r += 1
+  }
+  if enchSel < 5 {
+    write enchInfo[enchSel] at 160, 133 centered color "#c9c3d6"
+  }
+  if touch {
+    write "Stick: choose   SWORD: buy" at 160, 145 centered color "#9a8fb0"
+  } else {
+    write "Up/Down: choose   X: buy   Z: close" at 160, 145 centered color "#9a8fb0"
+  }
+}
+
 fn enchCost(i) {
   return [60, 120, 200][ench[i]]
 }
@@ -2811,7 +2919,7 @@ fn starBurst(px, py) {
 }
 
 fn switchWeapon() {
-  if invOpen or helpOpen or setOpen or achOpen or statsOpen {
+  if invOpen or helpOpen or setOpen or achOpen or statsOpen or enchOpen {
     return 0
   }
   if mode != 1 or length(owned) < 2 or swing > 0 {
@@ -2840,6 +2948,10 @@ fn giveWeapon(wid) {
 
 // X: talk, open, buy, climb, or swing
 fn pressX() {
+  if enchOpen {
+    enchBuy()
+    return 0
+  }
   if setOpen {
     setAct()
     return 0
@@ -2929,7 +3041,11 @@ fn pressX() {
   }
   // the mage?
   if floor == 0 and abs(mageX * 16 + 8 - cx) < 24 and abs(mageY * 16 + 8 - cy) < 26 {
-    say("MAGE:\nStand by a pedestal and press X to buy.\nPress C to switch between your weapons.")
+    if vaultOpen() {
+      openEnch()
+    } else {
+      say("MAGE:\nStand by a pedestal and press X to buy.\nReach floor " + vaultFloor + " and I'll teach you enchanting.")
+    }
     return 0
   }
   // a traveller?
@@ -3404,6 +3520,10 @@ fn wardrobe(n) {
 }
 
 fn pressZ() {
+  if enchOpen {
+    closeEnch()
+    return 0
+  }
   if setOpen {
     closeSettings()
     return 0
@@ -4847,10 +4967,9 @@ fn drawCampFloor() {
   rug(13, 3, 11, 5, "#2c2a40")
   rug(24, 4, 11, 11, "#24303a")
   rug(2, 9, 8, 7, "#3a2530")
-  rug(2, 16, 27, 4, "#2a2a30")
-  rug(2, 20, 27, 4, "#2a2440")
-  write "CURIOS" at 15 * 16, 16 * 16 + 4 centered color "#c9c3d6"
-  write "ENCHANTING" at 15 * 16, 20 * 16 + 4 centered color "#b57bff"
+  rug(8, 18, 21, 5, "#2a2a30")
+  write "CURIOS SHOP" at 18 * 16 + 8, 18 * 16 + 4 centered color "#c9c3d6"
+  write "CURIOS" at 18 * 16 + 8, 15 * 16 + 8 centered color "#9a8fb0"
   write "SUPPLIES" at 6 * 16, 5 * 16 + 4 centered color "#c9a27e"
   write "VAULT" at 18 * 16 + 8, 3 * 16 + 4 centered color "#ffd23f"
   write "WARDROBE" at 29 * 16 + 8, 4 * 16 + 4 centered color "#9bd3ff"
@@ -5211,6 +5330,9 @@ fn drawShop() {
   // the mage, behind the vault
   box mageX * 16 + 2, mageY * 16 + 12, 12, 3 color "#00000055"
   draw mage at mageX * 16, mageY * 16 - 6 frame tick / 9 flipped
+  if vaultOpen() {
+    write "*" at mageX * 16 + 8, mageY * 16 - 14 - (tick / 14) % 2 centered color "#b57bff" shadow
+  }
   let n = 0
   let near = -1
   while n < length(shx) {
@@ -6158,7 +6280,9 @@ when key "i" pressed {
   toggleInv()
 }
 when key "escape" pressed {
-  if setOpen {
+  if enchOpen {
+    closeEnch()
+  } else if setOpen {
     closeSettings()
   } else if achOpen or statsOpen {
     achOpen = false
@@ -6178,22 +6302,30 @@ when key "o" pressed {
   }
 }
 when key "up" pressed {
-  if setOpen {
+  if enchOpen {
+    enchMove(-1)
+  } else if setOpen {
     setMove(-1)
   }
 }
 when key "down" pressed {
-  if setOpen {
+  if enchOpen {
+    enchMove(1)
+  } else if setOpen {
     setMove(1)
   }
 }
 when key "w" pressed {
-  if setOpen {
+  if enchOpen {
+    enchMove(-1)
+  } else if setOpen {
     setMove(-1)
   }
 }
 when key "s" pressed {
-  if setOpen {
+  if enchOpen {
+    enchMove(1)
+  } else if setOpen {
     setMove(1)
   }
 }
@@ -6258,7 +6390,7 @@ every frame {
   } else {
     if cutT > 0 {
       playCut()
-    } else if mode == 1 and length(msgs) == 0 and not invOpen and not helpOpen and not setOpen and not achOpen and not statsOpen and not ctlEditing {
+    } else if mode == 1 and length(msgs) == 0 and not invOpen and not helpOpen and not setOpen and not achOpen and not statsOpen and not ctlEditing and not enchOpen {
       update()
     }
     updateSparks()
@@ -6292,6 +6424,9 @@ every frame {
   }
   if setOpen {
     drawSettings()
+  }
+  if enchOpen {
+    drawEnch()
   }
   if achOpen {
     drawAch()
