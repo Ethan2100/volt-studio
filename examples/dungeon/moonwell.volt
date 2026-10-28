@@ -761,7 +761,7 @@ let shopName = ["", "Healing Potion", "Heart Vessel", "Knight Sword", "Big Hamme
 let shopCost = [0, 8, 35, 25, 45, 70, 60, 500, 550, 30, 25, 30, 40, 15, 80, 90, 120, 60, 60, 60, 60, 60]
 let ench = [0, 0, 0, 0, 0]
 let hurtElem = 0
-let enchInfo = ["Resist fire: 40 / 70 / 100%.", "Resist water and frost: 40 / 70 / 100%.", "Resist dark magic: 40 / 70 / 100%.", "Hits may sear for +2: 15 / 30 / 45%.", "Dash recovers 8 frames faster per level."]
+let enchInfo = ["Resist fire damage.", "Resist water and frost damage.", "Resist dark magic and the undead.", "Chance for a hit to sear for +2.", "Your dash recovers faster."]
 let enchCol = ["#ff8a3d", "#4fd1ff", "#b57bff", "#ffd23f", "#7ee787"]
 let gearInfo = ["+1 sword damage. Up to 3 times.", "Coins are worth half again as much.", "Every 6th kill restores a half heart."]
 // ---------- the pack: potions you carry (B opens it) ----------
@@ -2341,55 +2341,78 @@ fn enchBuy() {
   showToast(shopName[17 + e] + " is now level " + ench[e])
 }
 
+fn enchVal(e, lv) {
+  if e <= 2 {
+    return "" + [0, 40, 70, 100][lv] + "%"
+  }
+  if e == 3 {
+    return "" + [0, 15, 30, 45][lv] + "%"
+  }
+  return "-" + (lv * 8) + " frames"
+}
+
 fn drawEnch() {
-  box 0, 0, 320, 180 color "#000000b0"
-  box 32, 8, 256, 148 color "#0b0912f4"
-  box 32, 8, 256, 1 color "#d3bfa9"
-  box 32, 155, 256, 1 color "#d3bfa9"
-  box 32, 8, 1, 148 color "#d3bfa9"
-  box 287, 8, 1, 148 color "#d3bfa9"
-  write "THE MAGE'S ENCHANTING" at 160, 14 centered color "#b57bff" shadow
-  write "" + coins + " gold" at 160, 25 centered color "#ffd23f"
+  box 0, 0, 320, 180 color "#0b0912"
+  write "THE MAGE'S ENCHANTING" at 160, 5 centered color "#b57bff" shadow
+  box 10, 16, 300, 1 color "#3a2f3a"
+  write coins + " gold" at 308 - length("" + coins + " gold") * 6, 21 color "#ffd23f"
   let r = 0
   while r < 6 {
-    let ry = 40 + r * 15
-    if r == enchSel {
-      box 36, ry - 3, 248, 14 color "#2a2036"
-      box 36, ry - 3, 2, 14 color "#ffd23f"
+    let ry = 33 + r * 17
+    let isSel = r == enchSel
+    if isSel {
+      box 10, ry - 1, 300, 16 color "#2a2036"
+      box 10, ry - 1, 2, 16 color "#ffd23f"
+    } else if r % 2 == 0 {
+      box 10, ry - 1, 300, 16 color "#15101e"
     }
     let col = "#c9c3d6"
-    if r == enchSel {
+    if isSel {
       col = "#ffd23f"
     }
     if r < 5 {
-      box 44, ry - 1, 8, 10 color enchCol[r]
-      write shopName[17 + r] at 58, ry color col
+      drawIcon(17 + r, 16, ry - 1, false)
+      write shopName[17 + r] at 40, ry + 4 color col
       let pip = 0
       while pip < 3 {
         let pc = "#3a3346"
         if pip < ench[r] {
           pc = enchCol[r]
         }
-        box 168 + pip * 12, ry + 1, 9, 6 color pc
+        box 170 + pip * 13, ry + 4, 10, 7 color pc
         pip += 1
       }
       if ench[r] >= 3 {
-        write "MAX" at 222, ry color "#7ee787"
+        write "MAX" at 296 - 18, ry + 4 color "#7ee787"
       } else {
-        write enchCost(r) + " gold" at 222, ry color "#ffd23f"
+        let c = "" + enchCost(r) + " gold"
+        let cc = "#ffd23f"
+        if coins < enchCost(r) {
+          cc = "#a0586a"
+        }
+        write c at 304 - length(c) * 6, ry + 4 color cc
       }
     } else {
-      write "CLOSE" at 58, ry color col
+      write "CLOSE" at 40, ry + 4 color col
     }
     r += 1
   }
+  box 10, 140, 300, 22 color "#15101e"
   if enchSel < 5 {
-    write enchInfo[enchSel] at 160, 133 centered color "#c9c3d6"
+    write enchInfo[enchSel] at 160, 143 centered color "#c9c3d6"
+    let lv = ench[enchSel]
+    if lv >= 3 {
+      write "Level 3: " + enchVal(enchSel, 3) + " (max)" at 160, 152 centered color "#7ee787"
+    } else {
+      write "Now " + enchVal(enchSel, lv) + "   Next " + enchVal(enchSel, lv + 1) at 160, 152 centered color "#ffd23f"
+    }
+  } else {
+    write "Leave the mage's table." at 160, 147 centered color "#9a8fb0"
   }
   if touch {
-    write "Stick: choose   SWORD: buy" at 160, 145 centered color "#9a8fb0"
+    write "Stick: choose   SWORD: buy" at 160, 168 centered color "#9a8fb0"
   } else {
-    write "Up/Down: choose   X: buy   Z: close" at 160, 145 centered color "#9a8fb0"
+    write "Up/Down: choose   X: buy   Z: close" at 160, 168 centered color "#9a8fb0"
   }
 }
 
