@@ -1,13 +1,13 @@
 #c++
 // Lacrimosa - Arduino buzzer rendition
 //
-// Mozart's "Lacrimosa" (Requiem in D minor, K.626, 1791) is public
-// domain. An Arduino `tone()` can only play one note at a time, so
+// Mozarts Lacrimosa (Requiem in D minor, K.626, 1791) is public
+// domain. An Arduino tone() can only play one note at a time, so
 // this is my own single-voice transcription of the famous choral
-// theme's melodic shape (the rising-then-falling "sigh" figures in
+// themes melodic shape (the rising-then-falling sigh figures in
 // D minor) - not a note-for-note copy of the orchestral score.
 //
-// Wiring: buzzer/speaker signal lead -> pin 9, other lead -> GND.
+// Wiring: buzzer/speaker signal lead to pin 9, other lead to GND.
 // Use a PASSIVE buzzer/speaker (one that needs tone() to make any
 // pitch at all) - a simple on/off piezo can only click, not sing.
 
@@ -34,7 +34,7 @@ fn rest(dur) {
 }
 
 fn lacrimosa() {
-  // Phrase 1: "La-cri-mo-sa, di-es il-la"
+  // Phrase 1: La-cri-mo-sa, di-es il-la
   note(A4, 500)
   note(A4, 250)
   note(Bb4, 250)
@@ -54,7 +54,7 @@ fn lacrimosa() {
   note(D4, 750)
   rest(300)
 
-  // Phrase 3: "Quae re-sur-get ex fa-vil-la" - rising
+  // Phrase 3: Quae re-sur-get ex fa-vil-la - rising
   note(D4, 250)
   note(E4, 250)
   note(F4, 250)
@@ -64,7 +64,7 @@ fn lacrimosa() {
   note(C5, 750)
   rest(150)
 
-  // Phrase 4: "Judicandus homo reus" - the climax, then falling back
+  // Phrase 4: Judicandus homo reus - the climax, then falling back
   note(D5, 500)
   note(C5, 250)
   note(Bb4, 250)
