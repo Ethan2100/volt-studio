@@ -1,20 +1,29 @@
 // =====================================================================
 // Wyrmwood Reach - an open-world magic-swords-fantasy mini adventure.
 //
+// You wake up in Last Ember, a cozy little village you don't remember -
+// the classic "pulled into another world" beginning. An elder, a ranger
+// and a villager will tell you what little they know, pick a calling
+// (Warrior, Mage or Tank), and set out to clear the wyrm-touched
+// creatures from the wilds around the lake.
+//
 // One big continuous overworld (not floor-by-floor like Moonwell) - free
-// roam, a lake with a bridge, scattered forest, goblins/skeletons/slimes
-// to fight with a sword or a magic bolt, coins and potions to find, and
-// one sword upgrade hidden out there somewhere.
+// roam, a village with a lore-filled lake, a bridge, scattered forest,
+// goblins/skeletons/slimes to fight, coins and potions to find, and one
+// weapon upgrade hidden out there somewhere.
 //
-// Art: the ground tiles (grass/path/water/trees/rocks/...) are a small
-// original tileset at terrain.png, right next to this file. Everything
-// else - the knight, the weapons, the monsters, the potions, the touch
-// controls - reuses examples/dungeon/dungeon.png and examples/dungeon/
-// controls/*.png (the same CC0 tileset Moonwell is built from), so this
-// plays well on a phone too.
+// Art: the ground tiles (grass/path/water/trees/town buildings/...) are
+// a small original tileset at terrain.png, right next to this file,
+// built with hand-shaded blotchy texture and jagged organic shorelines
+// instead of flat noise. Everything else - the knight, the weapons, the
+// monsters, the villagers, the potions, the touch controls - reuses
+// examples/dungeon/dungeon.png and examples/dungeon/controls/*.png (the
+// same CC0 tileset Moonwell is built from), so this plays well on a
+// phone too.
 //
-// Controls: WASD/arrows to move, Space to swing your sword, F to cast a
-// magic bolt (costs mana, which slowly regenerates).
+// Controls: 1/2/3 to pick your calling at the start. WASD/arrows to
+// move, Space to attack, F to cast a magic bolt (costs mana, which
+// slowly regenerates), E near a villager or sign to read.
 // =====================================================================
 #html
 
@@ -29,18 +38,39 @@ sprite grass = terrain at 0, 0 size 16, 16
 sprite grassFlowers = terrain at 16, 0 size 16, 16
 sprite path = terrain at 32, 0 size 16, 16
 sprite sand = terrain at 48, 0 size 16, 16
-sprite water = terrain at 0, 16 size 16, 16
-sprite treeTile = terrain at 16, 16 size 16, 16
-sprite rockTile = terrain at 48, 16 size 16, 16
-sprite bridge = terrain at 0, 32 size 16, 16
-sprite flowerPatch = terrain at 16, 32 size 16, 16
-sprite signpost = terrain at 32, 32 size 16, 16
+sprite treeTile = terrain at 64, 0 size 16, 16
+
+sprite rockTile = terrain at 0, 16 size 16, 16
+sprite water = terrain at 16, 16 size 16, 16
+sprite bridge = terrain at 32, 16 size 16, 16
+sprite flowerPatch = terrain at 48, 16 size 16, 16
+sprite signpost = terrain at 64, 16 size 16, 16
+
+sprite waterEdgeTop = terrain at 0, 32 size 16, 16
+sprite waterEdgeBottom = terrain at 16, 32 size 16, 16
+sprite waterEdgeLeft = terrain at 32, 32 size 16, 16
+sprite waterEdgeRight = terrain at 48, 32 size 16, 16
+sprite woodFloor = terrain at 64, 32 size 16, 16
+
+sprite stoneWall = terrain at 0, 48 size 16, 16
+sprite roofTile = terrain at 16, 48 size 16, 16
+sprite doorTile = terrain at 32, 48 size 16, 16
+sprite cobblestone = terrain at 48, 48 size 16, 16
+sprite fenceTile = terrain at 64, 48 size 16, 16
 
 // ------------------------- characters & monsters -------------------------
 sprite knightIdle = tiles at 128, 106 size 16, 22 frames 4
 sprite knightRun = tiles at 192, 106 size 16, 22 frames 4
 sprite rustySword = tiles at 307, 26 size 10, 21
 sprite goldSword = tiles at 291, 153 size 10, 22
+sprite hammer = tiles at 291, 42 size 10, 37
+sprite staff = tiles at 324, 145 size 8, 30
+sprite starStaff = tiles at 340, 145 size 8, 30
+
+sprite ladyIdle = tiles at 128, 74 size 16, 22 frames 4
+sprite elfIdle = tiles at 128, 42 size 16, 22 frames 4
+sprite sorcIdle = tiles at 128, 132 size 16, 28 frames 4
+
 sprite goblinIdle = tiles at 368, 37 size 16, 11 frames 4
 sprite goblinRun = tiles at 432, 37 size 16, 11 frames 4
 sprite skelIdle = tiles at 368, 80 size 16, 16 frames 4
@@ -52,41 +82,67 @@ sprite coin = tiles at 288, 272 size 8, 8 frames 4
 sprite flask = tiles at 288, 240 size 16, 16
 sprite flaskG = tiles at 320, 240 size 16, 16
 
+// ================================ lore ===================================
+let introLines = [
+  "You don't remember falling asleep.",
+  "You remember falling - through stars,",
+  "through someone else's dying wish - and",
+  "then grass, and the smell of woodsmoke.",
+  "",
+  "They call this place Wyrmwood Reach.",
+  "They call the village Last Ember.",
+  "They say you were sent for a reason.",
+  "",
+  "Choose how you'll carry that reason."
+]
+
+let signText1 = "LAST EMBER\nPopulation: fewer every year.\nThe wyrm's old magic still seeps\nfrom the lake. Mind the water."
+let signText2 = "OLD WATCH POST\nWyrm-touched creatures gather\nwhere the light gets thin.\nA blade helps. So does luck."
+let signText3 = "BY THE SHORE\n'The lake was a mirror once,'\nthe elder says. 'Now it only\nshows you what it's hungry for.'"
+
+let npcElderText = "ELDER ORIN:\nAnother one, pulled through same\nas the last. The Reach does that\nwhen it's desperate. Go gently -\nand come back in one piece."
+let npcVillagerText = "VILLAGER MEI:\nFolk from your world always look\nso surprised by the trees. Here,\ntake a potion. You'll want it."
+let npcRangerText = "RANGER SYLAS:\nWyrm-touched goblins and skeletons\nhaunt the woods past the bridge.\nStay sharp, traveler-from-nowhere."
+
 // ================================ world ===================================
-// # tree   o rock   ~ water   = bridge   S sand   P signpost (all solid
-// except bridge/sand)   .  grass   ,  grass+flowers   :  path   ^  flower
-// patch (all walkable)   g goblin   k skeleton   m slime (spawn points,
-// cleared to grass once the monster is placed)   c coin   h potion
-// $ mana crystal   W sword upgrade (picked up by walking onto them)
+// Legend - walkable: . grass  , grass+flowers  : path  ^ flower patch
+//   = bridge  S sand  T cobblestone (town square)  U wood floor (indoors)
+//   F door  t/b/l/r water-shore edges (grass/water blend, all walkable)
+// solid: # tree  o rock  ~ water  B town wall  Y roof  Z fence
+//   P/Q/R signposts (read with E when close)
+// spawn codes (parsed out at build time, cleared under the hero's feet):
+//   g goblin  k skeleton  m slime
+//   N elder NPC  V villager NPC  E ranger NPC (all read with E when close)
+// pickups: c coin  h potion  $ mana crystal  W weapon upgrade
 let mapRows = [
   "############################################",
   "############################################",
-  "##.,.#.....,..,....#.,...............#....##",
+  "##.,.......,..,....#.,...............#....##",
   "##.o.........................,............##",
-  "##.o...#...,....^.....,.#..#..oh#.......o.##",
-  "##....,.,....,....c........g......#....#..##",
-  "##...........#.........h.......m.......,..##",
-  "##.....c.,.o...c.......#..,...............##",
-  "##.......................g.....,..#.......##",
-  "##..........,......,............o.........##",
-  "##....,...#.c...........,m..#.............##",
-  "##........,......^#........SSSSSSS.#,.....##",
-  "##...............,...#...SS~~~~~~~S.......##",
-  "##......P.........o.....S~~~~~~~~~~.......##",
-  "##.,...........#o.....o,S~~~~~~~~~~.......##",
-  "##..........:::::::::::::==========::.....##",
-  "##.................k...#S~~~~~~~~~~.....c.##",
-  "##o.....................S~~~~~~~~~~.......##",
-  "##...........,......,....SS~~~~~~~S.......##",
-  "##....,.................#.oSSSSSSSo...,...##",
-  "##...o....,........#W.....................##",
-  "##..............#...#.#........g.........###",
-  "##............g....,...h....,..........c..##",
-  "##...#.......,^.........o.,...#....#......##",
-  "##..,.........................,...........##",
-  "##.......#...................#...k...o,...##",
-  "##......,...c^.#......ok......#......,.c..##",
-  "##......o......,....^.$..#..,......,,....,##",
+  "##.YYYYYTYYYYY..^.....,.......o$#.........##",
+  "##.BBBBBTBBBBB....^...#...kk.o....#....#..##",
+  "##.BUUUBTBUUUB.........h...............,..##",
+  "##.BBFBBTBBFBB............,..#............##",
+  "##.TTTTTVTTTTT.....c...........,..##......##",
+  "##.TTNTTTTTETT.....,....c.......o.........##",
+  "##.ZZZZZ:ZZZZZ..........,...#.............##",
+  "##.....P:.,....o.^..........ttttttt#,.....##",
+  "##...............,...#....tt~~~~~~~...Q...##",
+  "##................o......l~~~~~~~~~.......##",
+  "##.,...........,o.....o,Rl~~~~~~~~~.......##",
+  "##..........::::::::::::::=========:::....##",
+  "##.....................#.l~~~~~~~~~.....c.##",
+  "##.......................l~~~~~~~~~.......##",
+  "##........c..,......,.....bb~~~~~~~.......##",
+  "##....,...........g.....#...bbbbbbb...,...##",
+  "##...o....,........#......................##",
+  "##............c.#...#.#........g......#..###",
+  "##............m....,...h....,......c...h.###",
+  "##...........,^.........o.,...#....#..#...##",
+  "##..,.........................,........g..##",
+  "##.......#.#.........#.......#...g...om...##",
+  "##......,.#.#^..........c....k#......,.c..##",
+  "##......o......,....^.W..#..,......,,....,##",
   "############################################",
   "############################################",
 ]
@@ -95,7 +151,11 @@ let MH = length(mapRows)
 let cells = []            // flat MW*MH grid, built from mapRows at start
 
 let startHx = 8 * 16 + 3
-let startHy = 15 * 16 + 4
+let startHy = 11 * 16 + 4
+
+// ------------------------------- game state -------------------------------
+let gameState = "menu"   // "menu" then "play"
+let heroClass = "warrior"
 
 // ------------------------------- player state -----------------------------
 let hx = startHx
@@ -112,16 +172,23 @@ let maxMana = 100
 let mana = maxMana
 let coins = 0
 let defeated = 0
-let swordLevel = 1          // 1 = rusty sword, 2 = after finding the gold one
+let swordLevel = 1          // 1 = starting weapon, 2 = after finding the upgrade
 let swordDmg = 2
+let moveSpeedBonus = 0      // tank is a touch slower, warrior/mage are not
+let boltCost = 25
+let boltDmg = 3
 
 let swing = 0                // swing animation timer (counts down to 0)
 let swingHit = false
+let swingLen = 14
 let castT = 0                 // magic cooldown timer
 let hitCooldown = 0           // brief invulnerability after taking damage
 
 let camX = 0
 let camY = 0
+
+let talkText = ""             // non-empty while a dialogue box is showing
+let talkTimer = 0
 
 // ------------------------------- enemy lists ------------------------------
 let ex = []
@@ -133,6 +200,11 @@ let edx = []
 let edy = []
 let ewander = []
 let ehurt = []
+
+// -------------------------------- npc lists --------------------------------
+let nx = []
+let ny = []
+let nkind = []    // "elder" "villager" "ranger"
 
 // ----------------------------- magic bolt lists ---------------------------
 let mx = []
@@ -164,7 +236,7 @@ fn cellSet(tx, ty, ch) {
 }
 
 fn solidCell(tx, ty) {
-  return contains("#~oP", cellCh(tx, ty))
+  return contains("#~oPQRBYZ", cellCh(tx, ty))
 }
 
 // is a box (in pixels) touching anything solid?
@@ -189,7 +261,17 @@ fn groundSprite(ch) {
   if ch == "o" { return "rockTile" }
   if ch == "=" { return "bridge" }
   if ch == "^" { return "flowerPatch" }
-  if ch == "P" { return "signpost" }
+  if ch == "P" or ch == "Q" or ch == "R" { return "signpost" }
+  if ch == "t" { return "waterEdgeTop" }
+  if ch == "b" { return "waterEdgeBottom" }
+  if ch == "l" { return "waterEdgeLeft" }
+  if ch == "r" { return "waterEdgeRight" }
+  if ch == "T" { return "cobblestone" }
+  if ch == "U" { return "woodFloor" }
+  if ch == "B" { return "stoneWall" }
+  if ch == "Y" { return "roofTile" }
+  if ch == "F" { return "doorTile" }
+  if ch == "Z" { return "fenceTile" }
   return "grass"
 }
 
@@ -205,6 +287,16 @@ fn drawGround(ch, px, py) {
   if s == "bridge" { draw bridge at px, py }
   if s == "flowerPatch" { draw flowerPatch at px, py }
   if s == "signpost" { draw signpost at px, py }
+  if s == "waterEdgeTop" { draw waterEdgeTop at px, py }
+  if s == "waterEdgeBottom" { draw waterEdgeBottom at px, py }
+  if s == "waterEdgeLeft" { draw waterEdgeLeft at px, py }
+  if s == "waterEdgeRight" { draw waterEdgeRight at px, py }
+  if s == "cobblestone" { draw cobblestone at px, py }
+  if s == "woodFloor" { draw woodFloor at px, py }
+  if s == "stoneWall" { draw stoneWall at px, py }
+  if s == "roofTile" { draw roofTile at px, py }
+  if s == "doorTile" { draw doorTile at px, py }
+  if s == "fenceTile" { draw fenceTile at px, py }
 }
 
 fn burst(px, py, count, color, speed) {
@@ -247,7 +339,7 @@ fn buildWorld() {
     }
     ty += 1
   }
-  // pull enemy spawn codes out of the grid and clear them to grass
+  // pull enemy spawn codes out of the grid, cleared to grass
   ty = 0
   while ty < MH {
     let tx = 0
@@ -264,6 +356,17 @@ fn buildWorld() {
         add 0 to ewander
         add 0 to ehurt
         cellSet(tx, ty, ".")
+      } else if ch == "N" or ch == "V" or ch == "E" {
+        add tx * 16 to nx
+        add ty * 16 - 6 to ny
+        if ch == "N" {
+          add "elder" to nkind
+        } else if ch == "V" {
+          add "villager" to nkind
+        } else {
+          add "ranger" to nkind
+        }
+        cellSet(tx, ty, "T")
       }
       tx += 1
     }
@@ -299,10 +402,31 @@ fn checkPickup() {
     cellSet(tx, ty, ".")
   } else if ch == "W" {
     swordLevel = 2
-    swordDmg = 4
+    swordDmg += 2
     burst(hx + 5, hy, 14, "#ffd23f", 12)
     cellSet(tx, ty, ".")
   }
+}
+
+fn nearestSignOrNpc() {
+  // returns the lore/dialogue text for whatever's right in front of the hero,
+  // or "" if nothing's close enough to read/talk to
+  let tx = (hx + 5 + faceX * 9) / 16
+  let ty = (hy + 4 + faceY * 9) / 16
+  let ch = cellCh(tx, ty)
+  if ch == "P" { return signText1 }
+  if ch == "Q" { return signText2 }
+  if ch == "R" { return signText3 }
+  let i = 0
+  while i < length(nx) {
+    if abs(nx[i] + 8 - (hx + 5)) < 16 and abs(ny[i] + 11 - (hy + 4)) < 16 {
+      if nkind[i] == "elder" { return npcElderText }
+      if nkind[i] == "villager" { return npcVillagerText }
+      return npcRangerText
+    }
+    i += 1
+  }
+  return ""
 }
 
 fn swordHits() {
@@ -348,6 +472,12 @@ fn castBolt() {
 }
 
 fn updateHero() {
+  if talkTimer > 0 {
+    talkTimer -= 1
+    if talkTimer == 0 {
+      talkText = ""
+    }
+  }
   if hitCooldown > 0 {
     hitCooldown -= 1
   }
@@ -380,27 +510,38 @@ fn updateHero() {
     lookLeft = false
   }
   let speed = 1 + tick % 2
+  if moveSpeedBonus > 0 and tick % 4 == 0 {
+    speed -= 1
+  }
   if swing > 0 {
     speed = tick % 2
   }
   moveHero(mxMove * speed, myMove * speed)
   checkPickup()
 
+  if held("e") and talkTimer == 0 {
+    let t = nearestSignOrNpc()
+    if t != "" {
+      talkText = t
+      talkTimer = 140
+    }
+  }
+
   if held("space") and swing == 0 and castT == 0 {
-    swing = 14
+    swing = swingLen
     swingHit = false
   }
   if swing > 0 {
     swing -= 1
-    if swing == 9 and not swingHit {
+    if swing == swingLen - 5 and not swingHit {
       swingHit = true
       swordHits()
     }
   }
 
-  if held("f") and castT == 0 and swing == 0 and mana >= 25 {
+  if held("f") and castT == 0 and swing == 0 and mana >= boltCost {
     castT = 30
-    mana -= 25
+    mana -= boltCost
     castBolt()
   }
   if castT > 0 {
@@ -489,7 +630,7 @@ fn updateBolts() {
       j += 1
     }
     if hitEnemy >= 0 {
-      ehp[hitEnemy] -= 3
+      ehp[hitEnemy] -= boltDmg
       ehurt[hitEnemy] = 8
       burst(mx[i], my[i], 8, "#7be0ff", 8)
       if ehp[hitEnemy] <= 0 {
@@ -559,6 +700,21 @@ fn drawWorld() {
   }
 }
 
+fn drawNpcs() {
+  let i = 0
+  while i < length(nx) {
+    let f = tick / 10 % 4
+    if nkind[i] == "elder" {
+      draw sorcIdle at nx[i] - 3, ny[i] - 6 frame f
+    } else if nkind[i] == "villager" {
+      draw ladyIdle at nx[i] - 3, ny[i] frame f
+    } else {
+      draw elfIdle at nx[i] - 3, ny[i] frame f
+    }
+    i += 1
+  }
+}
+
 fn drawEnemies() {
   let i = 0
   while i < length(ex) {
@@ -595,13 +751,23 @@ fn drawPlayer() {
     draw knightIdle at hx - 3, y frame f flip lookLeft
   }
   if swing > 0 {
-    let reach = 10 - abs(swing - 7)
+    let reach = 10 - abs(swing - swingLen / 2)
     let wx = hx + 3 + faceX * reach
     let wy = hy + 2 + faceY * reach
-    if swordLevel == 2 {
-      draw goldSword at wx, wy - 10 flip lookLeft angle faceX * 40
+    if heroClass == "mage" {
+      if swordLevel == 2 {
+        draw starStaff at wx, wy - 14 flip lookLeft angle faceX * 40
+      } else {
+        draw staff at wx, wy - 13 flip lookLeft angle faceX * 40
+      }
+    } else if heroClass == "tank" {
+      draw hammer at wx, wy - 16 flip lookLeft angle faceX * 40
     } else {
-      draw rustySword at wx, wy - 9 flip lookLeft angle faceX * 40
+      if swordLevel == 2 {
+        draw goldSword at wx, wy - 10 flip lookLeft angle faceX * 40
+      } else {
+        draw rustySword at wx, wy - 9 flip lookLeft angle faceX * 40
+      }
     }
   }
 }
@@ -631,8 +797,64 @@ fn drawUI() {
   write "Coins " + text(coins) at 8, 30 color "#ffe66d" size 1 shadow
   write "Defeated " + text(defeated) at 8, 40 color "#f2f3fa" size 1 shadow
   if swordLevel == 2 {
-    write "Golden sword" at 8, 50 color "#ffd23f" size 1 shadow
+    write "Weapon upgraded" at 8, 50 color "#ffd23f" size 1 shadow
   }
+  if talkText != "" {
+    box 10, 120, 300, 54 color "#1a0f1f"
+    box 12, 122, 296, 50 color "#2c1b33"
+    write talkText at 18, 128 color "#f2f3fa" size 1
+  }
+}
+
+fn drawMenu() {
+  paint "#1a0f1f"
+  write "WYRMWOOD REACH" at 160, 18 color "#ffd23f" size 1 shadow centered
+  let i = 0
+  while i < length(introLines) {
+    write introLines[i] at 160, 44 + i * 9 color "#f2f3fa" size 1 centered
+    i += 1
+  }
+  box 20, 142, 90, 30 color "#2c1b33"
+  write "1 WARRIOR" at 65, 150 color "#ffb34a" size 1 centered
+  write "sturdy sword & shield" at 65, 160 color "#cfc9d6" size 1 centered
+  box 115, 142, 90, 30 color "#2c1b33"
+  write "2 MAGE" at 160, 150 color "#7be0ff" size 1 centered
+  write "cheap, strong bolts" at 160, 160 color "#cfc9d6" size 1 centered
+  box 210, 142, 90, 30 color "#2c1b33"
+  write "3 TANK" at 255, 150 color "#ff6a9c" size 1 centered
+  write "big hits, big hp" at 255, 160 color "#cfc9d6" size 1 centered
+}
+
+fn chooseClass(cls) {
+  heroClass = cls
+  if cls == "mage" {
+    maxHp = 7
+    maxMana = 160
+    boltCost = 15
+    boltDmg = 5
+    swordDmg = 2
+    swingLen = 12
+    moveSpeedBonus = 0
+  } else if cls == "tank" {
+    maxHp = 18
+    maxMana = 40
+    boltCost = 30
+    boltDmg = 3
+    swordDmg = 4
+    swingLen = 20
+    moveSpeedBonus = 1
+  } else {
+    maxHp = 10
+    maxMana = 100
+    boltCost = 25
+    boltDmg = 3
+    swordDmg = 2
+    swingLen = 14
+    moveSpeedBonus = 0
+  }
+  hp = maxHp
+  mana = maxMana
+  gameState = "play"
 }
 
 // ================================ main loop ===================================
@@ -642,23 +864,38 @@ camY = constrain(hy + 4 - 90, 0, MH * 16 - 180)
 
 every frame {
   tick += 1
-  updateHero()
-  updateEnemies()
-  updateBolts()
-  updateParticles()
 
-  let tcx = constrain(hx + 5 - 160, 0, MW * 16 - 320)
-  let tcy = constrain(hy + 4 - 90, 0, MH * 16 - 180)
-  camX += sign(tcx - camX) * max(1, abs(tcx - camX) / 6)
-  camY += sign(tcy - camY) * max(1, abs(tcy - camY) / 6)
+  if gameState == "menu" {
+    if held("1") {
+      chooseClass("warrior")
+    } else if held("2") {
+      chooseClass("mage")
+    } else if held("3") {
+      chooseClass("tank")
+    } else if held("space") {
+      chooseClass("warrior")
+    }
+    drawMenu()
+  } else {
+    updateHero()
+    updateEnemies()
+    updateBolts()
+    updateParticles()
 
-  paint "#3a1020"
-  camera camX, camY
-  drawWorld()
-  drawEnemies()
-  drawBolts()
-  drawPlayer()
-  drawParticles()
-  camera 0, 0
-  drawUI()
+    let tcx = constrain(hx + 5 - 160, 0, MW * 16 - 320)
+    let tcy = constrain(hy + 4 - 90, 0, MH * 16 - 180)
+    camX += sign(tcx - camX) * max(1, abs(tcx - camX) / 6)
+    camY += sign(tcy - camY) * max(1, abs(tcy - camY) / 6)
+
+    paint "#3a1020"
+    camera camX, camY
+    drawWorld()
+    drawNpcs()
+    drawEnemies()
+    drawBolts()
+    drawPlayer()
+    drawParticles()
+    camera 0, 0
+    drawUI()
+  }
 }
