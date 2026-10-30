@@ -386,7 +386,8 @@ fn cRole(i) {
 }
 
 fn countFor(c) {
-  if c == "rain" or c == "warm" or c == "nice" { return 3 }
+  if c == "nice" { return 4 }
+  if c == "rain" or c == "warm" { return 3 }
   if c == "grey" or c == "cool" or c == "night" { return 3 }
   return 2
 }
@@ -426,7 +427,8 @@ fn wrenLine(c, n) {
   if c == "nice" {
     if n == 0 { return T(temp) + U() + " and clear in " + city + ". It is, regrettably, a very good day. Go outside. I'll be here with my book. Not waiting." }
     if n == 1 { return "Conditions are ideal. I checked three sources. Not because I wanted you to have a good day. Quality control." }
-    return "Don't get used to it, but today is lovely. Take a walk. I may happen to be walking in the same direction. Coincidence."
+    if n == 2 { return "Don't get used to it, but today is lovely. Take a walk. I may happen to be walking in the same direction. Coincidence." }
+    return "It's a beautiful day and I'm glad you get to see it. That's the whole sentence. No footnote this time."
   }
   if c == "grey" {
     if n == 0 { return "Overcast. Neither good nor bad, much like your last three ideas. Bring a jacket." }
@@ -482,7 +484,8 @@ fn zuriLine(c, n) {
   if c == "nice" {
     if n == 0 { return T(temp) + U() + " and clear in " + city + ". Literally perfect. So obviously I'm in a good mood. Which is not YOUR doing." }
     if n == 1 { return "Gorgeous out. Go outside, wear something decent, take pictures. Send me one. For quality control. Only." }
-    return "The weather's showing off today and honestly? Same. Get out of the house. I'm leaving in five. You can... come along if you're ready."
+    if n == 2 { return "The weather's showing off today and honestly? Same. Get out of the house. I'm leaving in five. You can... come along if you're ready." }
+    return "Today's gorgeous and so are you. Don't let it go to your head. ...Okay, a little to your head. Just today."
   }
   if c == "grey" {
     if n == 0 { return "Overcast. The sky is in a mood. It's a vibe, but bring a jacket." }
@@ -538,7 +541,8 @@ fn ingridLine(c, n) {
   if c == "nice" {
     if n == 0 { return T(temp) + U() + " and clear in " + city + ". A splendid day. Go and enjoy it. I shall remain here, composed. Unmoved. ...Smiling slightly, perhaps. Briefly." }
     if n == 1 { return "The weather is, I admit, exceptional. Do not mistake my approval for affection." }
-    return "A pleasant day. A stroll is in order. I may accompany you, purely to supervise."
+    if n == 2 { return "A pleasant day. A stroll is in order. I may accompany you, purely to supervise." }
+    return "It is a beautiful day, and I am glad you are here to see it with me. I will not repeat myself, so listen well."
   }
   if c == "grey" {
     if n == 0 { return "Overcast. The sky mirrors your ambitions: grey, and indecisive. Bring a coat." }
@@ -594,7 +598,8 @@ fn leoLine(c, n) {
   if c == "nice" {
     if n == 0 { return T(temp) + U() + " and clear in " + city + ". It's, uh, a good day. A really good day. Go outside. Whatever. Wanna go skate? ...I mean, if you're free. Don't make it weird." }
     if n == 1 { return "Perfect weather. Don't just sit around. Not that I wanna hang out. I just have nothing better to do." }
-    return "Nice day. Seriously. Get out of the house. I'll... maybe see you out there. Maybe."
+    if n == 2 { return "Nice day. Seriously. Get out of the house. I'll... maybe see you out there. Maybe." }
+    return "It's a really nice day. I'm glad you're around for it. ...Yeah, I said it. Don't look at me like that."
   }
   if c == "grey" {
     if n == 0 { return "Overcast. Meh. Bring a jacket and a better mood." }
@@ -653,6 +658,15 @@ fn pokeSoft() {
   if who == 1 { return "Fine. Poke away. Only because I'm in a good mood. Don't push it." }
   if who == 2 { return "...Continue, then. Gently. I have decided to permit it." }
   return "...Fine. Whatever. A couple more. Doesn't bother me."
+}
+
+// the mask fully drops, no qualifier walked back - the real payoff for
+// sticking around, not a one-time easter egg
+fn pokeTrueDere() {
+  if who == 0 { return "...Fine, I'll say it properly, once. I check the forecast every morning because of you, not the isobars. There. Don't make this weird. I will deny this conversation happened." }
+  if who == 1 { return "Okay, don't repeat this: you showing up and poking this stupid button every day is genuinely the best part of mine. There, I said it. Now never bring it up or I'm denying everything." }
+  if who == 2 { return "Very well - the truth, once, under duress: I enjoy this. Your company, specifically. I will deny having said it, and you will let me." }
+  return "...Okay, real talk, for real this time. I like when you check in. It's a good part of my day. Don't - don't make a thing of it. I mean it. ...Thanks, though."
 }
 
 // ------------------------- system messages ---------------------------
@@ -1370,7 +1384,14 @@ fn pokeHer() {
   if pokes <= 4 {
     mood = "angry"
     sayText = pokeLine(pokes)
-  } else if pokes == 12 {
+  } else if pokes % 20 == 0 {
+    // the deeper, unguarded moment - repeats, and hits harder each time
+    // because it's still rare
+    mood = "blush"
+    sayText = pokeTrueDere()
+  } else if pokes % 12 == 0 {
+    // the lighter "fine, keep going" softening - also repeats now,
+    // instead of being a single easter egg at poke 12
     mood = "blush"
     sayText = pokeSoft()
   } else {
