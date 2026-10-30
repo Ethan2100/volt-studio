@@ -13,6 +13,11 @@
       "file": "flipbook-template.volt",
       "label": "Flipbook Studio (draw / play / export animation)",
       "description": "A standalone app, not a library to paste into another page - compile this file as-is. Draw frames on a paper-white canvas with onion skinning, play them back at an adjustable FPS, and export a single self-contained .html file that plays the animation with no Volt Studio needed."
+    },
+    {
+      "file": "level-editor-template.volt",
+      "label": "Floor Forge (Moonwell level/tile editor)",
+      "description": "A standalone app, not a library to paste into another page - compile this file as-is. Paint a Moonwell dungeon floor on a tile grid using the real tileset, with the full tile/monster/shop-item legend as a click-to-select palette, then export the result as a ready-to-paste Volt map literal in the exact format moonwell.volt's maps array already uses."
     }
   ]
 }
