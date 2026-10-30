@@ -1,0 +1,13 @@
+{
+  "name": "lua-target",
+  "type": "target",
+  "version": "1.0.0",
+  "description": "Adds #lua as a compile target: plain Lua output (variables, functions, if/while/for/repeat, lists, print) for running with a standalone Lua interpreter. See the luau-target plugin for the Roblox-flavored sibling.",
+  "target": {
+    "id": "lua",
+    "entry": "generate.js",
+    "label": "Lua",
+    "board": false,
+    "fileExt": "lua"
+  }
+}

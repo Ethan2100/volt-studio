@@ -1,0 +1,13 @@
+{
+  "name": "luau-target",
+  "type": "target",
+  "version": "1.0.0",
+  "description": "Adds #luau as a compile target: real Roblox Luau output (variables, functions, if/while/for/repeat, lists, print, task.wait) for pasting into a Script/LocalScript. Use '#'/'##' raw-code lines for Instance.new, game:GetService(...), workspace, CFrame/Vector3 and :Connect(...) events - the same escape hatch the #c++ target uses for direct Arduino calls. See the lua-target plugin for the plain-Lua sibling.",
+  "target": {
+    "id": "luau",
+    "entry": "generate.js",
+    "label": "Roblox Luau",
+    "board": false,
+    "fileExt": "luau"
+  }
+}
