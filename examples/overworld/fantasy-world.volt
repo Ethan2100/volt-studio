@@ -12,14 +12,14 @@
 // goblins/skeletons/slimes to fight, coins and potions to find, and one
 // weapon upgrade hidden out there somewhere.
 //
-// Art: the ground tiles (grass/path/water/trees/town buildings/...) are
-// a small original tileset at terrain.png, right next to this file,
-// built with hand-shaded blotchy texture and jagged organic shorelines
-// instead of flat noise. Everything else - the knight, the weapons, the
-// monsters, the villagers, the potions, the touch controls - reuses
-// examples/dungeon/dungeon.png and examples/dungeon/controls/*.png (the
-// same CC0 tileset Moonwell is built from), so this plays well on a
-// phone too.
+// Art: everything is original to this game, drawn with a small Python/
+// PIL script rather than reused from Moonwell's dungeon.png - terrain.png
+// (ground tiles, hand-shaded with blotchy texture and jagged organic
+// shorelines), characters.png (the knight, goblins, skeletons, slimes,
+// the three villagers), weapons.png and pickups.png. Only the on-screen
+// touch-control glyphs (the stick/button backdrop) still come from
+// examples/dungeon/controls/*.png, since that's generic UI chrome, not
+// game content.
 //
 // Controls: 1/2/3 to pick your calling at the start. WASD/arrows to
 // move, Space to attack, F to cast a magic bolt (costs mana, which
@@ -31,7 +31,9 @@ canvas 320, 180
 touchpad "space", "f" stick "../dungeon/controls/stick.png", "../dungeon/controls/nub.png" button "../dungeon/controls/button.png" icons "../dungeon/controls/sword.png", "../dungeon/controls/summon.png"
 
 image terrain = "terrain.png"
-image tiles = "../dungeon/dungeon.png"
+image chars = "characters.png"
+image weapons = "weapons.png"
+image pickups = "pickups.png"
 
 // ----------------------------- ground tiles -----------------------------
 sprite grass = terrain at 0, 0 size 16, 16
@@ -59,28 +61,30 @@ sprite cobblestone = terrain at 48, 48 size 16, 16
 sprite fenceTile = terrain at 64, 48 size 16, 16
 
 // ------------------------- characters & monsters -------------------------
-sprite knightIdle = tiles at 128, 106 size 16, 22 frames 4
-sprite knightRun = tiles at 192, 106 size 16, 22 frames 4
-sprite rustySword = tiles at 307, 26 size 10, 21
-sprite goldSword = tiles at 291, 153 size 10, 22
-sprite hammer = tiles at 291, 42 size 10, 37
-sprite staff = tiles at 324, 145 size 8, 30
-sprite starStaff = tiles at 340, 145 size 8, 30
+// all drawn fresh for this game (see the header note) - a 16x24 chibi
+// grid: knight, goblin, skeleton, slime, then the three villagers.
+sprite knightIdle = chars at 0, 0 size 16, 24 frames 4
+sprite knightRun = chars at 0, 24 size 16, 24 frames 4
+sprite goblinIdle = chars at 0, 48 size 16, 24 frames 4
+sprite goblinRun = chars at 0, 72 size 16, 24 frames 4
+sprite skelIdle = chars at 0, 96 size 16, 24 frames 4
+sprite skelRun = chars at 0, 120 size 16, 24 frames 4
+sprite slime = chars at 0, 144 size 16, 24 frames 4
+sprite elderNpc = chars at 0, 168 size 16, 24 frames 4
+sprite villagerNpc = chars at 0, 192 size 16, 24 frames 4
+sprite rangerNpc = chars at 0, 216 size 16, 24 frames 4
 
-sprite ladyIdle = tiles at 128, 74 size 16, 22 frames 4
-sprite elfIdle = tiles at 128, 42 size 16, 22 frames 4
-sprite sorcIdle = tiles at 128, 132 size 16, 28 frames 4
-
-sprite goblinIdle = tiles at 368, 37 size 16, 11 frames 4
-sprite goblinRun = tiles at 432, 37 size 16, 11 frames 4
-sprite skelIdle = tiles at 368, 80 size 16, 16 frames 4
-sprite skelRun = tiles at 432, 80 size 16, 16 frames 4
-sprite slime = tiles at 432, 112 size 16, 16 frames 4
+// ---------------------------------- gear ----------------------------------
+sprite rustySword = weapons at 0, 0 size 14, 28
+sprite goldSword = weapons at 14, 0 size 14, 28
+sprite staff = weapons at 28, 0 size 14, 28
+sprite starStaff = weapons at 42, 0 size 14, 28
+sprite hammer = weapons at 56, 0 size 14, 28
 
 // -------------------------------- pickups --------------------------------
-sprite coin = tiles at 288, 272 size 8, 8 frames 4
-sprite flask = tiles at 288, 240 size 16, 16
-sprite flaskG = tiles at 320, 240 size 16, 16
+sprite coin = pickups at 0, 0 size 16, 20 frames 4
+sprite flask = pickups at 0, 20 size 16, 20
+sprite flaskG = pickups at 16, 20 size 16, 20
 
 // ================================ lore ===================================
 let introLines = [
@@ -322,8 +326,7 @@ fn enemyDmg(k) {
 }
 
 fn enemySpriteH(k) {
-  if k == "g" { return 11 }
-  return 16
+  return 24
 }
 
 // ================================ world build ===============================
@@ -705,11 +708,11 @@ fn drawNpcs() {
   while i < length(nx) {
     let f = tick / 10 % 4
     if nkind[i] == "elder" {
-      draw sorcIdle at nx[i] - 3, ny[i] - 6 frame f
+      draw elderNpc at nx[i] - 3, ny[i] frame f
     } else if nkind[i] == "villager" {
-      draw ladyIdle at nx[i] - 3, ny[i] frame f
+      draw villagerNpc at nx[i] - 3, ny[i] frame f
     } else {
-      draw elfIdle at nx[i] - 3, ny[i] frame f
+      draw rangerNpc at nx[i] - 3, ny[i] frame f
     }
     i += 1
   }
@@ -743,7 +746,7 @@ fn drawEnemies() {
 }
 
 fn drawPlayer() {
-  let y = hy + 8 - 22
+  let y = hy + 8 - 24
   let f = tick / 6 % 4
   if moving and swing == 0 {
     draw knightRun at hx - 3, y frame f flip lookLeft
@@ -756,17 +759,17 @@ fn drawPlayer() {
     let wy = hy + 2 + faceY * reach
     if heroClass == "mage" {
       if swordLevel == 2 {
-        draw starStaff at wx, wy - 14 flip lookLeft angle faceX * 40
+        draw starStaff at wx, wy - 18 flip lookLeft angle faceX * 40
       } else {
-        draw staff at wx, wy - 13 flip lookLeft angle faceX * 40
+        draw staff at wx, wy - 18 flip lookLeft angle faceX * 40
       }
     } else if heroClass == "tank" {
-      draw hammer at wx, wy - 16 flip lookLeft angle faceX * 40
+      draw hammer at wx, wy - 18 flip lookLeft angle faceX * 40
     } else {
       if swordLevel == 2 {
-        draw goldSword at wx, wy - 10 flip lookLeft angle faceX * 40
+        draw goldSword at wx, wy - 18 flip lookLeft angle faceX * 40
       } else {
-        draw rustySword at wx, wy - 9 flip lookLeft angle faceX * 40
+        draw rustySword at wx, wy - 18 flip lookLeft angle faceX * 40
       }
     }
   }
@@ -789,40 +792,98 @@ fn drawParticles() {
   }
 }
 
-fn drawUI() {
-  box 7, 7, 62, 9 color "#241320"
-  box 8, 8, 60 * hp / maxHp, 7 color "#ff4d6d"
-  box 7, 18, 62, 9 color "#121a30"
-  box 8, 19, 60 * mana / maxMana, 7 color "#4db8ff"
-  write "Coins " + text(coins) at 8, 30 color "#ffe66d" size 1 shadow
-  write "Defeated " + text(defeated) at 8, 40 color "#f2f3fa" size 1 shadow
-  if swordLevel == 2 {
-    write "Weapon upgraded" at 8, 50 color "#ffd23f" size 1 shadow
-  }
-  if talkText != "" {
-    box 10, 120, 300, 54 color "#1a0f1f"
-    box 12, 122, 296, 50 color "#2c1b33"
-    write talkText at 18, 128 color "#f2f3fa" size 1
+// a little wood-and-brass bevel panel, used for the HUD cluster, the
+// dialogue box and the class cards - dark outline, warm mid-brown body,
+// a thin lighter top-left highlight so it reads as a raised tablet
+// rather than a flat rectangle
+fn panel(px, py, pw, ph, edge) {
+  box px, py, pw, ph color "#1c120b"
+  box px + 1, py + 1, pw - 2, ph - 2 color edge
+  box px + 2, py + 2, pw - 4, ph - 4 color "#2d1c10"
+  box px + 2, py + 2, pw - 4, 1 color "#4a3420"
+  box px + 2, py + 2, 1, ph - 4 color "#4a3420"
+}
+
+fn weaponIconFor(cls, lvl) {
+  if cls == "mage" {
+    if lvl == 2 { draw starStaff at 300, 8 }
+    else { draw staff at 300, 8 }
+  } else if cls == "tank" {
+    draw hammer at 298, 4
+  } else {
+    if lvl == 2 { draw goldSword at 302, 6 }
+    else { draw rustySword at 302, 6 }
   }
 }
 
+fn drawUI() {
+  panel(6, 6, 76, 36, "#5a3d22")
+  draw flask at 10, 8
+  box 28, 11, 48, 8 color "#150a12"
+  box 29, 12, 46 * hp / maxHp, 6 color "#ff4d6d"
+  box 29, 12, 46 * hp / maxHp, 1 color "#ff9cb3"
+  draw flaskG at 10, 24
+  box 28, 27, 48, 8 color "#0c1322"
+  box 29, 28, 46 * mana / maxMana, 6 color "#4db8ff"
+  box 29, 28, 46 * mana / maxMana, 1 color "#a6e2ff"
+
+  panel(6, 46, 76, 24, "#5a3d22")
+  draw coin at 10, 50 frame tick / 8 % 4
+  write text(coins) at 24, 52 color "#ffe66d" size 1 shadow
+  draw skelIdle at 6, 54 frame 0 scale 60
+  write text(defeated) at 24, 62 color "#f2f3fa" size 1 shadow
+
+  weaponIconFor(heroClass, swordLevel)
+
+  if talkText != "" {
+    panel(10, 118, 300, 56, "#5a3d22")
+    write talkText at 20, 128 color "#f6ead1" size 1
+  }
+}
+
+fn drawMenuBg() {
+  let ty = 0
+  while ty < 12 {
+    let tx = 0
+    while tx < 20 {
+      if tx == 0 or ty == 0 or tx == 19 or ty == 11 {
+        draw treeTile at tx * 16, ty * 16
+      } else if (tx * 7 + ty * 3) % 11 == 0 {
+        draw flowerPatch at tx * 16, ty * 16
+      } else if (tx * 5 + ty * 2) % 7 == 0 {
+        draw grassFlowers at tx * 16, ty * 16
+      } else {
+        draw grass at tx * 16, ty * 16
+      }
+      tx += 1
+    }
+    ty += 1
+  }
+}
+
+fn drawClassCard(px, label, blurb, accent) {
+  panel(px, 136, 92, 38, accent)
+  write label at px + 46, 142 color accent size 1 centered shadow
+  write blurb at px + 46, 162 color "#f2ead6" size 1 centered
+}
+
 fn drawMenu() {
-  paint "#1a0f1f"
-  write "WYRMWOOD REACH" at 160, 18 color "#ffd23f" size 1 shadow centered
+  drawMenuBg()
+  panel(14, 6, 292, 122, "#6b4a28")
+  write "WYRMWOOD REACH" at 160, 16 color "#ffd23f" size 1 shadow centered
+  box 70, 25, 180, 1 color "#ffd23f"
   let i = 0
   while i < length(introLines) {
-    write introLines[i] at 160, 44 + i * 9 color "#f2f3fa" size 1 centered
+    write introLines[i] at 160, 36 + i * 9 color "#f6ead1" size 1 centered
     i += 1
   }
-  box 20, 142, 90, 30 color "#2c1b33"
-  write "1 WARRIOR" at 65, 150 color "#ffb34a" size 1 centered
-  write "sturdy sword & shield" at 65, 160 color "#cfc9d6" size 1 centered
-  box 115, 142, 90, 30 color "#2c1b33"
-  write "2 MAGE" at 160, 150 color "#7be0ff" size 1 centered
-  write "cheap, strong bolts" at 160, 160 color "#cfc9d6" size 1 centered
-  box 210, 142, 90, 30 color "#2c1b33"
-  write "3 TANK" at 255, 150 color "#ff6a9c" size 1 centered
-  write "big hits, big hp" at 255, 160 color "#cfc9d6" size 1 centered
+
+  drawClassCard(16, "1 WARRIOR", "sturdy blade & shield", "#ffb34a")
+  draw rustySword at 92, 140 scale 60
+  drawClassCard(114, "2 MAGE", "cheap, strong bolts", "#7be0ff")
+  draw staff at 190, 140 scale 60
+  drawClassCard(212, "3 TANK", "big hits, big hp", "#ff6a9c")
+  draw hammer at 288, 140 scale 60
 }
 
 fn chooseClass(cls) {
