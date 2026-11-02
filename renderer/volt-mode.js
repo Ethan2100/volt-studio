@@ -3,7 +3,7 @@
 
 (function () {
   const KEYWORDS = ['pin', 'let', 'fn', 'return', 'if', 'else', 'repeat', 'while', 'break',
-    'forever', 'every', 'when', 'wait', 'print', 'show', 'clear', 'stop'];
+    'forever', 'every', 'when', 'wait', 'print', 'show', 'clear', 'stop', 'import'];
   const QUALIFIERS = ['input', 'output', 'analog', 'pwm', 'servo', 'stepper', 'pressed', 'to', 'over', 'for'];
   const ACTIONS = ['on', 'off', 'toggle', 'set', 'fade', 'tone', 'read', 'step', 'turn'];
   const ATOMS = ['true', 'false', 'uptime'];
@@ -79,6 +79,7 @@
     { text: 'when key "k" pressed {\n  \n}', label: 'when key "…" pressed { } (html)' },
     { text: 'title "My page"', label: 'title "…" (html)' },
     { text: 'html "<b>bold</b>"', label: 'html "…" (html)' },
+    { text: 'import "lib.volt"', label: 'import "…" (reuse another .volt file)' },
     { text: 'Player = type { name: string, health: int, speed: float }', label: 'Name = type { field: kind } (html)' },
     { text: 'let hero = Player { name: "Hero", health: 100, speed: 2 }', label: 'Name { field: value } (html)' },
   ];

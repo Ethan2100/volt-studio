@@ -30,7 +30,8 @@ every 500ms {
 11. [Loops: repeat, while, break](#loops-repeat-while-break)
 12. [Running things over time](#running-things-over-time)
 13. [Functions](#functions)
-14. [Built-in functions](#built-in-functions)
+14. [Reusing code: import](#reusing-code-import)
+15. [Built-in functions](#built-in-functions)
 15. [Raw code](#raw-code)
 16. [C++ vs Python differences](#c-vs-python-differences)
 17. [Names you can't use](#names-you-cant-use)
@@ -746,6 +747,31 @@ print "Average: " + average(10, 20)
 - In scripts and pages, parameters can be numbers or text. In `#c++`, functions only take and return numbers.
 - `return` sends a value back and ends the function. A function without `return` gives 0.
 - Functions can use top-level variables and pins, and can call other functions (even ones written further down).
+
+## Reusing code: import
+
+`import "name.volt"` pastes another `.volt` file's contents in, right where the `import` line is - so a set of functions or types you've written once (or a [library plugin](using-volt-studio)'s snippet file) can be reused from more than one program, instead of copy-pasted by hand into each one.
+
+```volt
+// mathlib.volt
+fn square(x) {
+  return x * x
+}
+```
+
+```volt
+// main.volt
+#js
+import "mathlib.volt"
+
+print "5 squared is " + square(5)
+```
+
+- `import "..."` must be its own line, written exactly like that (a literal file name in quotes - no variables).
+- The file is found the same way a `draw`/`image`/`audio` file is: in the same folder as the importing `.volt` file.
+- Importing the same file more than once (directly, or through two other imports) is fine - the repeat is skipped, so two files that both import a shared library don't collide.
+- An imported file should be plain code (functions, types, raw `#`/`##` lines) with no `#target` line of its own - like a library plugin's snippet, it's meant to be pasted into a program that already picked its target.
+- Error messages after an import point at the merged program, so a mistake inside an imported file may report a line number that doesn't match that file directly - if a message looks off by a few lines, check the imported file too.
 
 ## Built-in functions
 

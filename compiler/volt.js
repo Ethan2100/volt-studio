@@ -3220,9 +3220,50 @@ function detectTarget(src) {
   return { target: 'cpp', src };
 }
 
+// Splices `import "file.volt"` lines in place with that file's contents,
+// recursively, before anything is lexed - so a .volt file (or a library
+// plugin's snippet) can be reused from other .volt files instead of only
+// ever being copy-pasted in by hand. Must be its own unindented line,
+// written exactly as `import "name.volt"` (a literal path in quotes, no
+// expressions). The path resolves the same way 'image'/'audio' files do:
+// against options.baseDir, then options.extraDirs.
+// Importing the same file twice (directly, or via two other imports) is
+// fine - the second one is silently skipped, so shared libraries don't
+// produce "already a function called ..." errors.
+// Known limitation: error line numbers after a spliced-in import point at
+// the merged text, not the original file - there's no source map (yet).
+function resolveImports(source, dirs, seen) {
+  const lines = source.split('\n');
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^import\s+"([^"]+)"\s*$/.exec(lines[i]);
+    if (!m) { out.push(lines[i]); continue; }
+    const name = m[1];
+    if (!dirs.length) {
+      throw new VoltError(`Can't import '${name}' - this program has no folder to look in`, i + 1);
+    }
+    const full = dirs.map((d) => path.resolve(d, name)).find((x) => fs.existsSync(x));
+    if (!full) {
+      throw new VoltError(`Can't import '${name}'. Put it in the same folder as your .volt file`, i + 1);
+    }
+    if (seen.has(full)) { out.push(`// (already imported '${name}')`); continue; }
+    seen.add(full);
+    const imported = fs.readFileSync(full, 'utf8').replace(/\r\n?/g, '\n');
+    out.push(`// ---- imported from '${name}' ----`);
+    out.push(resolveImports(imported, [path.dirname(full), ...dirs.slice(1)], seen));
+    out.push(`// ---- end '${name}' ----`);
+  }
+  return out.join('\n');
+}
+
 // options.baseDir: the .volt file's folder, so 'image' can pack pictures into the page
 function compile(source, options = {}) {
-  const detected = detectTarget(source.replace(/\r\n?/g, '\n'));
+  let normalized = source.replace(/\r\n?/g, '\n');
+  if (/^import\s+"/m.test(normalized)) {
+    const dirs = [options.baseDir, ...(options.extraDirs || [])].filter(Boolean);
+    normalized = resolveImports(normalized, dirs, new Set());
+  }
+  const detected = detectTarget(normalized);
   const tokens = lex(detected.src);
   const ast = parse(tokens);
   // #python means a board (MicroPython) when the program uses pins, otherwise a normal script
