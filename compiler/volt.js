@@ -151,7 +151,7 @@ function lex(src) {
     if (['==', '!=', '<=', '>=', '+=', '-=', '*=', '/='].includes(two)) { add(two, two); i += 2; continue; }
 
     // One-character symbols
-    if ('=+-*/%<>{}(),[]'.includes(c)) { add(c, c); i++; continue; }
+    if ('=+-*/%<>{}(),[].:'.includes(c)) { add(c, c); i++; continue; }
 
     throw new VoltError(`I don't understand the character '${c}'`, line);
   }
@@ -174,6 +174,16 @@ const NOT_A_COMMAND = ['=', '(', '[', '+=', '-=', '*=', '/=', 'eof'];
 
 function parse(tokens) {
   let pos = 0;
+
+  // Gamedev struct types ('Player = type { ... }') declared anywhere in the file,
+  // found with a quick scan so 'Player { ... }' can be recognised as a struct
+  // literal in expression position without confusing it with 'if someVar { ... }'.
+  const declaredTypes = new Set();
+  for (let k = 0; k + 3 < tokens.length; k++) {
+    if (tokens[k].type === 'ident' && tokens[k + 1].type === '=' && tokens[k + 2].type === 'ident' && tokens[k + 2].value === 'type' && tokens[k + 3].type === '{') {
+      declaredTypes.add(tokens[k].value);
+    }
+  }
 
   const peek = (ahead = 0) => tokens[Math.min(pos + ahead, tokens.length - 1)];
   const next = () => tokens[pos++];
@@ -472,6 +482,50 @@ function parse(tokens) {
 
       // count = count + 1     or     beep(3)     or     score += 1
       case 'ident': {
+        // A gamedev struct type: Player = type { name: string, health: int, speed: float }
+        if (peek(1).type === '=' && peek(2).type === 'ident' && peek(2).value === 'type' && peek(3).type === '{') {
+          if (!topLevel) topLevelOnly(t);
+          next(); next(); next(); next(); // name  =  type  {
+          const fields = [];
+          while (!check('}')) {
+            const fname = expect('ident', 'a field name').value;
+            expect(':', "':' after the field name, like health: int");
+            const fkind = expect('ident', 'a field type like string, int, float or bool').value;
+            fields.push({ name: fname, kindName: fkind });
+            if (!match(',')) break;
+          }
+          expect('}', "'}' to close the type");
+          return { kind: 'TypeDecl', name: t.value, fields, line };
+        }
+        // Changing a field, possibly through a list: player.health = 10   enemies[i].hp -= 5
+        if (peek(1).type === '.' || peek(1).type === '[') {
+          const save = pos;
+          next();
+          let e = { kind: 'Var', name: t.value, line };
+          let steps = 0;
+          while (check('.') || check('[')) {
+            if (check('.')) {
+              next();
+              const fname = expect('ident', 'a field name').value;
+              e = { kind: 'Member', target: e, field: fname, line };
+            } else {
+              next();
+              const idx = expression();
+              expect(']', "']'");
+              e = { kind: 'Index', target: e, index: idx, line };
+            }
+            steps++;
+          }
+          if (steps > 0 && e.kind === 'Member' && ['=', '+=', '-=', '*=', '/='].includes(peek().type)) {
+            const opTok = next();
+            let value = expression();
+            if (opTok.type !== '=') {
+              value = { kind: 'Binary', op: opTok.type[0], left: e, right: value, line };
+            }
+            return { kind: 'MemberAssign', target: e.target, field: e.field, value, line };
+          }
+          pos = save;   // not a field assignment after all - let the rest of this function try it
+        }
         if (['+=', '-=', '*=', '/='].includes(peek(1).type)) {
           next();
           const opTok = next();
@@ -728,14 +782,20 @@ function parse(tokens) {
     return primary();
   }
 
-  // A value, then any number of [index] after it: rows[y][x]
+  // A value, then any number of [index] or .field after it: rows[y][x]   player.health
   function primary() {
     let e = atom();
-    while (check('[') && (e.kind === 'Var' || e.kind === 'Index' || e.kind === 'List' || e.kind === 'Call')) {
-      const line = next().line;
-      const index = expression();
-      expect(']', "']'");
-      e = { kind: 'Index', target: e, index, line };
+    while ((check('[') || check('.')) && (e.kind === 'Var' || e.kind === 'Index' || e.kind === 'Member' || e.kind === 'List' || e.kind === 'Call' || e.kind === 'StructLit')) {
+      if (check('[')) {
+        const line = next().line;
+        const index = expression();
+        expect(']', "']'");
+        e = { kind: 'Index', target: e, index, line };
+      } else {
+        const line = next().line;
+        const field = expect('ident', 'a field name').value;
+        e = { kind: 'Member', target: e, field, line };
+      }
     }
     return e;
   }
@@ -760,6 +820,24 @@ function parse(tokens) {
           }
           expect(')', "')'");
           return { kind: 'Call', name: t.value, args, line: t.line };
+        }
+        // A struct value: Player { name: "Finn", health: 10, speed: 2 }
+        if (check('{') && declaredTypes.has(t.value)) {
+          next();
+          const fields = [];
+          while (!check('}')) {
+            const fname = expect('ident', 'a field name').value;
+            expect(':', "':' after the field name, like health: 10");
+            const value = expression();
+            fields.push({ name: fname, value });
+            if (!match(',')) break;
+          }
+          expect('}', "'}' to close the struct value");
+          return { kind: 'StructLit', type: t.value, fields, line: t.line };
+        }
+        // Looks like someone's trying Player { field: value } but never declared Player as a type
+        if (check('{') && peek(1).type === 'ident' && peek(2).type === ':') {
+          throw new VoltError(`'${t.value}' isn't a type. Declare it first, like: ${t.value} = type { name: string, health: int }`, t.line);
         }
         return { kind: 'Var', name: t.value, line: t.line };
       }
@@ -1488,6 +1566,7 @@ function generate(ast, target = 'cpp', options = {}) {
   let usesGame = false;         // canvas, sprites, held keys ... (#html)
   const images = new Map();     // name -> Image node
   const sprites = new Map();    // name -> Sprite node
+  const types = new Map();      // name -> TypeDecl node (gamedev structs, 'Player = type { ... }')
   const audios = new Map();     // name -> Audio node
   let uid = 0;                  // makes hidden helper names unique
   let loopDepth = 0;            // inside repeat/while?
@@ -1600,6 +1679,8 @@ function generate(ast, target = 'cpp', options = {}) {
       case 'String': case 'Ask': return 'text';
       case 'List': return 'list';
       case 'Index': return 'any';
+      case 'Member': return 'any';
+      case 'StructLit': return 'any';
       case 'Call':
         if (['text', 'upper', 'lower', 'part'].includes(e.name)) return 'text';
         if (e.name === 'saved') return e.args[1] && e.args[1].kind === 'List' ? 'list' : 'any';
@@ -1659,6 +1740,15 @@ function generate(ast, target = 'cpp', options = {}) {
           setupExtra.push(`  ${servoObj(name)}.attach(${name});`);
         }
       }
+    } else if (node.kind === 'TypeDecl') {
+      htmlOnly(`'${node.name} = type { ... }'`, node.line);
+      checkName(node.name, node.line);
+      const seen = new Set();
+      for (const f of node.fields) {
+        if (seen.has(f.name)) throw new VoltError(`'${node.name}' already has a field called '${f.name}'`, node.line);
+        seen.add(f.name);
+      }
+      types.set(node.name, node.fields);
     } else if (node.kind === 'Fn') {
       checkName(node.name, node.line);
       funcs.set(node.name, node);
@@ -1805,9 +1895,43 @@ function generate(ast, target = 'cpp', options = {}) {
       case 'Binary':
         return genBinary(e);
 
+      // player.health     enemies[i].hp
+      case 'Member': {
+        gameOnly("'.field'", e.line);
+        const target = genExpr(e.target);
+        return { code: `${target.code}.${e.field}`, type: 'any' };
+      }
+
+      // Player { name: "Finn", health: 10 }  - any field left out gets a sensible
+      // default (0 for int/float/num, "" for string/text, false for bool)
+      case 'StructLit': {
+        gameOnly("a struct value like Player { ... }", e.line);
+        const fields = types.get(e.type);
+        if (!fields) throw new VoltError(`'${e.type}' isn't a type. Declare it first, like: ${e.type} = type { name: string, health: int }`, e.line);
+        const known = new Set(fields.map((f) => f.name));
+        const given = new Map();
+        for (const f of e.fields) {
+          if (!known.has(f.name)) {
+            throw new VoltError(`'${e.type}' has no field called '${f.name}'. It has: ${[...known].join(', ')}`, e.line);
+          }
+          if (given.has(f.name)) throw new VoltError(`'${f.name}' is set twice in this ${e.type}`, e.line);
+          given.set(f.name, bare(genExpr(f.value).code));
+        }
+        const parts = fields.map((f) => `${f.name}: ${given.has(f.name) ? given.get(f.name) : defaultForKind(f.kindName)}`);
+        return { code: `{ ${parts.join(', ')} }`, type: 'any' };
+      }
+
       default:
         throw new Error(`Compiler bug: unknown expression ${e.kind}`);
     }
+  }
+
+  // The value an untouched struct field gets: 0 for numbers, "" for text, false for yes/no
+  function defaultForKind(kindName) {
+    const k = kindName.toLowerCase();
+    if (['string', 'text', 'str'].includes(k)) return '""';
+    if (['bool', 'boolean'].includes(k)) return 'false';
+    return '0';   // int, float, num, or anything else numeric-looking
   }
 
   // Ruby treats 0 and "" as true, so conditions go through _truthy() unless already true/false
@@ -2660,7 +2784,15 @@ function generate(ast, target = 'cpp', options = {}) {
       case 'Pin':
       case 'RawTop':
       case 'Fn':
+      case 'TypeDecl':
         return []; // handled separately
+
+      case 'MemberAssign': {
+        gameOnly("'.field = ...'", s.line);
+        const target = genExpr(s.target);
+        const value = genExpr(s.value);
+        return [`${p}${target.code}.${s.field} = ${bare(value.code)}${END}`];
+      }
 
       default:
         throw new Error(`Compiler bug: unknown statement ${s.kind}`);

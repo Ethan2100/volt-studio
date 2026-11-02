@@ -17,6 +17,7 @@ every 500ms {
 1. [Scripts and web pages](#scripts-and-web-pages)
 1. [Lists](#lists)
 1. [Games: canvas, sprites and keys](#games-canvas-sprites-and-keys)
+1. [Game types (structs)](#game-types-structs)
 2. [How a Volt program runs](#how-a-volt-program-runs)
 3. [Comments](#comments)
 4. [Pins](#pins)
@@ -322,6 +323,43 @@ Things to know:
 - Browsers only play sound after the player presses a key or clicks, so start the music from a title screen's "press X". `.mp3` files work in every browser.
 - Volt numbers are whole numbers. For smooth slow movement, keep positions times 10 (`x10 += speed`) and draw at `x10 / 10`.
 - `examples/dungeon/moonwell.volt` is a full dungeon crawler written this way: six floors with six bosses, keys, weapons, a shop, music, sound effects and a saved journey.
+
+## Game types (structs)
+
+`#html` games can declare a named shape for the things in a game - a player, an enemy, a pickup - instead of juggling a separate list for every field (`ex`, `ey`, `ehp`, `emaxhp`, ...).
+
+```volt
+#html
+canvas 320, 180
+
+Player = type { name: string, health: int, speed: float }
+
+let hero = Player { name: "Finn", health: 10, speed: 2 }
+let enemies = []
+add Player { name: "Slime", health: 4 } to enemies   // speed left out -> 0
+
+hero.health -= 3
+enemies[0].health -= 2
+
+every frame {
+  paint "#14111a"
+  write hero.name + " - " + text(hero.health) + " hp" at 10, 10
+}
+```
+
+| Command | What it does |
+|---|---|
+| `Name = type { field: kind, field: kind }` | Declares a type. Top level only. `kind` is a label like `string`, `int`, `float` or `bool` - Volt doesn't enforce it, but an untouched field in a struct value defaults to `""` for `string`/`text`, `false` for `bool`, and `0` for everything else |
+| `Name { field: value, field: value }` | Makes a value of that type. Any field you leave out gets its default |
+| `thing.field` | Reads a field |
+| `thing.field = value` (also `+=`, `-=`, `*=`, `/=`) | Changes a field. Works through a list index too: `enemies[i].health -= 1` |
+
+Things to know:
+
+- Struct types only work in `#html` right now.
+- A type must be declared somewhere in the file before you use it, but not necessarily above the line that uses it - Volt looks for every `Name = type { ... }` first.
+- There's no nesting (a field can't hold another struct) and no deep assignment (`thing.field.other = ...` isn't supported) - keep structs flat, one level of fields.
+- A list can hold values of a struct type just like any other value: `let enemies = []`, `add Player { ... } to enemies`, `enemies[i].health`.
 
 ## How a Volt program runs
 
