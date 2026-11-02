@@ -35,6 +35,37 @@ class VoltError extends Error {
   }
 }
 
+// How many single-character edits turn `a` into `b` - used to guess what a
+// misspelled name was supposed to be, so error messages can suggest it.
+function editDistance(a, b) {
+  const dp = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+  for (let i = 0; i <= a.length; i++) dp[i][0] = i;
+  for (let j = 0; j <= b.length; j++) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1]
+        : 1 + Math.min(dp[i - 1][j - 1], dp[i - 1][j], dp[i][j - 1]);
+    }
+  }
+  return dp[a.length][b.length];
+}
+
+// The closest name to `target` among `candidates`, or null if nothing is
+// close enough to be worth suggesting (so a wildly different name doesn't
+// get a misleading "did you mean" guess).
+function closestName(target, candidates) {
+  let best = null;
+  let bestDist = Infinity;
+  for (const c of candidates) {
+    if (c === target) continue;
+    const d = editDistance(target, c);
+    if (d < bestDist) { bestDist = d; best = c; }
+  }
+  const limit = Math.max(2, Math.ceil(target.length / 3));
+  return bestDist <= limit ? best : null;
+}
+
 // =====================================================================
 //  1. LEXER - chops source text into tokens
 // =====================================================================
@@ -1657,6 +1688,15 @@ function generate(ast, target = 'cpp', options = {}) {
     return null;
   }
 
+  // Every variable and pin name visible right now - used only to suggest a
+  // fix for a typo'd name in an error message, never for codegen.
+  function allVarNames() {
+    const names = new Set();
+    for (const scope of scopes) for (const k of scope.keys()) names.add(k);
+    for (const k of pins.keys()) names.add(k);
+    return [...names];
+  }
+
   function checkName(name, line, isParam = false) {
     if (RESERVED.has(name) || name.startsWith('_')) {
       throw new VoltError(`'${name}' is a reserved name (Volt or one of its languages already uses it), please pick another`, line);
@@ -1848,7 +1888,12 @@ function generate(ast, target = 'cpp', options = {}) {
         if (audios.has(e.name)) throw new VoltError(`'${e.name}' is a sound. Play it with: sound ${e.name}`, e.line);
         if (images.has(e.name)) throw new VoltError(`'${e.name}' is an image. Cut sprites out of it with: sprite name = ${e.name} at x, y size w, h`, e.line);
         const v = lookupVar(e.name);
-        if (!v) throw new VoltError(`Unknown variable '${e.name}'. Did you forget 'let ${e.name} = ...'?`, e.line);
+        if (!v) {
+          const guess = closestName(e.name, allVarNames());
+          throw new VoltError(guess
+            ? `Unknown variable '${e.name}'. Did you mean '${guess}'?`
+            : `Unknown variable '${e.name}'. Did you forget 'let ${e.name} = ...'?`, e.line);
+        }
         return { code: v.top ? global(e.name) : e.name, type: v.type, obj: cpp && v.type === 'text' };
       }
 
@@ -2193,7 +2238,12 @@ function generate(ast, target = 'cpp', options = {}) {
       if (pins.has(e.name) || lookupVar(e.name)) {
         throw new VoltError(`'${e.name}' is not a function`, e.line);
       }
-      throw new VoltError(`Unknown function '${e.name}'. Make it with 'fn ${e.name}(...) { }'`, e.line);
+      {
+        const guess = closestName(e.name, [...funcs.keys(), ...Object.keys(BUILTINS)]);
+        throw new VoltError(guess
+          ? `Unknown function '${e.name}'. Did you mean '${guess}'?`
+          : `Unknown function '${e.name}'. Make it with 'fn ${e.name}(...) { }'`, e.line);
+      }
     }
     if (args.length !== fn.params.length) {
       throw new VoltError(`'${e.name}' needs ${fn.params.length} value${fn.params.length === 1 ? '' : 's'}, got ${args.length}`, e.line);
@@ -2289,7 +2339,12 @@ function generate(ast, target = 'cpp', options = {}) {
         if (pins.has(s.name)) throw new VoltError(`Can't change pin '${s.name}' with '='. Use set, on, off or toggle`, s.line);
         if (funcs.has(s.name)) throw new VoltError(`Can't change function '${s.name}' with '='`, s.line);
         const v = lookupVar(s.name);
-        if (!v) throw new VoltError(`Unknown variable '${s.name}'. Did you mean 'let ${s.name} = ...'?`, s.line);
+        if (!v) {
+          const guess = closestName(s.name, allVarNames());
+          throw new VoltError(guess
+            ? `Unknown variable '${s.name}'. Did you mean '${guess}'?`
+            : `Unknown variable '${s.name}'. Did you mean 'let ${s.name} = ...'?`, s.line);
+        }
         const value = genExpr(s.value);
         checkAssignType(s.name, v.type, value.type, s.line);
         return [`${p}${v.top ? global(s.name) : s.name} = ${bare(value.code)}${END}`];
@@ -3191,6 +3246,10 @@ function main() {
   } catch (e) {
     if (e instanceof VoltError) {
       console.error(`${file}, line ${e.line}: ${e.message}`);
+      const srcLine = src.split('\n')[e.line - 1];
+      if (srcLine !== undefined && srcLine.trim() !== '') {
+        console.error(`  ${e.line} | ${srcLine}`);
+      }
       process.exit(1);
     }
     throw e;
