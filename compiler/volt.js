@@ -931,7 +931,13 @@ const TARGET_NAMES = {
 };
 
 // Built-in functions: name -> number of values they take
-const BUILTINS = { random: 2, abs: 1, min: 2, max: 2, constrain: 3, map: 5, number: 1, text: 1, length: 1, upper: 1, lower: 1, contains: 2, part: 3, sign: 1, held: 1, saved: 2, touchscreen: 0 };
+const BUILTINS = {
+  random: 2, abs: 1, min: 2, max: 2, constrain: 3, map: 5, number: 1, text: 1, length: 1, upper: 1, lower: 1, contains: 2, part: 3, sign: 1, held: 1, saved: 2, touchscreen: 0,
+  // small gamedev helpers - plain math, so they work on every target
+  dist: 4,       // dist(x1, y1, x2, y2) -> straight-line distance, rounded down
+  lerp: 3,       // lerp(from, to, percent) -> a point percent% of the way from 'from' to 'to'
+  overlaps: 8,   // overlaps(ax, ay, aw, ah, bx, by, bw, bh) -> true if the two boxes touch
+};
 
 // Names that would clash with Volt, C++, Python, Ruby or JavaScript.
 // All of them are checked for every program, so a Volt file can switch languages freely.
@@ -2025,7 +2031,7 @@ function generate(ast, target = 'cpp', options = {}) {
       if (args.length !== need) {
         throw new VoltError(`'${e.name}' needs ${need} value${need === 1 ? '' : 's'}, got ${args.length}`, e.line);
       }
-      const numeric = ['random', 'abs', 'min', 'max', 'constrain', 'map', 'sign'];
+      const numeric = ['random', 'abs', 'min', 'max', 'constrain', 'map', 'sign', 'dist', 'lerp', 'overlaps'];
       if (numeric.includes(e.name)) {
         args.forEach((a, i) => {
           if (a.type === 'text') throw new VoltError(`'${e.name}' needs numbers, not text. Use number(...) to turn text into a number`, e.args[i].line);
@@ -2126,6 +2132,29 @@ function generate(ast, target = 'cpp', options = {}) {
         case 'held':
           gameOnly("'held'", e.line);
           return { code: `__held(${a})`, type: 'bool' };
+        // dist(x1, y1, x2, y2) -> straight-line distance, rounded down
+        case 'dist': {
+          const sq = `((${a}) - (${x})) * ((${a}) - (${x})) + ((${b}) - (${d})) * ((${b}) - (${d}))`;
+          if (py) return { code: `int((${sq}) ** 0.5)`, type: 'num' };
+          if (rb) return { code: `Math.sqrt(${sq}).to_i`, type: 'num' };
+          if (js) return { code: `Math.trunc(Math.sqrt(${sq}))`, type: 'num' };
+          return { code: `(long)sqrt((double)(${sq}))`, type: 'num' };
+        }
+        // lerp(from, to, percent) -> a point percent% (0-100) of the way from 'from' to 'to'
+        case 'lerp': {
+          if (py) return { code: `(${a} + (${b} - (${a})) * (${x}) // 100)`, type: 'num' };
+          if (rb) return { code: `(${a} + (${b} - (${a})) * (${x}) / 100)`, type: 'num' };
+          if (js) return { code: `Math.trunc(${a} + (${b} - (${a})) * (${x}) / 100)`, type: 'num' };
+          return { code: `(${a} + (${b} - (${a})) * (${x}) / 100)`, type: 'num' };
+        }
+        // overlaps(ax, ay, aw, ah, bx, by, bw, bh) -> true if the two boxes touch
+        case 'overlaps': {
+          const [ax, ay, aw, ah, bx, by, bw, bh] = c;
+          const cond = `(${ax}) < (${bx}) + (${bw}) and (${ax}) + (${aw}) > (${bx}) and (${ay}) < (${by}) + (${bh}) and (${ay}) + (${ah}) > (${by})`;
+          if (py) return { code: `(${cond})`, type: 'bool' };
+          const jsCond = cond.replace(/\band\b/g, '&&');
+          return { code: `(${jsCond})`, type: 'bool' };
+        }
       }
     }
 

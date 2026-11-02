@@ -1,0 +1,13 @@
+{
+  "name": "topdown-kit",
+  "type": "library",
+  "version": "1.0.0",
+  "description": "Reusable building blocks for tile-based top-down games: an Entity struct, camera-follow smoothing, chase AI, and damage/kill/nearest-target helpers - the boilerplate Moonwell and every game like it hand-rolls from scratch.",
+  "snippets": [
+    {
+      "file": "kit.volt",
+      "label": "Top-down kit (entities, camera, chase AI, damage)",
+      "description": "Entity/Camera struct types plus cameraFollow(), chaseStep(), hit()/tickHurt() and nearestIndex() functions. Paste near the top of a #html game, after your sprites, and adapt the Entity fields to your own game."
+    }
+  ]
+}

@@ -9,7 +9,7 @@
   const ATOMS = ['true', 'false', 'uptime'];
   const INPUTS = ['ask'];
   const LOGIC = ['and', 'or', 'not'];
-  const BUILTINS = ['random', 'abs', 'min', 'max', 'constrain', 'map', 'number', 'text', 'length', 'upper', 'lower', 'contains', 'part', 'sign', 'held', 'saved', 'touchscreen'];
+  const BUILTINS = ['random', 'abs', 'min', 'max', 'constrain', 'map', 'number', 'text', 'length', 'upper', 'lower', 'contains', 'part', 'sign', 'held', 'saved', 'touchscreen', 'dist', 'lerp', 'overlaps'];
   const word = (list) => new RegExp(`\\b(?:${list.join('|')})\\b`);
 
   CodeMirror.defineSimpleMode('volt', {
@@ -32,6 +32,8 @@
       { regex: /\d+/, token: 'number' },
       { regex: /(fn)(\s+)([A-Za-z_]\w*)/, token: ['keyword', null, 'def'] },
       { regex: /(pin)(\s+)([A-Za-z_]\w*)/, token: ['keyword', null, 'pinname'] },
+      { regex: /([A-Za-z_]\w*)(\s*)(=)(\s*)(type)\b/, token: ['def', null, 'operator', null, 'keyword'] },
+      { regex: /([A-Za-z_]\w*)(\.)([A-Za-z_]\w*)/, token: ['variable', 'punctuation', 'property'] },
       { regex: word(KEYWORDS), token: 'keyword' },
       { regex: word(QUALIFIERS), token: 'qualifier' },
       { regex: word(ACTIONS), token: 'builtin' },
@@ -43,6 +45,7 @@
       { regex: /[A-Za-z_]\w*(?=\s*\()/, token: 'variable-3' },
       { regex: /[A-Za-z_]\w*/, token: 'variable' },
       { regex: /[-+*/%=<>!]+/, token: 'operator' },
+      { regex: /[.:,]/, token: 'punctuation' },
       { regex: /\{/, indent: true },
       { regex: /\}/, dedent: true },
     ],
@@ -76,6 +79,8 @@
     { text: 'when key "k" pressed {\n  \n}', label: 'when key "…" pressed { } (html)' },
     { text: 'title "My page"', label: 'title "…" (html)' },
     { text: 'html "<b>bold</b>"', label: 'html "…" (html)' },
+    { text: 'Player = type { name: string, health: int, speed: float }', label: 'Name = type { field: kind } (html)' },
+    { text: 'let hero = Player { name: "Hero", health: 100, speed: 2 }', label: 'Name { field: value } (html)' },
   ];
 
   CodeMirror.registerHelper('hint', 'volt', (cm) => {
@@ -87,6 +92,7 @@
     // Names already used in this file
     const names = new Set();
     cm.getValue().replace(/\b(?:pin|let|fn)\s+([A-Za-z_]\w*)/g, (m, n) => names.add(n));
+    cm.getValue().replace(/\b([A-Za-z_]\w*)\s*=\s*type\s*\{/g, (m, n) => names.add(n));
 
     const words = [
       ...[...names].map((n) => ({ text: n, displayText: n, className: 'hint-name' })),
