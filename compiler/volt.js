@@ -973,6 +973,11 @@ const BUILTINS = {
   pow: 2,        // pow(base, exponent) -> base to the power of exponent, rounded down
   join: 2,       // join(list, separator) -> one piece of text, list items glued together with separator between them
   split: 2,      // split(text, separator) -> a list of the pieces of text between each separator
+  // backend/Node helpers (#js run with Node; fetchText also works in #html)
+  readFile: 1,   // readFile(path) -> the file's contents as text
+  writeFile: 2,  // writeFile(path, text) -> saves text to a file, true if it worked
+  envVar: 1,     // envVar(name) -> an environment variable's value, or "" if it isn't set
+  fetchText: 1,  // fetchText(url) -> downloads a URL and returns its text
 };
 
 // Names that would clash with Volt, C++, Python, Ruby or JavaScript.
@@ -1084,6 +1089,8 @@ const JS_HELPERS = {
     'const __lines = __rl[Symbol.asyncIterator]();',
     "async function __ask(q) { process.stdout.write(String(q) + ' '); const r = await __lines.next(); return r.done ? '' : r.value; }",
   ],
+  fs: ["const __fs = require('fs');"],
+  writeFile: ['function __writeFile(p, s) { try { __fs.writeFileSync(p, String(s)); return true; } catch (e) { return false; } }'],
 };
 
 // The look of #html pages before any of your own CSS
@@ -1643,6 +1650,12 @@ function generate(ast, target = 'cpp', options = {}) {
   function listsOk(line) {
     if (T.board) throw new VoltError('Lists work in #python, #ruby, #js and #html programs, not on boards (yet)', line);
   }
+  function jsOnly(what, line) {
+    if (!js) throw new VoltError(`${what} only works in #js and #html programs`, line);
+  }
+  function nodeOnly(what, line) {
+    if (!node) throw new VoltError(`${what} only works in #js programs run with Node (not #html pages, which run in a browser)`, line);
+  }
 
   // Text in quotes, written safely for the output language
   function strLit(s) {
@@ -1734,7 +1747,7 @@ function generate(ast, target = 'cpp', options = {}) {
       case 'Member': return 'any';
       case 'StructLit': return 'any';
       case 'Call':
-        if (['text', 'upper', 'lower', 'part', 'join'].includes(e.name)) return 'text';
+        if (['text', 'upper', 'lower', 'part', 'join', 'readFile', 'envVar', 'fetchText'].includes(e.name)) return 'text';
         if (e.name === 'split') return 'list';
         if (e.name === 'saved') return e.args[1] && e.args[1].kind === 'List' ? 'list' : 'any';
         if (BUILTINS[e.name] !== undefined) return 'num';
@@ -2230,6 +2243,25 @@ function generate(ast, target = 'cpp', options = {}) {
           if (py) return { code: `str(${a}).split(str(${b}))`, type: 'list' };
           if (rb) return { code: `(${a}).to_s.split(${b})`, type: 'list' };
           return { code: `String(${a}).split(${b})`, type: 'list' };
+        // readFile(path) -> the file's contents as text      (#js run with Node)
+        case 'readFile':
+          nodeOnly("'readFile'", e.line);
+          help('fs');
+          return { code: `__fs.readFileSync(${a}, 'utf8')`, type: 'text' };
+        // writeFile(path, text) -> saves text to a file, true if it worked      (#js run with Node)
+        case 'writeFile':
+          nodeOnly("'writeFile'", e.line);
+          help('fs');
+          help('writeFile');
+          return { code: `__writeFile(${a}, ${b})`, type: 'bool' };
+        // envVar(name) -> an environment variable's value, or "" if it isn't set      (#js run with Node)
+        case 'envVar':
+          nodeOnly("'envVar'", e.line);
+          return { code: `(process.env[${a}] || "")`, type: 'text' };
+        // fetchText(url) -> downloads a URL and returns its text      (#js and #html)
+        case 'fetchText':
+          jsOnly("'fetchText'", e.line);
+          return { code: `(await (await fetch(${a})).text())`, type: 'text' };
       }
     }
 

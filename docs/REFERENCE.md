@@ -772,6 +772,19 @@ print "Average: " + average(10, 20)
 
 `join` and `split` work in `#python`, `#ruby`, `#js` and `#html` (lists aren't supported on boards yet).
 
+### Node and the web
+
+These four are for backend/data work rather than games or boards:
+
+| Function | What it does | Example |
+|---|---|---|
+| `readFile(path)` | A file's contents as text (`#js` run with Node) | `readFile("data.txt")` |
+| `writeFile(path, text)` | Saves text to a file, `true` if it worked (`#js` run with Node) | `writeFile("out.txt", report)` |
+| `envVar(name)` | An environment variable's value, or `""` if it isn't set (`#js` run with Node) | `envVar("API_KEY")` |
+| `fetchText(url)` | Downloads a URL and returns its text (`#js` and `#html`) | `fetchText("https://example.com/data.json")` |
+
+`readFile`, `writeFile` and `envVar` only work when a `#js` program is actually run with Node (`node program.js`) - a web browser has no filesystem or environment variables, so they don't work in `#html` pages. `fetchText` works in both, since both Node and browsers can fetch a URL.
+
 ## Raw code
 
 When Volt doesn't have a feature yet, you can write lines in the output language directly. Volt copies them into the output without changing them.
