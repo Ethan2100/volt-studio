@@ -765,6 +765,12 @@ print "Average: " + average(10, 20)
 | `dist(x1, y1, x2, y2)` | Straight-line distance between two points, rounded down | `dist(hero.x, hero.y, goblin.x, goblin.y)` |
 | `lerp(from, to, percent)` | The point `percent`% of the way from `from` to `to` | `lerp(0, 100, 25)` → 25 |
 | `overlaps(ax, ay, aw, ah, bx, by, bw, bh)` | Do two boxes (position + size) touch? | `overlaps(hero.x, hero.y, 10, 8, e.x, e.y, e.w, e.h)` |
+| `sqrt(x)` | Square root, rounded down | `sqrt(16)` → 4 |
+| `pow(base, exponent)` | `base` to the power of `exponent`, rounded down | `pow(2, 5)` → 32 |
+| `join(list, separator)` | Glues a list's items into one piece of text | `join(["a", "b", "c"], ", ")` → "a, b, c" |
+| `split(text, separator)` | Breaks text into a list wherever `separator` appears | `split("a,b,c", ",")` → a 3-item list |
+
+`join` and `split` work in `#python`, `#ruby`, `#js` and `#html` (lists aren't supported on boards yet).
 
 ## Raw code
 
