@@ -547,7 +547,19 @@ A `let` at the top level is visible everywhere. A `let` inside `{ }` only exists
 
 ### Numbers
 
-Volt numbers are **whole numbers** (no decimals). Dividing rounds down: `7 / 2` is `3`. Decimals are only allowed in times, like `1.5s`.
+Volt numbers are usually **whole numbers** - dividing rounds down: `7 / 2` is `3`.
+
+Decimals (`2.5`, `0.1`) work in `#python`, `#ruby`, `#js` and `#html`, and change that rule only where they're actually used: dividing is real division as soon as a decimal is involved (`7 / 2.0` is `3.5`), while plain whole numbers still divide the old way (`7 / 2` stays `3`) - so existing programs don't change behavior.
+
+```volt
+let price = 19.99
+let half = price / 2
+print text(half)   // 9.995
+```
+
+- **Boards don't support decimals yet.** `#c++` and `#micropython` still only take whole numbers (decimals are allowed in times like `1.5s`, same as before) - using one elsewhere in a board program is an error.
+- A struct field declared `float` (`Player = type { speed: float }`) always divides as a decimal, even when its value happens to be whole.
+- One JavaScript quirk: `#js`/`#html` can't tell `5.0` apart from `5` once it's passed into a function (JavaScript has no separate decimal type at that point), so dividing a whole-valued decimal that arrived through a function parameter may round down instead of staying a decimal. A decimal with an actual fraction (`2.5`), or one read straight from a variable or struct field, always works correctly.
 
 ### Operators
 

@@ -137,9 +137,8 @@ function lex(src) {
         i += 1;
         add('duration', Math.round(parseFloat(num) * 1000));
       } else {
-        if (num.includes('.')) {
-          throw new VoltError(
-            `Volt only supports whole numbers (decimals are allowed in times like 1.5s), found ${num}`, line);
+        if (!/^\d+(\.\d+)?$/.test(num)) {
+          throw new VoltError(`'${num}' isn't a valid number`, line);
         }
         add('number', num);
       }
@@ -1071,6 +1070,7 @@ const PY_HELPERS = {
   ms: ['_start = time.monotonic()', 'def _ms():', '    return int((time.monotonic() - _start) * 1000)'],
   add: ['def _add(a, b):', '    if isinstance(a, str) or isinstance(b, str):', '        return str(a) + str(b)', '    return a + b'],
   num: ['def _num(v):', '    try:', '        return int(str(v).strip())', '    except ValueError:', '        return 0'],
+  div: ['def _div(a, b):', '    # whole numbers divide by dropping the remainder; a decimal on either side means real division', '    return a // b if isinstance(a, int) and isinstance(b, int) else a / b'],
 };
 
 const RB_HELPERS = {
@@ -1089,6 +1089,7 @@ const JS_HELPERS = {
     'const __lines = __rl[Symbol.asyncIterator]();',
     "async function __ask(q) { process.stdout.write(String(q) + ' '); const r = await __lines.next(); return r.done ? '' : r.value; }",
   ],
+  div: ['function __div(a, b) { return (Number.isInteger(a) && Number.isInteger(b)) ? Math.trunc(a / b) : a / b; }'],
   fs: ["const __fs = require('fs');"],
   writeFile: ['function __writeFile(p, s) { try { __fs.writeFileSync(p, String(s)); return true; } catch (e) { return false; } }'],
 };
@@ -1617,6 +1618,10 @@ function generate(ast, target = 'cpp', options = {}) {
   const images = new Map();     // name -> Image node
   const sprites = new Map();    // name -> Sprite node
   const types = new Map();      // name -> TypeDecl node (gamedev structs, 'Player = type { ... }')
+  // Field names declared as `float` in any type - used only so `.field` access can tell a
+  // decimal field apart from a whole-number one (Member access doesn't know which specific
+  // struct type it's reading, so this is a same-field-name heuristic, not a real per-type check).
+  const floatFields = new Set();
   const audios = new Map();     // name -> Audio node
   let uid = 0;                  // makes hidden helper names unique
   let loopDepth = 0;            // inside repeat/while?
@@ -1742,9 +1747,10 @@ function generate(ast, target = 'cpp', options = {}) {
   function staticType(e) {
     switch (e.kind) {
       case 'String': case 'Ask': return 'text';
+      case 'Number': return e.value.includes('.') ? 'float' : 'num';
       case 'List': return 'list';
       case 'Index': return 'any';
-      case 'Member': return 'any';
+      case 'Member': return floatFields.has(e.field) ? 'float' : 'any';
       case 'StructLit': return 'any';
       case 'Call':
         if (['text', 'upper', 'lower', 'part', 'join', 'readFile', 'envVar', 'fetchText'].includes(e.name)) return 'text';
@@ -1753,14 +1759,17 @@ function generate(ast, target = 'cpp', options = {}) {
         if (BUILTINS[e.name] !== undefined) return 'num';
         return cpp ? 'num' : 'any';
       case 'Var': { const v = lookupVar(e.name); return v ? v.type : 'any'; }
-      case 'Binary':
+      case 'Unary': return e.op === 'not' ? 'bool' : staticType(e.operand);
+      case 'Binary': {
+        const l = staticType(e.left);
+        const r = staticType(e.right);
         if (e.op === '+') {
-          const l = staticType(e.left);
-          const r = staticType(e.right);
           if (l === 'text' || r === 'text') return 'text';
           if (l === 'any' || r === 'any') return 'any';
         }
+        if (!['and', 'or', '==', '!=', '<', '>', '<=', '>='].includes(e.op) && (l === 'float' || r === 'float')) return 'float';
         return 'num';
+      }
       default: return 'num';
     }
   }
@@ -1815,6 +1824,9 @@ function generate(ast, target = 'cpp', options = {}) {
         seen.add(f.name);
       }
       types.set(node.name, node.fields);
+      for (const f of node.fields) {
+        if (f.kindName.toLowerCase() === 'float') floatFields.add(f.name);
+      }
     } else if (node.kind === 'Fn') {
       checkName(node.name, node.line);
       funcs.set(node.name, node);
@@ -1860,12 +1872,19 @@ function generate(ast, target = 'cpp', options = {}) {
   }
 
   // ---------- expressions ----------
-  // Each returns { code, type } where type is 'num', 'text', 'bool' or 'any' (unknown until it runs).
+  // Each returns { code, type } where type is 'num', 'float' (a decimal number), 'text', 'bool',
+  // 'list' or 'any' (unknown until it runs). 'float' only ever comes from a decimal literal -
+  // boards (#c++, #micropython) reject those, so cpp/micro code never has to handle it.
   // In C++, 'obj' marks a String object (so '+' joins text instead of adding pointers).
   function genExpr(e) {
     switch (e.kind) {
-      case 'Number':
-        return { code: e.value, type: 'num' };
+      case 'Number': {
+        const isDecimal = e.value.includes('.');
+        if (isDecimal && T.board) {
+          throw new VoltError(`Boards (#c++ and #micropython) only support whole numbers, found ${e.value}. Decimals work in #python, #ruby, #js and #html`, e.line);
+        }
+        return { code: e.value, type: isDecimal ? 'float' : 'num' };
+      }
 
       case 'Bool':
         if (py) return { code: e.value ? 'True' : 'False', type: 'bool' };
@@ -1945,7 +1964,7 @@ function generate(ast, target = 'cpp', options = {}) {
       case 'Index': {
         listsOk(e.line);
         const target = genExpr(e.target);
-        if (target.type === 'num' || target.type === 'bool') {
+        if (target.type === 'num' || target.type === 'float' || target.type === 'bool') {
           throw new VoltError("Only lists and text can be read with [ ], like scores[0] or name[0]", e.line);
         }
         const i = genNumber(e.index, "A list position");
@@ -1959,8 +1978,9 @@ function generate(ast, target = 'cpp', options = {}) {
           if (rb) return { code: `!${truthy(inner)}`, type: 'bool' };
           return { code: `!(${bare(inner.code)})`, type: 'bool' };
         }
-        const inner = genNumber(e.operand, "'-'");
-        return { code: `-(${bare(inner)})`, type: 'num' };
+        const operand = genExpr(e.operand);
+        if (operand.type === 'text') throw new VoltError("'-' needs a number, not text. Use number(...) to turn text into a number", e.line);
+        return { code: `-(${bare(operand.code)})`, type: operand.type === 'float' ? 'float' : 'num' };
       }
 
       case 'Binary':
@@ -1970,7 +1990,7 @@ function generate(ast, target = 'cpp', options = {}) {
       case 'Member': {
         gameOnly("'.field'", e.line);
         const target = genExpr(e.target);
-        return { code: `${target.code}.${e.field}`, type: 'any' };
+        return { code: `${target.code}.${e.field}`, type: floatFields.has(e.field) ? 'float' : 'any' };
       }
 
       // Player { name: "Finn", health: 10 }  - any field left out gets a sensible
@@ -2062,8 +2082,9 @@ function generate(ast, target = 'cpp', options = {}) {
       return { code: `(${truthy(left)} ${op} ${truthy(right)})`, type: 'bool' };
     }
 
+    const isNum = (t) => t === 'num' || t === 'float';
     if (['==', '!=', '<', '>', '<=', '>='].includes(e.op)) {
-      const textVsNumber = (left.type === 'text' && right.type === 'num') || (left.type === 'num' && right.type === 'text');
+      const textVsNumber = (left.type === 'text' && isNum(right.type)) || (isNum(left.type) && right.type === 'text');
       if (textVsNumber && !['==', '!='].includes(e.op)) {
         throw new VoltError(`Can't compare text and a number with '${e.op}'. Use number(...) to turn the text into a number`, e.line);
       }
@@ -2079,11 +2100,23 @@ function generate(ast, target = 'cpp', options = {}) {
     if (anyText) {
       throw new VoltError(`Can't use '${e.op}' with text, only with numbers. Use number(...) to turn text into a number`, e.line);
     }
-    const type = anyUnknown ? 'any' : 'num';
-    if (e.op === '/') {
-      // Volt numbers are whole numbers, so division drops the remainder
-      if (py) return { code: `(${L} // ${R})`, type };
-      if (js) return { code: `Math.trunc(${L} / ${R})`, type };
+    const anyFloat = left.type === 'float' || right.type === 'float';
+    const type = anyUnknown ? 'any' : anyFloat ? 'float' : 'num';
+    if (e.op === '/' && !anyFloat) {
+      if (anyUnknown) {
+        // Can't tell at compile time whether this is whole numbers or a decimal - e.g. a
+        // struct field read generically, or a function parameter (params aren't typed).
+        // Decide for real at runtime instead of guessing and risking a wrong truncation.
+        if (py) { help('div'); return { code: `_div(${L}, ${R})`, type }; }
+        if (js) { help('div'); return { code: `__div(${L}, ${R})`, type }; }
+        // Ruby's native '/' already divides exactly this way depending on the actual value
+      } else {
+        // Both sides are known whole numbers, so division drops the remainder. A decimal on
+        // either side means real division instead (the plain '/' below, already correct in
+        // every target here).
+        if (py) return { code: `(${L} // ${R})`, type };
+        if (js) return { code: `Math.trunc(${L} / ${R})`, type };
+      }
     }
     return { code: `(${L} ${e.op} ${R})`, type };
   }
@@ -2130,7 +2163,7 @@ function generate(ast, target = 'cpp', options = {}) {
           if (js) return { code: `(Math.trunc((${a} - ${b}) * (${f} - ${d}) / (${x} - ${b})) + ${d})`, type: 'num' };
           return { code: `map(${a}, ${b}, ${x}, ${d}, ${f})`, type: 'num' };
         case 'number':
-          if (args[0].type === 'num') return { code: args[0].code, type: 'num' };
+          if (args[0].type === 'num' || args[0].type === 'float') return { code: args[0].code, type: args[0].type };
           if (py) { help('num'); return { code: `_num(${a})`, type: 'num' }; }
           if (rb) return { code: `(${a}).to_s.to_i`, type: 'num' };
           if (js) return { code: `(parseInt(${a}, 10) || 0)`, type: 'num' };

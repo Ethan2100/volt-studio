@@ -2000,9 +2000,9 @@ fn fireball(px, py, vx, vy, color) {
 fn aimAt(px, py, speed, count, color) {
   let dx = hx + 5 - px
   let dy = hy - 2 - py
-  let dist = roughLength(dx, dy)
-  let vx = dx * speed / dist
-  let vy = dy * speed / dist
+  let separation = roughLength(dx, dy)
+  let vx = dx * speed / separation
+  let vy = dy * speed / separation
   let s = 0 - count / 2
   while s <= count / 2 {
     fireball(px, py, vx - vy * s * 3 / 10, vy + vx * s * 3 / 10, color)
