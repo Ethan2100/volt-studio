@@ -969,6 +969,8 @@ const BUILTINS = {
   overlaps: 8,   // overlaps(ax, ay, aw, ah, bx, by, bw, bh) -> true if the two boxes touch
   // everyday math and text/list helpers, for non-game logic
   sqrt: 1,       // sqrt(x) -> square root, rounded down
+  sin: 1,        // sin(degrees) -> sine of an angle in degrees (a decimal from -1 to 1)
+  cos: 1,        // cos(degrees) -> cosine of an angle in degrees (a decimal from -1 to 1)
   pow: 2,        // pow(base, exponent) -> base to the power of exponent, rounded down
   join: 2,       // join(list, separator) -> one piece of text, list items glued together with separator between them
   split: 2,      // split(text, separator) -> a list of the pieces of text between each separator
@@ -1755,6 +1757,7 @@ function generate(ast, target = 'cpp', options = {}) {
       case 'Call':
         if (['text', 'upper', 'lower', 'part', 'join', 'readFile', 'envVar', 'fetchText'].includes(e.name)) return 'text';
         if (e.name === 'split') return 'list';
+        if (['sin', 'cos'].includes(e.name)) return 'float';
         if (e.name === 'saved') return e.args[1] && e.args[1].kind === 'List' ? 'list' : 'any';
         if (BUILTINS[e.name] !== undefined) return 'num';
         return cpp ? 'num' : 'any';
@@ -1849,7 +1852,10 @@ function generate(ast, target = 'cpp', options = {}) {
       sprites.set(node.name, node);
       globals.push(`let ${node.name} = null;`);
     } else if (node.kind === 'RawTop') {
-      if (!cpp && node.code.startsWith('#')) {
+      // A C/C++ directive (#include, #define) starts with # followed by a letter; a CSS id
+      // selector (#world3d { ... }) also starts with # but is followed by a name then '{',
+      // so it isn't mistaken for one here.
+      if (!cpp && !html && /^#[a-zA-Z]/.test(node.code)) {
         throw new VoltError(`'${node.code.split(/\s/)[0]}' only works in #c++ programs`, node.line);
       }
       if (html) cssLines.push(node.code);
@@ -2129,7 +2135,7 @@ function generate(ast, target = 'cpp', options = {}) {
       if (args.length !== need) {
         throw new VoltError(`'${e.name}' needs ${need} value${need === 1 ? '' : 's'}, got ${args.length}`, e.line);
       }
-      const numeric = ['random', 'abs', 'min', 'max', 'constrain', 'map', 'sign', 'dist', 'lerp', 'overlaps', 'sqrt', 'pow'];
+      const numeric = ['random', 'abs', 'min', 'max', 'constrain', 'map', 'sign', 'dist', 'lerp', 'overlaps', 'sqrt', 'pow', 'sin', 'cos'];
       if (numeric.includes(e.name)) {
         args.forEach((a, i) => {
           if (a.type === 'text') throw new VoltError(`'${e.name}' needs numbers, not text. Use number(...) to turn text into a number`, e.args[i].line);
@@ -2265,6 +2271,18 @@ function generate(ast, target = 'cpp', options = {}) {
           if (rb) return { code: `((${a}) ** (${b})).to_i`, type: 'num' };
           if (js) return { code: `Math.trunc(Math.pow(${a}, ${b}))`, type: 'num' };
           return { code: `(long)pow((double)(${a}), (double)(${b}))`, type: 'num' };
+        // sin(degrees) / cos(degrees) -> sine/cosine of an angle given in degrees.
+        // Needs real decimals, so (for now) it's scripts/web only, not boards.
+        case 'sin':
+          if (T.board) throw new VoltError("'sin' needs decimals, which boards (#c++, #micropython) don't support yet", e.line);
+          if (py) { usesMath = true; return { code: `math.sin((${a}) * math.pi / 180)`, type: 'float' }; }
+          if (rb) return { code: `Math.sin((${a}) * Math::PI / 180)`, type: 'float' };
+          return { code: `Math.sin((${a}) * Math.PI / 180)`, type: 'float' };
+        case 'cos':
+          if (T.board) throw new VoltError("'cos' needs decimals, which boards (#c++, #micropython) don't support yet", e.line);
+          if (py) { usesMath = true; return { code: `math.cos((${a}) * math.pi / 180)`, type: 'float' }; }
+          if (rb) return { code: `Math.cos((${a}) * Math::PI / 180)`, type: 'float' };
+          return { code: `Math.cos((${a}) * Math.PI / 180)`, type: 'float' };
         // join(list, separator) -> list items glued into one piece of text
         case 'join':
           listsOk(e.line);

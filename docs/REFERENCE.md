@@ -807,8 +807,12 @@ print "5 squared is " + square(5)
 | `pow(base, exponent)` | `base` to the power of `exponent`, rounded down | `pow(2, 5)` → 32 |
 | `join(list, separator)` | Glues a list's items into one piece of text | `join(["a", "b", "c"], ", ")` → "a, b, c" |
 | `split(text, separator)` | Breaks text into a list wherever `separator` appears | `split("a,b,c", ",")` → a 3-item list |
+| `sin(degrees)` | Sine of an angle given in degrees (a decimal from -1 to 1) | `sin(90)` → 1 |
+| `cos(degrees)` | Cosine of an angle given in degrees (a decimal from -1 to 1) | `cos(0)` → 1 |
 
 `join` and `split` work in `#python`, `#ruby`, `#js` and `#html` (lists aren't supported on boards yet).
+
+`sin` and `cos` always return a decimal, so they need decimal support and don't work on boards (`#c++`, `#micropython`) yet. They're handy for turning an angle (like a character's facing direction) into a movement vector: `moveX = cos(angle)`, `moveY = sin(angle)`.
 
 ### Node and the web
 
