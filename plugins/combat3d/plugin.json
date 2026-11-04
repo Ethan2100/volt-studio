@@ -1,0 +1,9 @@
+{
+  "name": "combat3d",
+  "type": "library",
+  "version": "1.0.0",
+  "description": "3D anime action engine for #html Volt games (Three.js loaded from a CDN): cel-shaded rigs, bloom and screen distortion, per-character cursed-energy auras, slashes, Black Flash, domain expansions, a destructible city map, procedural audio and an anime HUD. Gameplay stays in Volt.",
+  "snippets": [
+    { "file": "engine3d.volt", "label": "Combat 3D engine (Three.js, auras, domains, map, HUD, audio)", "description": "Paste at the top of an #html program; see examples/26_cursed_arena_3d.volt for the gameplay layer that drives it." }
+  ]
+}
