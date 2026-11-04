@@ -3,3 +3,7 @@ dist/
 *.log
 .DS_Store
 examples/dungeon/moonwell/
+
+# Polyglot build output
+projects/*/*/index.html
+projects/polyglot/polyglot/
