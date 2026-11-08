@@ -323,6 +323,72 @@ Things to know:
 - Volt numbers are whole numbers. For smooth slow movement, keep positions times 10 (`x10 += speed`) and draw at `x10 / 10`.
 - `examples/dungeon/moonwell.volt` is a full dungeon crawler written this way: six floors with six bosses, keys, weapons, a shop, music, sound effects and a saved journey.
 
+## 3D games: world3d, blocks and lights
+
+An `#html` program can also be a **first-person 3D game**. Volt bundles Three.js (WebGL) into the finished `index.html`, so it still works by double-click or on a website host. The 2D `canvas` stays on top as your HUD: `box` and `write` draw over the 3D world, and `render3d` clears them each frame, so draw your HUD *after* `render3d`.
+
+```volt
+#html
+canvas 320, 180
+world3d "#05060a" fog 1600 ambient 6 shadows
+
+let floor = block3d(0, -5, 0, 1200, 10, 1200, "#6a6f78")    // x, y, z (the middle), width, height, depth, colour
+let wall = block3d(0, 150, -600, 1200, 300, 20, "#7b808a")
+let cell = block3d(300, 120, 100, 20, 30, 20, "#2a8aa8")
+glow3d cell, "#4de1ff"                                       // it lights itself up
+let lamp = lamp3d(300, 140, 100, "#4de1ff", 20, 500)         // a point light
+
+torch3d 60, 1800                                             // a flashlight on the camera
+let x = 0
+let z = 400
+let yaw = 0
+every frame {
+  yaw += mousedx() * 3                                       // click the page first: the mouse is captured
+  if held("w") { z -= 4 }
+  camera3d x, 165, z, yaw, 0
+  render3d
+  write "Hello, 3D" at 160, 8 centered shadow
+}
+```
+
+In your program **1 unit = 1 cm** (a 2 m corridor is 200) and **y is up**. **Angles are tenths of a degree** (900 is a quarter turn) so mouse-look is smooth with whole numbers. Yaw 0 looks along -z; turning right makes the yaw bigger.
+
+| Command | What it does |
+|---|---|
+| `world3d "#05060a" fog 1600 ambient 6 fov 75 shadows` | Starts the 3D world. Colour first, then any options: `fog` (how far you can see, in cm), `ambient` (base light 0-100), `fov`, and `shadows` (the flashlight casts shadows) |
+| `block3d(x, y, z, w, h, d, "#colour")` | Makes a box and gives back its number. Boxes get a grimy panel texture so flat colours look like surfaces |
+| `lamp3d(x, y, z, "#colour", power, range)` | Makes a point light and gives back its number (power 0-100, range in cm) |
+| `clear3d` | Removes every block and lamp (use it when building a new level) |
+| `camera3d x, y, z, yaw, pitch` | Puts the camera somewhere. Pitch above 0 looks up |
+| `torch3d power, range` | A flashlight on the camera. Power 0 turns it off |
+| `move3d id, x, y, z` | Moves a block or lamp |
+| `turn3d id, yaw` | Turns a block round |
+| `show3d id, flag` | Shows or hides a block or lamp |
+| `glow3d id, "#4de1ff"` | Makes a block shine with its own light colour |
+| `ball3d(x, y, z, radius, "#colour")` | Makes a sphere (x, y, z is its middle) and gives back its number |
+| `cyl3d(x, y, z, radius, height, "#colour")` | Makes an upright cylinder (a pillar, barrel or pipe) and gives back its number |
+| `shine3d id, rough, metal` | Makes a surface glossy or metal. Both 0-100: rough 0 is a mirror and 100 is chalk, metal 100 is solid metal. Works on blocks, balls, cylinders and models |
+| `fx3d bloom, vignette, grain` | The cinematic look. Bloom makes bright things glow (try 60), vignette darkens the edges (40), grain adds film noise (10). It also turns on film tone-mapping and soft shadows. All 0 turns it off |
+| `burst3d x, y, z, "#ff8844", count, speed` | A burst of glowing sparks that fly out and fall. Count up to 300, speed in cm per second. With `fx3d` bloom on they really glow |
+| `render3d` | Draws the 3D world and clears the 2D layer. Call it once per frame |
+| `mousedx()` `mousedy()` | How far the mouse moved since last asked. The first click on the page captures the mouse (Esc lets go) |
+| `locked3d()` | 1 while the mouse is captured |
+| `sin(a)` `cos(a)` | Angle in tenths of a degree in, thousandths out: `sin(900)` is 1000 |
+| `atan2(y, x)` | The angle (0 to 3599) that points from the origin to x, y |
+| `sqrt(n)` | Whole-number square root |
+
+`examples/one-more-floor/one-more-floor.volt` is a complete 3D horror game made this way: random floors, a creature that patrols, hears, chases and sniffs out lockers, a flashlight, stamina and an elevator. Three.js is MIT licensed (`lib/THREE_LICENSE.txt`).
+
+### Models: model3d, put3d, anim3d
+
+| Command | What it does |
+|---|---|
+| `model3d name = "file.glb"` | Loads a `.glb` model before the game starts. The file is packed into the page, and its textures must be packed inside the `.glb`. |
+| `put3d(name, x, y, z, yaw, scale)` | Puts a copy of the model in the world and gives back its id. `scale` is a percent (100 = the size it was made, 1 unit = 1 metre). |
+| `anim3d id, "walk"` | Plays one of the model's animations on a loop. Part of the name is enough. |
+
+`move3d`, `turn3d`, `show3d` and `glow3d` work on models too.
+
 ## How a Volt program runs
 
 There is one simple rule:

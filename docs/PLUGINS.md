@@ -62,14 +62,39 @@ sandbox means the panel:
   `window.volt` - it's an ordinary, isolated web page.
 - Can use its own `<script>`, CSS and images, as long as they're files
   inside the plugin folder (loaded via `file://`, so no network fetches).
-- Can talk to the rest of Volt Studio only via `postMessage` - there is no
-  postMessage bridge wired up yet, so for now a panel is self-contained UI
-  (a reference page, a calculator, a diagram) rather than something that
-  reads or writes the current program.
+- Can talk to the rest of Volt Studio only via `postMessage` (see
+  "Talking to the editor" below).
+- Cannot load other local files: a sandboxed page isn't allowed to fetch
+  `<script src>` / `<link>` / images from its own folder, so keep a panel in
+  **one self-contained HTML file** (inline the scripts and styles - the
+  `world-studio` plugin does this with a tiny `build.js`).
 
-See `plugins/pin-diagram/index.html` for a real example: a pure-reference
-pinout table with no dependencies at all, picked to show what a panel can
-do today without needing a bridge.
+See `plugins/pin-diagram/index.html` for the simplest example: a
+pure-reference pinout table with no dependencies at all. For a big one, see
+`plugins/world-studio` - a Roblox-Studio-style 3D world editor that uses the
+bridge below to send Volt code into the editor and to load a world back.
+
+### Talking to the editor
+
+A panel posts messages to `window.parent`; Volt Studio only answers frames
+that are its own panel tabs.
+
+```js
+// panel -> Volt Studio
+parent.postMessage({ voltPanel: 1, type: 'hello' }, '*');                     // replies { voltHost: 1, type: 'hello' }
+parent.postMessage({ voltPanel: 1, type: 'getSource', req: 1 }, '*');         // replies { voltHost: 1, type: 'source', req: 1, source: '...' }
+parent.postMessage({ voltPanel: 1, type: 'insert',  code }, '*');             // pastes at the editor cursor
+parent.postMessage({ voltPanel: 1, type: 'replace', code, run: false }, '*'); // replaces the whole file (Ctrl+Z undoes it); run: true also runs it
+parent.postMessage({ voltPanel: 1, type: 'toast', text: 'Saved', error: false }, '*');
+parent.postMessage({ voltPanel: 1, type: 'wide', on: true }, '*');            // asks for a much wider side pane (on: false gives it back)
+
+// Volt Studio -> panel
+addEventListener('message', (e) => { if (e.data && e.data.voltHost === 1) { /* hello / source */ } });
+```
+
+If a panel gets no `hello` reply it is running in an older Volt Studio (or
+outside it) - disable the buttons that need the editor and keep the rest
+working.
 
 ## `"target"` - a new compile target
 

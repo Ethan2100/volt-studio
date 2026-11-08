@@ -1,0 +1,9 @@
+sprite mSlash = fxPic at 0, 0 size 72, 72 frames 8
+sprite mBeam = fxPic at 0, 72 size 72, 72 frames 8
+sprite mPuff = fxPic at 0, 144 size 72, 72 frames 8
+sprite mHit = fxPic at 0, 216 size 72, 72 frames 8
+sprite mFire = fxPic at 0, 288 size 72, 72 frames 4
+sprite mHeart = fxPic at 0, 360 size 72, 72 frames 8
+sprite mRing = fxPic at 0, 432 size 72, 72 frames 8
+sprite mSpike = fxPic at 0, 504 size 72, 72 frames 8
+sprite mThorn = fxPic at 0, 576 size 72, 72 frames 8

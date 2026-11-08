@@ -168,7 +168,8 @@ const PIN_MODES = ['input', 'output', 'analog', 'pwm', 'servo', 'stepper'];
 const PAGE_WORDS = ['button', 'title', 'html'];
 // Game commands (#html canvas games) and list commands. Like the page words they
 // aren't keywords, so 'let box = 3' or 'fn draw()' in older programs still work.
-const GAME_WORDS = ['canvas', 'image', 'sprite', 'draw', 'paint', 'box', 'write', 'camera', 'touchpad', 'music', 'save', 'audio', 'sound', 'volume'];
+const GAME_WORDS = ['canvas', 'image', 'sprite', 'draw', 'paint', 'box', 'write', 'camera', 'touchpad', 'music', 'save', 'audio', 'sound', 'volume',
+  'world3d', 'clear3d', 'camera3d', 'render3d', 'move3d', 'turn3d', 'show3d', 'glow3d', 'torch3d', 'model3d', 'anim3d', 'fx3d', 'shine3d', 'burst3d', 'look3d'];
 const LIST_WORDS = ['add', 'remove'];
 const NOT_A_COMMAND = ['=', '(', '[', '+=', '-=', '*=', '/=', 'eof'];
 
@@ -565,6 +566,14 @@ function parse(tokens) {
         const file = expect('string', 'the image file in quotes, like "tiles.png"').value;
         return { kind: 'Image', name, file, line };
       }
+      // model3d hunter = "hunter.glb"      (a 3D model, put it in the world with put3d)
+      case 'model3d': {
+        if (!topLevel) topLevelOnly(t);
+        const name = expect('ident', 'a name for the model').value;
+        expect('=', "'='");
+        const file = expect('string', 'the model file in quotes, like "hunter.glb"').value;
+        return { kind: 'Model3d', name, file, line };
+      }
       // sprite hero = tiles at 128, 106 size 16, 22 frames 4
       case 'sprite': {
         if (!topLevel) topLevelOnly(t);
@@ -628,6 +637,34 @@ function parse(tokens) {
       case 'camera': {
         const [x, y] = pair();
         return { kind: 'Camera', x, y, line };
+      }
+      // ---- 3D (Three.js): the 3D world, drawn behind the 2D canvas (which then works as the HUD) ----
+      // world3d "#05060a" fog 1400 ambient 8 fov 75 shadows
+      case 'world3d': {
+        const color = expression();
+        const opts = {};
+        for (;;) {
+          if (isWord('shadows')) { next(); opts.shadows = true; continue; }
+          const o = ['fog', 'ambient', 'fov'].find(isWord);
+          if (!o) break;
+          next();
+          opts[o] = expression();
+        }
+        return { kind: 'Cmd3d', cmd: 'world3d', args: [color], opts, line };
+      }
+      case 'clear3d':
+      case 'render3d':
+        return { kind: 'Cmd3d', cmd: t.value, args: [], opts: {}, line };
+      // camera3d x, y, z, yaw, pitch      move3d id, x, y, z      turn3d id, yaw      show3d id, flag
+      // glow3d id, "#4de1ff"      torch3d power, range
+      case 'camera3d': case 'move3d': case 'turn3d': case 'show3d': case 'glow3d': case 'torch3d': case 'anim3d': case 'fx3d': case 'shine3d': case 'burst3d': case 'look3d': {
+        const need = { camera3d: 5, move3d: 4, turn3d: 2, show3d: 2, glow3d: 2, torch3d: 2, anim3d: 2, fx3d: 3, shine3d: 3, burst3d: 6, look3d: 2 }[t.value];
+        const args = [expression()];
+        while (match(',')) args.push(expression());
+        if (args.length !== need) {
+          throw new VoltError(`'${t.value}' needs ${need} values separated by commas, got ${args.length}`, line);
+        }
+        return { kind: 'Cmd3d', cmd: t.value, args, opts: {}, line };
       }
       // audio hit = "hit1.mp3", "hit2.mp3"      (several files: one is picked at random each time)
       case 'audio': {
@@ -853,7 +890,8 @@ const TARGET_NAMES = {
 };
 
 // Built-in functions: name -> number of values they take
-const BUILTINS = { random: 2, abs: 1, min: 2, max: 2, constrain: 3, map: 5, number: 1, text: 1, length: 1, upper: 1, lower: 1, contains: 2, part: 3, sign: 1, held: 1, saved: 2, touchscreen: 0 };
+const BUILTINS = { random: 2, abs: 1, min: 2, max: 2, constrain: 3, map: 5, number: 1, text: 1, length: 1, upper: 1, lower: 1, contains: 2, part: 3, sign: 1, held: 1, saved: 2, touchscreen: 0,
+  block3d: 7, ball3d: 5, cyl3d: 6, lamp3d: 6, put3d: 6, mousedx: 0, mousedy: 0, locked3d: 0, clicked3d: 0, hot3d: 4, sky3d: 1, crisp: 1, sin: 1, cos: 1, atan2: 2, sqrt: 1 };
 
 // Names that would clash with Volt, C++, Python, Ruby or JavaScript.
 // All of them are checked for every program, so a Volt file can switch languages freely.
@@ -956,6 +994,7 @@ const RB_HELPERS = {
 };
 
 const JS_HELPERS = {
+  math3: ['const __D2R = Math.PI / 1800;', 'function __sin3(a) { return Math.round(Math.sin(a * __D2R) * 1000); }', 'function __cos3(a) { return Math.round(Math.cos(a * __D2R) * 1000); }', 'function __atan23(y, x) { const v = Math.round(Math.atan2(y, x) / __D2R); return ((v % 3600) + 3600) % 3600; }', 'function __sqrt3(v) { return Math.floor(Math.sqrt(Math.max(0, v))); }'],
   random: ['function __random(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }'],
   len: ['function __len(v) { return Array.isArray(v) ? v.length : String(v).length; }'],
   has: ['function __has(v, x) { return Array.isArray(v) ? v.includes(x) : String(v).includes(String(x)); }'],
@@ -985,6 +1024,10 @@ const HTML_CSS = `  :root { color-scheme: light dark; }
     .volt-error { background: #3a1518; color: #ffb3b3; }
   }`;
 
+// 3D games bundle Three.js (lib/three.min.js, MIT) and our small 3D runtime into the page
+const THREE_SRC = () => fs.readFileSync(path.join(__dirname, '..', 'lib', 'three.min.js'), 'utf8').replace(/<\/script/gi, '<\\/script');
+const VOLT3D_SRC = () => fs.readFileSync(path.join(__dirname, '..', 'lib', 'volt3d.js'), 'utf8');
+
 // Helpers for #html games, added to the page only when it uses canvas
 const GAME_RUNTIME = [
   "// ---- Volt game runtime: canvas, images, sprites, text, keys, sound ----",
@@ -1007,6 +1050,13 @@ const GAME_RUNTIME = [
   "  __cx = __cv.getContext('2d'); __cx.imageSmoothingEnabled = false;",
   "  __fit(); __cv.focus();",
   "}",
+  "let __UI = 1, __fnt = null;",
+  "function __crisp(n) {",
+  "  __UI = Math.max(1, n | 0); __need();",
+  "  __cv.width = __W * __UI; __cv.height = __H * __UI;",
+  "  __cx = __cv.getContext('2d'); __cx.imageSmoothingEnabled = false; __cx.setTransform(__UI, 0, 0, __UI, 0, 0);",
+  "  return 0;",
+  "}",
   "function __need() { if (!__cx) throw new Error('Make a screen first, like: canvas 320, 180'); }",
   "function __paint(c) { __need(); __cx.fillStyle = String(c); __cx.fillRect(0, 0, __W, __H); }",
   "function __camera(x, y) { __camX = Math.round(x); __camY = Math.round(y); }",
@@ -1028,6 +1078,7 @@ const GAME_RUNTIME = [
   "  return (__glyphs[c] = g);",
   "}",
   "function __text(t, x, y, c, s, center) {",
+  "  if (__UI > 1) return __vtext(t, x, y, c, s, center);",
   "  const g = __fontFor(c);",
   "  String(t).split('\\n').forEach((ln, row) => {",
   "    let px = Math.round(x) - __camX;",
@@ -1040,6 +1091,21 @@ const GAME_RUNTIME = [
   "    }",
   "  });",
   "}",
+  "function __vtext(t, x, y, c, s, center) {",
+  "  if (!__fnt) {",
+  "    const fam = 'Consolas, \"Lucida Console\", \"DejaVu Sans Mono\", \"Courier New\", monospace';",
+  "    __cx.save(); __cx.setTransform(1, 0, 0, 1, 0, 0); __cx.font = '700 100px ' + fam;",
+  "    const adv = __cx.measureText('M').width / 100; __cx.restore();",
+  "    __fnt = { fam, size: 5.4 / adv };",
+  "  }",
+  "  __cx.font = '700 ' + (__fnt.size * s) + 'px ' + __fnt.fam; __cx.fillStyle = c; __cx.textBaseline = 'alphabetic'; __cx.textAlign = 'center';",
+  "  String(t).split('\\n').forEach((ln, row) => {",
+  "    let px = Math.round(x) - __camX;",
+  "    if (center) px -= Math.floor((ln.length * 6 - 1) * s / 2);",
+  "    const py = Math.round(y) - __camY + row * 9 * s + 6.6 * s;",
+  "    for (let i = 0; i < ln.length; i++) { const ch = ln[i]; if (ch !== ' ') __cx.fillText(ch, px + i * 6 * s + 3 * s, py); }",
+  "  });",
+  "}",
   "function __write(t, x, y, c, size, center, shadow) {",
   "  __need();",
   "  const s = Math.max(1, size | 0);",
@@ -1049,7 +1115,7 @@ const GAME_RUNTIME = [
   "// Images load before the program starts; sprites are rectangles cut out of them",
   "const __imgs = [];",
   "function __image(src, name) {",
-  "  const im = new Image();",
+  "  const im = new Image(); if (/hq/.test(String(name))) im.__hq = true;",
   "  __imgs.push(new Promise((ok, fail) => {",
   "    im.onload = ok;",
   "    im.onerror = () => fail(new Error(\"Couldn't load the image '\" + name + \"'. Keep the picture next to your .volt file\"));",
@@ -1092,6 +1158,7 @@ const GAME_RUNTIME = [
   "  c.translate(cx, cy);",
   "  if (ang) c.rotate(ang * Math.PI / 180);",
   "  if (flip) c.scale(-1, 1);",
+  "  c.imageSmoothingEnabled = !!s.img.__hq;",
   "  c.drawImage(src, sx, sy, s.w, s.h, -w / 2, -h / 2, w, h);",
   "  c.restore();",
   "}",
@@ -1381,6 +1448,8 @@ const GAME_CSS = `  body.volt-game { background: #000; overflow: hidden; }
   body.volt-game #volt { max-width: none; padding: 0; height: 100vh; display: grid; place-items: center; align-content: center; }
   body.volt-game #volt > h1 { display: none; }
   body.volt-game .volt-error { position: fixed; top: 10px; left: 10px; right: 10px; z-index: 5; }
+  .volt-3d { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; z-index: 0; }
+  body.volt-has3d #volt { position: relative; z-index: 1; }
   .volt-canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; outline: none; touch-action: none; }
   .volt-touch { position: fixed; inset: auto 0 0 0; display: flex; justify-content: space-between; align-items: end; padding: 18px max(18px, env(safe-area-inset-right, 0px)) max(18px, env(safe-area-inset-bottom, 0px)) max(18px, env(safe-area-inset-left, 0px)); pointer-events: none; z-index: 4; user-select: none; -webkit-user-select: none; }
   .volt-touch.volt-lefty { flex-direction: row-reverse; }
@@ -1486,6 +1555,8 @@ function generate(ast, target = 'cpp', options = {}) {
   let usesStepper = false;
   let usesForever = false;
   let usesGame = false;         // canvas, sprites, held keys ... (#html)
+  let uses3d = false;           // world3d, block3d ... (#html): adds Three.js
+  const models = new Map();     // name -> Model3d node (.glb files)
   const images = new Map();     // name -> Image node
   const sprites = new Map();    // name -> Sprite node
   const audios = new Map();     // name -> Audio node
@@ -1574,7 +1645,7 @@ function generate(ast, target = 'cpp', options = {}) {
       throw new VoltError(`In #ruby, names must start with a lowercase letter ('${name}' would be a Ruby constant)`, line);
     }
     // (a function parameter may share its name with a top-level variable; inside the function it means the parameter)
-    if (pins.has(name) || funcs.has(name) || images.has(name) || sprites.has(name) || audios.has(name) || (!isParam && lookupVar(name))) {
+    if (pins.has(name) || funcs.has(name) || images.has(name) || models.has(name) || sprites.has(name) || audios.has(name) || (!isParam && lookupVar(name))) {
       throw new VoltError(`'${name}' already exists`, line);
     }
   }
@@ -1667,6 +1738,12 @@ function generate(ast, target = 'cpp', options = {}) {
       checkName(node.name, node.line);
       images.set(node.name, node);
       globals.push(`const ${node.name} = __image(${strLit(imageSource(node))}, ${strLit(node.file)});`);
+    } else if (node.kind === 'Model3d') {
+      gameOnly("'model3d'", node.line);
+      checkName(node.name, node.line);
+      models.set(node.name, node);
+      uses3d = true;
+      globals.push(`const ${node.name} = __model3d(${strLit(embedFile(node.file, node.line, { glb: 'model/gltf-binary' }, 'a 3D model', '.glb'))}, ${strLit(node.file)});`);
     } else if (node.kind === 'Audio') {
       gameOnly("'audio'", node.line);
       checkName(node.name, node.line);
@@ -1743,6 +1820,7 @@ function generate(ast, target = 'cpp', options = {}) {
         }
         if (sprites.has(e.name)) throw new VoltError(`'${e.name}' is a sprite. Show it with: draw ${e.name} at x, y`, e.line);
         if (audios.has(e.name)) throw new VoltError(`'${e.name}' is a sound. Play it with: sound ${e.name}`, e.line);
+        if (models.has(e.name)) return { code: e.name, type: 'any' };
         if (images.has(e.name)) throw new VoltError(`'${e.name}' is an image. Cut sprites out of it with: sprite name = ${e.name} at x, y size w, h`, e.line);
         const v = lookupVar(e.name);
         if (!v) throw new VoltError(`Unknown variable '${e.name}'. Did you forget 'let ${e.name} = ...'?`, e.line);
@@ -1994,6 +2072,35 @@ function generate(ast, target = 'cpp', options = {}) {
         case 'saved':
           gameOnly("'saved'", e.line);
           return { code: `__saved(${a}, ${b})`, type: args[1].type === 'list' ? 'list' : 'any' };
+        // 3D (#html): block3d(x, y, z, w, h, d, "#color") -> id      lamp3d(x, y, z, "#color", power, range) -> id
+        case 'block3d':
+        case 'ball3d':
+        case 'cyl3d':
+        case 'lamp3d':
+        case 'put3d':
+          gameOnly(`'${e.name}'`, e.line);
+          uses3d = true;
+          return { code: `__${e.name}(${c.join(', ')})`, type: 'num' };
+        case 'crisp':
+          gameOnly(`'${e.name}'`, e.line);
+          return { code: `__crisp(${c.join(', ')})`, type: 'num' };
+        case 'mousedx':
+        case 'mousedy':
+        case 'locked3d':
+        case 'clicked3d':
+        case 'hot3d':
+        case 'sky3d':
+          gameOnly(`'${e.name}'`, e.line);
+          uses3d = true;
+          return { code: `__${e.name}(${c.join(', ')})`, type: 'num' };
+        // maths for 3D: angles in tenths of a degree, results in thousandths (sin(900) is 1000)
+        case 'sin':
+        case 'cos':
+        case 'atan2':
+        case 'sqrt':
+          if (!js) throw new VoltError(`'${e.name}' only works in #html and #js programs`, e.line);
+          help('math3');
+          return { code: `__${e.name}3(${c.join(', ')})`, type: 'num' };
         // touchscreen() -> true on phones and tablets      (#html)
         case 'touchscreen':
           gameOnly("'touchscreen'", e.line);
@@ -2549,6 +2656,7 @@ function generate(ast, target = 'cpp', options = {}) {
         gameOnly("'canvas'", s.line);
         return [`${p}__canvas(${bare(genNumber(s.w, "'canvas'"))}, ${bare(genNumber(s.h, "'canvas'"))});`];
 
+      case 'Model3d':
       case 'Image':
       case 'Audio':
         return [];  // loaded in pass 1
@@ -2609,6 +2717,27 @@ function generate(ast, target = 'cpp', options = {}) {
         const defaults = [null, null, null, 'null', '1', 'false', 'false'];
         while (args.length > 3 && args[args.length - 1] === defaults[args.length - 1]) args.pop();
         return [`${p}__write(${args.join(', ')});`];
+      }
+
+      case 'Cmd3d': {
+        gameOnly(`'${s.cmd}'`, s.line);
+        uses3d = true;
+        const n = (e) => bare(genNumber(e, `'${s.cmd}'`));
+        const str = (e) => bare(genExpr(e).code);
+        const a = s.args;
+        const o = s.opts;
+        const opt = (e) => (e ? n(e) : 'null');
+        switch (s.cmd) {
+          case 'world3d': return [`${p}__world3d(${str(a[0])}, ${opt(o.fog)}, ${opt(o.ambient)}, ${opt(o.fov)}, ${!!o.shadows});`];
+          case 'clear3d': return [`${p}__clear3d();`];
+          case 'render3d': return [`${p}__render3d();`];
+          case 'show3d': return [`${p}__show3d(${n(a[0])}, ${genCond(a[1])});`];
+          case 'glow3d': return [`${p}__glow3d(${n(a[0])}, ${str(a[1])});`];
+          case 'anim3d': return [`${p}__anim3d(${n(a[0])}, ${str(a[1])});`];
+          case 'look3d': return [`${p}__look3d(${n(a[0])}, ${str(a[1])});`];
+          case 'burst3d': return [`${p}__burst3d(${n(a[0])}, ${n(a[1])}, ${n(a[2])}, ${str(a[3])}, ${n(a[4])}, ${n(a[5])});`];
+          default: return [`${p}__${s.cmd}(${a.map(n).join(', ')});`];
+        }
       }
 
       case 'Camera':
@@ -2811,13 +2940,14 @@ function generate(ast, target = 'cpp', options = {}) {
     ].join('\n');
   }
 
+  if (uses3d) help('math3');   // the 3D runtime needs the angle maths
   // JavaScript (Node.js) and web pages share the program part
   const program = [
     ...block(helperLines(JS_HELPERS)),
     ...block(globals),
     ...funcLines,
     'async function __main() {',
-    ...(images.size ? ['  await Promise.all(__imgs);   // wait for the pictures to load'] : []),
+    ...(images.size || models.size ? ['  await Promise.all(__imgs);   // wait for the pictures to load'] : []),
     ...setupLines,
     ...(loopLines.length
       ? ['  // runs forever', '  while (true) {', ...loopLines, `    await __sleep(${usesForever ? 0 : 5});`, '  }']
@@ -2902,6 +3032,7 @@ function generate(ast, target = 'cpp', options = {}) {
     '  });',
     '}',
     ...(usesGame ? GAME_RUNTIME : []),
+    ...(uses3d ? [THREE_SRC(), VOLT3D_SRC()] : []),
     ...block(topLines),
     ...program,
     '',

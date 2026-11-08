@@ -773,7 +773,7 @@ function addPanelTab(plugin) {
   $('side-pane').appendChild(body);
 
   api.pluginsPanelUrl({ id: plugin.id }).then((url) => { if (url) frame.src = url; });
-  panelTabEls.push({ button, body });
+  panelTabEls.push({ button, body, frame });
 }
 
 async function loadPlugins() {
@@ -808,6 +808,47 @@ async function loadPlugins() {
 }
 $('btn-plugins-folder').addEventListener('click', () => api.pluginsOpenFolder());
 $('btn-plugins-rescan').addEventListener('click', async () => { await api.pluginsRescan(); await loadPlugins(); toast('Rescanned plugins'); });
+
+// ---------------------------------------------------------------------
+//  Panel bridge: lets a "panel" addon talk to the editor with postMessage.
+//  Panels stay sandboxed (no Node, no filesystem) - they can only ask for
+//  these few things. See docs/PLUGINS.md ("Talking to the editor").
+// ---------------------------------------------------------------------
+let sideWidthBeforeWide = null;
+window.addEventListener('message', (ev) => {
+  const m = ev.data;
+  if (!m || m.voltPanel !== 1) return;
+  const entry = panelTabEls.find((p) => p.frame && p.frame.contentWindow === ev.source);
+  if (!entry) return;   // only our own panel frames may talk to the editor
+  const reply = (msg) => { try { entry.frame.contentWindow.postMessage(Object.assign({ voltHost: 1 }, msg), '*'); } catch (e) { /* frame went away */ } };
+  const code = typeof m.code === 'string' && m.code.length < 4000000 ? m.code : null;
+  switch (m.type) {
+    case 'hello': reply({ type: 'hello', version: 1 }); break;
+    case 'getSource': reply({ type: 'source', req: m.req, source: editor.getValue() }); break;
+    case 'insert':
+      if (code != null) { editor.replaceSelection(code.endsWith('\n') ? code : `${code}\n`); editor.focus(); }
+      break;
+    case 'replace':   // one undo step in the code editor (Ctrl+Z)
+      if (code != null) {
+        editor.setValue(code); editor.setCursor(0, 0); setDirty(true); compileNow();
+        if (m.run) run();
+      }
+      break;
+    case 'toast': if (typeof m.text === 'string') toast(m.text.slice(0, 200), !!m.error); break;
+    case 'wide': {   // a panel can ask for more room (and give it back)
+      const root = document.documentElement.style;
+      if (m.on) {
+        if (sideWidthBeforeWide === null) sideWidthBeforeWide = root.getPropertyValue('--side-width');
+        root.setProperty('--side-width', `${Math.max(280, Math.min(window.innerWidth - 380, Math.round(window.innerWidth * 0.78)))}px`);
+      } else if (sideWidthBeforeWide !== null) {
+        if (sideWidthBeforeWide) root.setProperty('--side-width', sideWidthBeforeWide); else root.removeProperty('--side-width');
+        sideWidthBeforeWide = null;
+      }
+      editor.refresh(); output.refresh();
+      break;
+    }
+  }
+});
 
 // ---------------------------------------------------------------------
 //  AI chat - grounded in the real Volt reference (see lib/ai.js);

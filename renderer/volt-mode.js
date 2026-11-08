@@ -17,7 +17,7 @@
       { regex: /\/\/.*/, token: 'comment' },
       { regex: /#(?:c\+\+|cpp|arduino|python|py|micropython|ruby|rb|js|javascript|node|html|web)\s*$/i, token: 'meta', sol: true },
       { regex: /(\s*)(button|title|html)(?=\s+[^=\s(])/, token: [null, 'keyword'], sol: true },
-      { regex: /(\s*)(canvas|image|sprite|draw|paint|box|write|camera|touchpad|music|save|audio|sound|volume|add|remove)(?=\s+[^=\s(\[+\-*\/])/, token: [null, 'keyword'], sol: true },
+      { regex: /(\s*)(canvas|image|sprite|draw|paint|box|write|camera|touchpad|music|save|audio|sound|volume|add|remove|world3d|clear3d|camera3d|render3d|move3d|turn3d|show3d|glow3d|torch3d|model3d|anim3d|fx3d|shine3d|burst3d|look3d)(?=\s+[^=\s(\[+\-*\/])/, token: [null, 'keyword'], sol: true },
       { regex: /(every)(\s+)(frame)\b/, token: ['keyword', null, 'qualifier'] },
       { regex: /(for)(\s+)(each)(\s+)([A-Za-z_]\w*)(\s+)(in)\b/, token: ['keyword', null, 'qualifier', null, 'variable', null, 'qualifier'] },
       { regex: /\b(?:at|size|frames|frame|flip|flipped|angle|alpha|flash|color|centered|shadow|tempo|volume|tint|glow|scale|stick|icons)\b(?=\s)/, token: 'qualifier' },

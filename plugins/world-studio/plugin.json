@@ -1,0 +1,10 @@
+{
+  "name": "world-studio",
+  "type": "panel",
+  "version": "1.0.0",
+  "description": "A Roblox-Studio-style 3D world editor for Volt: place blocks, balls, cylinders, lamps and a spawn point in a live 3D viewport with move / rotate / scale gizmos, walk around your world in Play mode, then export it as ready-to-run Volt 3D code (or load a world back from your .volt file).",
+  "panel": {
+    "entry": "index.html",
+    "title": "World Studio"
+  }
+}

@@ -1,0 +1,12 @@
+sprite uiHud = uiPic at 0, 0 size 320, 20
+sprite uiCard = uiPic at 0, 20 size 92, 112
+sprite uiCardSel = uiPic at 0, 132 size 98, 118
+sprite uiShop = uiPic at 0, 250 size 66, 56
+sprite uiShopSel = uiPic at 0, 306 size 72, 62
+sprite uiRow = uiPic at 0, 368 size 272, 26
+sprite uiRowSel = uiPic at 0, 394 size 278, 32
+sprite uiDlg = uiPic at 0, 426 size 300, 150
+sprite uiDlgTall = uiPic at 0, 576 size 300, 164
+sprite uiBanner = uiPic at 0, 740 size 170, 42
+sprite uiBoss = uiPic at 0, 782 size 192, 16
+sprite uiTitleBox = uiPic at 0, 798 size 220, 46

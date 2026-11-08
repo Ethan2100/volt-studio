@@ -1,0 +1,15 @@
+sprite h0Idle = heroPic at 0, 0 size 80, 80 frames 6
+sprite h0Run = heroPic at 0, 80 size 80, 80 frames 8
+sprite h0Atk = heroPic at 0, 160 size 80, 80 frames 6
+sprite h0Hurt = heroPic at 0, 240 size 80, 80 frames 3
+sprite h0Dead = heroPic at 0, 320 size 80, 80 frames 6
+sprite h1Idle = heroPic at 0, 400 size 80, 80 frames 6
+sprite h1Run = heroPic at 0, 480 size 80, 80 frames 8
+sprite h1Atk = heroPic at 0, 560 size 80, 80 frames 6
+sprite h1Hurt = heroPic at 0, 640 size 80, 80 frames 3
+sprite h1Dead = heroPic at 0, 720 size 80, 80 frames 6
+sprite h2Idle = heroPic at 0, 800 size 80, 80 frames 8
+sprite h2Run = heroPic at 0, 880 size 80, 80 frames 8
+sprite h2Atk = heroPic at 0, 960 size 80, 80 frames 10
+sprite h2Hurt = heroPic at 0, 1040 size 80, 80 frames 2
+sprite h2Dead = heroPic at 0, 1120 size 80, 80 frames 10

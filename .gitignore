@@ -3,3 +3,6 @@ dist/
 *.log
 .DS_Store
 examples/dungeon/moonwell/
+examples/roguelike/yokai-descent/
+examples/roguelike/_to_delete/
+examples/roguelike/packs/

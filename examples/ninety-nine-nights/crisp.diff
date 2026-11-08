@@ -1,0 +1,82 @@
+--- volt.js.bak	2026-11-02 15:48:19.644633754 +0300
++++ volt.js	2026-11-02 15:49:47.688874693 +0300
+@@ -891,7 +891,7 @@
+ 
+ // Built-in functions: name -> number of values they take
+ const BUILTINS = { random: 2, abs: 1, min: 2, max: 2, constrain: 3, map: 5, number: 1, text: 1, length: 1, upper: 1, lower: 1, contains: 2, part: 3, sign: 1, held: 1, saved: 2, touchscreen: 0,
+-  block3d: 7, lamp3d: 6, put3d: 6, mousedx: 0, mousedy: 0, locked3d: 0, clicked3d: 0, hot3d: 4, sky3d: 1, sin: 1, cos: 1, atan2: 2, sqrt: 1 };
++  block3d: 7, lamp3d: 6, put3d: 6, mousedx: 0, mousedy: 0, locked3d: 0, clicked3d: 0, hot3d: 4, sky3d: 1, crisp: 1, sin: 1, cos: 1, atan2: 2, sqrt: 1 };
+ 
+ // Names that would clash with Volt, C++, Python, Ruby or JavaScript.
+ // All of them are checked for every program, so a Volt file can switch languages freely.
+@@ -1050,6 +1050,13 @@
+   "  __cx = __cv.getContext('2d'); __cx.imageSmoothingEnabled = false;",
+   "  __fit(); __cv.focus();",
+   "}",
++  "let __UI = 1, __fnt = null;",
++  "function __crisp(n) {",
++  "  __UI = Math.max(1, n | 0); __need();",
++  "  __cv.width = __W * __UI; __cv.height = __H * __UI;",
++  "  __cx = __cv.getContext('2d'); __cx.imageSmoothingEnabled = false; __cx.setTransform(__UI, 0, 0, __UI, 0, 0);",
++  "  return 0;",
++  "}",
+   "function __need() { if (!__cx) throw new Error('Make a screen first, like: canvas 320, 180'); }",
+   "function __paint(c) { __need(); __cx.fillStyle = String(c); __cx.fillRect(0, 0, __W, __H); }",
+   "function __camera(x, y) { __camX = Math.round(x); __camY = Math.round(y); }",
+@@ -1071,6 +1078,7 @@
+   "  return (__glyphs[c] = g);",
+   "}",
+   "function __text(t, x, y, c, s, center) {",
++  "  if (__UI > 1) return __vtext(t, x, y, c, s, center);",
+   "  const g = __fontFor(c);",
+   "  String(t).split('\\n').forEach((ln, row) => {",
+   "    let px = Math.round(x) - __camX;",
+@@ -1083,6 +1091,21 @@
+   "    }",
+   "  });",
+   "}",
++  "function __vtext(t, x, y, c, s, center) {",
++  "  if (!__fnt) {",
++  "    const fam = 'Consolas, \"Lucida Console\", \"DejaVu Sans Mono\", \"Courier New\", monospace';",
++  "    __cx.save(); __cx.setTransform(1, 0, 0, 1, 0, 0); __cx.font = '700 100px ' + fam;",
++  "    const adv = __cx.measureText('M').width / 100; __cx.restore();",
++  "    __fnt = { fam, size: 5.4 / adv };",
++  "  }",
++  "  __cx.font = '700 ' + (__fnt.size * s) + 'px ' + __fnt.fam; __cx.fillStyle = c; __cx.textBaseline = 'alphabetic'; __cx.textAlign = 'center';",
++  "  String(t).split('\\n').forEach((ln, row) => {",
++  "    let px = Math.round(x) - __camX;",
++  "    if (center) px -= Math.floor((ln.length * 6 - 1) * s / 2);",
++  "    const py = Math.round(y) - __camY + row * 9 * s + 6.6 * s;",
++  "    for (let i = 0; i < ln.length; i++) { const ch = ln[i]; if (ch !== ' ') __cx.fillText(ch, px + i * 6 * s + 3 * s, py); }",
++  "  });",
++  "}",
+   "function __write(t, x, y, c, size, center, shadow) {",
+   "  __need();",
+   "  const s = Math.max(1, size | 0);",
+@@ -1092,7 +1115,7 @@
+   "// Images load before the program starts; sprites are rectangles cut out of them",
+   "const __imgs = [];",
+   "function __image(src, name) {",
+-  "  const im = new Image();",
++  "  const im = new Image(); if (/hq/.test(String(name))) im.__hq = true;",
+   "  __imgs.push(new Promise((ok, fail) => {",
+   "    im.onload = ok;",
+   "    im.onerror = () => fail(new Error(\"Couldn't load the image '\" + name + \"'. Keep the picture next to your .volt file\"));",
+@@ -1135,6 +1158,7 @@
+   "  c.translate(cx, cy);",
+   "  if (ang) c.rotate(ang * Math.PI / 180);",
+   "  if (flip) c.scale(-1, 1);",
++  "  c.imageSmoothingEnabled = !!s.img.__hq;",
+   "  c.drawImage(src, sx, sy, s.w, s.h, -w / 2, -h / 2, w, h);",
+   "  c.restore();",
+   "}",
+@@ -2055,6 +2079,9 @@
+           gameOnly(`'${e.name}'`, e.line);
+           uses3d = true;
+           return { code: `__${e.name}(${c.join(', ')})`, type: 'num' };
++        case 'crisp':
++          gameOnly(`'${e.name}'`, e.line);
++          return { code: `__crisp(${c.join(', ')})`, type: 'num' };
+         case 'mousedx':
+         case 'mousedy':
+         case 'locked3d':
