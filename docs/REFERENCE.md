@@ -17,6 +17,7 @@ every 500ms {
 1. [Scripts and web pages](#scripts-and-web-pages)
 1. [Lists](#lists)
 1. [Games: canvas, sprites and keys](#games-canvas-sprites-and-keys)
+1. [Game types (structs)](#game-types-structs)
 2. [How a Volt program runs](#how-a-volt-program-runs)
 3. [Comments](#comments)
 4. [Pins](#pins)
@@ -29,7 +30,8 @@ every 500ms {
 11. [Loops: repeat, while, break](#loops-repeat-while-break)
 12. [Running things over time](#running-things-over-time)
 13. [Functions](#functions)
-14. [Built-in functions](#built-in-functions)
+14. [Reusing code: import](#reusing-code-import)
+15. [Built-in functions](#built-in-functions)
 15. [Raw code](#raw-code)
 16. [C++ vs Python differences](#c-vs-python-differences)
 17. [Names you can't use](#names-you-cant-use)
@@ -373,7 +375,7 @@ In your program **1 unit = 1 cm** (a 2 m corridor is 200) and **y is up**. **Ang
 | `render3d` | Draws the 3D world and clears the 2D layer. Call it once per frame |
 | `mousedx()` `mousedy()` | How far the mouse moved since last asked. The first click on the page captures the mouse (Esc lets go) |
 | `locked3d()` | 1 while the mouse is captured |
-| `sin(a)` `cos(a)` | Angle in tenths of a degree in, thousandths out: `sin(900)` is 1000 |
+| `sin3(a)` `cos3(a)` | The whole-number 3D versions: angle in tenths of a degree in, thousandths out: `sin3(900)` is 1000. (Plain `sin` and `cos` take degrees and give decimals, see Maths.) |
 | `atan2(y, x)` | The angle (0 to 3599) that points from the origin to x, y |
 | `sqrt(n)` | Whole-number square root |
 
@@ -388,6 +390,43 @@ In your program **1 unit = 1 cm** (a 2 m corridor is 200) and **y is up**. **Ang
 | `anim3d id, "walk"` | Plays one of the model's animations on a loop. Part of the name is enough. |
 
 `move3d`, `turn3d`, `show3d` and `glow3d` work on models too.
+
+## Game types (structs)
+
+`#html` games can declare a named shape for the things in a game - a player, an enemy, a pickup - instead of juggling a separate list for every field (`ex`, `ey`, `ehp`, `emaxhp`, ...).
+
+```volt
+#html
+canvas 320, 180
+
+Player = type { name: string, health: int, speed: float }
+
+let hero = Player { name: "Finn", health: 10, speed: 2 }
+let enemies = []
+add Player { name: "Slime", health: 4 } to enemies   // speed left out -> 0
+
+hero.health -= 3
+enemies[0].health -= 2
+
+every frame {
+  paint "#14111a"
+  write hero.name + " - " + text(hero.health) + " hp" at 10, 10
+}
+```
+
+| Command | What it does |
+|---|---|
+| `Name = type { field: kind, field: kind }` | Declares a type. Top level only. `kind` is a label like `string`, `int`, `float` or `bool` - Volt doesn't enforce it, but an untouched field in a struct value defaults to `""` for `string`/`text`, `false` for `bool`, and `0` for everything else |
+| `Name { field: value, field: value }` | Makes a value of that type. Any field you leave out gets its default |
+| `thing.field` | Reads a field |
+| `thing.field = value` (also `+=`, `-=`, `*=`, `/=`) | Changes a field. Works through a list index too: `enemies[i].health -= 1` |
+
+Things to know:
+
+- Struct types only work in `#html` right now.
+- A type must be declared somewhere in the file before you use it, but not necessarily above the line that uses it - Volt looks for every `Name = type { ... }` first.
+- There's no nesting (a field can't hold another struct) and no deep assignment (`thing.field.other = ...` isn't supported) - keep structs flat, one level of fields.
+- A list can hold values of a struct type just like any other value: `let enemies = []`, `add Player { ... } to enemies`, `enemies[i].health`.
 
 ## How a Volt program runs
 
@@ -574,7 +613,19 @@ A `let` at the top level is visible everywhere. A `let` inside `{ }` only exists
 
 ### Numbers
 
-Volt numbers are **whole numbers** (no decimals). Dividing rounds down: `7 / 2` is `3`. Decimals are only allowed in times, like `1.5s`.
+Volt numbers are usually **whole numbers** - dividing rounds down: `7 / 2` is `3`.
+
+Decimals (`2.5`, `0.1`) work in `#python`, `#ruby`, `#js` and `#html`, and change that rule only where they're actually used: dividing is real division as soon as a decimal is involved (`7 / 2.0` is `3.5`), while plain whole numbers still divide the old way (`7 / 2` stays `3`) - so existing programs don't change behavior.
+
+```volt
+let price = 19.99
+let half = price / 2
+print text(half)   // 9.995
+```
+
+- **Boards don't support decimals yet.** `#c++` and `#micropython` still only take whole numbers (decimals are allowed in times like `1.5s`, same as before) - using one elsewhere in a board program is an error.
+- A struct field declared `float` (`Player = type { speed: float }`) always divides as a decimal, even when its value happens to be whole.
+- One JavaScript quirk: `#js`/`#html` can't tell `5.0` apart from `5` once it's passed into a function (JavaScript has no separate decimal type at that point), so dividing a whole-valued decimal that arrived through a function parameter may round down instead of staying a decimal. A decimal with an actual fraction (`2.5`), or one read straight from a variable or struct field, always works correctly.
 
 ### Operators
 
@@ -775,6 +826,31 @@ print "Average: " + average(10, 20)
 - `return` sends a value back and ends the function. A function without `return` gives 0.
 - Functions can use top-level variables and pins, and can call other functions (even ones written further down).
 
+## Reusing code: import
+
+`import "name.volt"` pastes another `.volt` file's contents in, right where the `import` line is - so a set of functions or types you've written once (or a [library plugin](using-volt-studio)'s snippet file) can be reused from more than one program, instead of copy-pasted by hand into each one.
+
+```volt
+// mathlib.volt
+fn square(x) {
+  return x * x
+}
+```
+
+```volt
+// main.volt
+#js
+import "mathlib.volt"
+
+print "5 squared is " + square(5)
+```
+
+- `import "..."` must be its own line, written exactly like that (a literal file name in quotes - no variables).
+- The file is found the same way a `draw`/`image`/`audio` file is: in the same folder as the importing `.volt` file.
+- Importing the same file more than once (directly, or through two other imports) is fine - the repeat is skipped, so two files that both import a shared library don't collide.
+- An imported file should be plain code (functions, types, raw `#`/`##` lines) with no `#target` line of its own - like a library plugin's snippet, it's meant to be pasted into a program that already picked its target.
+- Error messages after an import point at the merged program, so a mistake inside an imported file may report a line number that doesn't match that file directly - if a message looks off by a few lines, check the imported file too.
+
 ## Built-in functions
 
 | Function | What it does | Example |
@@ -790,6 +866,32 @@ print "Average: " + average(10, 20)
 | `length(x)` | Number of characters | `length("hi")` → 2 |
 | `upper(x)` / `lower(x)` | Capitals / small letters | `lower("HI")` → "hi" |
 | `contains(x, part)` | Is `part` inside `x`? | `contains("hello", "ell")` → true |
+| `dist(x1, y1, x2, y2)` | Straight-line distance between two points, rounded down | `dist(hero.x, hero.y, goblin.x, goblin.y)` |
+| `lerp(from, to, percent)` | The point `percent`% of the way from `from` to `to` | `lerp(0, 100, 25)` → 25 |
+| `overlaps(ax, ay, aw, ah, bx, by, bw, bh)` | Do two boxes (position + size) touch? | `overlaps(hero.x, hero.y, 10, 8, e.x, e.y, e.w, e.h)` |
+| `sqrt(x)` | Square root, rounded down | `sqrt(16)` → 4 |
+| `pow(base, exponent)` | `base` to the power of `exponent`, rounded down | `pow(2, 5)` → 32 |
+| `join(list, separator)` | Glues a list's items into one piece of text | `join(["a", "b", "c"], ", ")` → "a, b, c" |
+| `split(text, separator)` | Breaks text into a list wherever `separator` appears | `split("a,b,c", ",")` → a 3-item list |
+| `sin(degrees)` | Sine of an angle given in degrees (a decimal from -1 to 1) | `sin(90)` → 1 |
+| `cos(degrees)` | Cosine of an angle given in degrees (a decimal from -1 to 1) | `cos(0)` → 1 |
+
+`join` and `split` work in `#python`, `#ruby`, `#js` and `#html` (lists aren't supported on boards yet).
+
+`sin` and `cos` always return a decimal, so they need decimal support and don't work on boards (`#c++`, `#micropython`) yet. They're handy for turning an angle (like a character's facing direction) into a movement vector: `moveX = cos(angle)`, `moveY = sin(angle)`.
+
+### Node and the web
+
+These four are for backend/data work rather than games or boards:
+
+| Function | What it does | Example |
+|---|---|---|
+| `readFile(path)` | A file's contents as text (`#js` run with Node) | `readFile("data.txt")` |
+| `writeFile(path, text)` | Saves text to a file, `true` if it worked (`#js` run with Node) | `writeFile("out.txt", report)` |
+| `envVar(name)` | An environment variable's value, or `""` if it isn't set (`#js` run with Node) | `envVar("API_KEY")` |
+| `fetchText(url)` | Downloads a URL and returns its text (`#js` and `#html`) | `fetchText("https://example.com/data.json")` |
+
+`readFile`, `writeFile` and `envVar` only work when a `#js` program is actually run with Node (`node program.js`) - a web browser has no filesystem or environment variables, so they don't work in `#html` pages. `fetchText` works in both, since both Node and browsers can fetch a URL.
 
 ## Raw code
 

@@ -508,8 +508,8 @@ fn buildCamp() {
   // a ring of stones
   for s from 0 to 11 {
     let sa = s * 300
-    let sx = CX + sin(sa) * 85 / 1000
-    let sz = CZ - cos(sa) * 85 / 1000
+    let sx = CX + sin3(sa) * 85 / 1000
+    let sz = CZ - cos3(sa) * 85 / 1000
     let st = block3d(sx, 6, sz, 20, 12, 20, "#5b5f66")
   }
 }
@@ -560,9 +560,9 @@ fn buildKids() {
   kModel = []
   for k from 0 to 3 {
     let ang = 450 + k * 900
-    let dist = random(2400, 3600)
-    let x = CX + sin(ang) * dist / 1000
-    let z = CZ - cos(ang) * dist / 1000
+    let distTo = random(2400, 3600)
+    let x = CX + sin3(ang) * distTo / 1000
+    let z = CZ - cos3(ang) * distTo / 1000
     x = constrain(x, 400, WS - 400)
     z = constrain(z, 400, WS - 400)
     let m = kidAM
@@ -825,8 +825,8 @@ fn spawnOne() {
   while i < length(mOn) {
     if mOn[i] == 0 and mKind[i] == want {
       let ang = random(0, 3599)
-      let x = constrain(CX + sin(ang) * 3600 / 1000, 200, WS - 200)
-      let z = constrain(CZ - cos(ang) * 3600 / 1000, 200, WS - 200)
+      let x = constrain(CX + sin3(ang) * 3600 / 1000, 200, WS - 200)
+      let z = constrain(CZ - cos3(ang) * 3600 / 1000, 200, WS - 200)
       mX[i] = x
       mZ[i] = z
       mHp[i] = 2 + want * 2 + night / 8
@@ -890,8 +890,8 @@ fn monsterFrame() {
       if mode == 2 {
         // pace along the edge of the light
         let ca = atan2(mX[i] - CX, CZ - mZ[i]) + 700
-        gx = CX + sin(ca) * (safe + 90) / 1000
-        gz = CZ - cos(ca) * (safe + 90) / 1000
+        gx = CX + sin3(ca) * (safe + 90) / 1000
+        gz = CZ - cos3(ca) * (safe + 90) / 1000
         spd = spd * 5 / 10
       }
       let dx = gx - mX[i]
@@ -968,7 +968,7 @@ fn swing() {
   while i < length(mOn) {
     if mOn[i] == 1 {
       let d = dst(px, pz, mX[i], mZ[i])
-      let ahead = ((mX[i] - px) * sin(yaw) - (mZ[i] - pz) * cos(yaw)) / 1000
+      let ahead = ((mX[i] - px) * sin3(yaw) - (mZ[i] - pz) * cos3(yaw)) / 1000
       if d < 280 and ahead > 0 {
         mHp[i] -= 1 + axeLvl
         hit = 1
@@ -994,7 +994,7 @@ fn swing() {
   while i < length(tX) {
     if tHp[i] > 0 {
       let d2 = dst(px, pz, tX[i], tZ[i])
-      let ahead2 = ((tX[i] - px) * sin(yaw) - (tZ[i] - pz) * cos(yaw)) / 1000
+      let ahead2 = ((tX[i] - px) * sin3(yaw) - (tZ[i] - pz) * cos3(yaw)) / 1000
       if d2 < bd and ahead2 > 0 {
         bd = d2
         bi = i
@@ -1083,8 +1083,8 @@ fn kidFrame() {
         save "n99_bank", bank
         // they settle by the fire
         let ang = 300 + i * 1500
-        kX[i] = CX + sin(ang) * 260 / 1000
-        kZ[i] = CZ - cos(ang) * 260 / 1000
+        kX[i] = CX + sin3(ang) * 260 / 1000
+        kZ[i] = CZ - cos3(ang) * 260 / 1000
         move3d kId[i], kX[i], 0, kZ[i]
         turn3d kId[i], atan2(CX - kX[i], kZ[i] - CZ) + 1800
         banner = "CHILD RESCUED"
@@ -1165,22 +1165,22 @@ fn blockedAt(x, z) {
 }
 
 fn figX(c) {
-  return LX + sin(900 + c * 300) * 520 / 1000
+  return LX + sin3(900 + c * 300) * 520 / 1000
 }
 fn figZ(c) {
-  return LZ - cos(900 + c * 300) * 520 / 1000
+  return LZ - cos3(900 + c * 300) * 520 / 1000
 }
 
 fn npcFrame() {
   npcT += 1
   // A strolls along the front of the shop, B circles the pad
-  let ax = LX + sin(npcT * 4) * 620 / 1000
-  let axx = LX + sin(npcT * 3) * 600 / 1000
-  let az = LZ + 250 + cos(npcT * 3) * 40 / 1000
-  let adx = cos(npcT * 3) * 3
+  let ax = LX + sin3(npcT * 4) * 620 / 1000
+  let axx = LX + sin3(npcT * 3) * 600 / 1000
+  let az = LZ + 250 + cos3(npcT * 3) * 40 / 1000
+  let adx = cos3(npcT * 3) * 3
   let ba = npcT * 5
-  let bx = LX + sin(ba) * 330 / 1000
-  let bz = LZ - cos(ba) * 330 / 1000
+  let bx = LX + sin3(ba) * 330 / 1000
+  let bz = LZ - cos3(ba) * 330 / 1000
   move3d npcA, axx, 0, az
   turn3d npcA, atan2(adx, 0 - 0) + 1800
   move3d npcB, bx, 0, bz
@@ -1311,8 +1311,8 @@ fn shoot() {
   while i < length(mOn) {
     if mOn[i] == 1 {
       let d = dst(px, pz, mX[i], mZ[i])
-      let ahead = ((mX[i] - px) * sin(yaw) - (mZ[i] - pz) * cos(yaw)) / 1000
-      let side = ((mX[i] - px) * cos(yaw) + (mZ[i] - pz) * sin(yaw)) / 1000
+      let ahead = ((mX[i] - px) * sin3(yaw) - (mZ[i] - pz) * cos3(yaw)) / 1000
+      let side = ((mX[i] - px) * cos3(yaw) + (mZ[i] - pz) * sin3(yaw)) / 1000
       if d < 1500 and ahead > 0 and abs(side) < 130 + d / 8 {
         mHp[i] -= 3
         hits += 1
@@ -1386,8 +1386,8 @@ fn playerFrame() {
       tired = 0
     }
   }
-  let dx = (sin(yaw) * fwd + cos(yaw) * side) * spd / 10000
-  let dz = (0 - cos(yaw) * fwd + sin(yaw) * side) * spd / 10000
+  let dx = (sin3(yaw) * fwd + cos3(yaw) * side) * spd / 10000
+  let dz = (0 - cos3(yaw) * fwd + sin3(yaw) * side) * spd / 10000
   if fwd != 0 and side != 0 {
     dx = dx * 7 / 10
     dz = dz * 7 / 10
@@ -1616,8 +1616,8 @@ fn introFrame() {
   let f = cutT * 1000 / dur
   let ang = 600 * cutIdx + 700 * f / 1000
   let rad = 1400 - cutIdx * 150
-  let cxx = CX + sin(ang) * rad / 1000
-  let czz = CZ - cos(ang) * rad / 1000
+  let cxx = CX + sin3(ang) * rad / 1000
+  let czz = CZ - cos3(ang) * rad / 1000
   sky3d(40 + cutIdx * 18)
   camera3d cxx, 260 - cutIdx * 30, czz, atan2(CX - cxx, czz - CZ), 0 - 150
   torch3d 0, 1000
@@ -2032,7 +2032,7 @@ every frame {
   if state == 0 {
     idle += 2
     sky3d(70)
-    camera3d CX - 20 + sin(idle * 2) * 25 / 1000, 135, CZ + 330, 0 - 60 + sin(idle * 2) * 30 / 1000, 0 - 40
+    camera3d CX - 20 + sin3(idle * 2) * 25 / 1000, 135, CZ + 330, 0 - 60 + sin3(idle * 2) * 30 / 1000, 0 - 40
     torch3d 0, 1000
     fireFrame()
   } else if state == 5 {
@@ -2047,7 +2047,7 @@ every frame {
     }
     hunger = 100
     hp = hpMax
-    let bobY = sin(bob * 6) * 3 / 1000
+    let bobY = sin3(bob * 6) * 3 / 1000
     camera3d px, 165 + bobY, pz, yaw, pitch
   } else if state == 3 {
     introFrame()
@@ -2064,8 +2064,8 @@ every frame {
       nightsDone = night - 1
       tone 100 to 40 for 900ms
     }
-    let bobY = sin(bob * 6) * 3 / 1000
-    camera3d px, 165 + bobY, pz, yaw + sin(t * 9) * 3 / 1000, pitch + sin(t * 13) * 2 / 1000
+    let bobY = sin3(bob * 6) * 3 / 1000
+    camera3d px, 165 + bobY, pz, yaw + sin3(t * 9) * 3 / 1000, pitch + sin3(t * 13) * 2 / 1000
   } else if state == 2 {
     sky3d(0)
     camera3d px, 120, pz, yaw, 0 - 300

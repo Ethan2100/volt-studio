@@ -43,7 +43,7 @@ let TS = 160                 // one tile is 160 cm wide
 let MW = 26
 let MH = 20
 let grid = []                // 0 floor, 1 wall, 2 locker, 3 elevator
-let dist = []                // distance-to-target for the monster's pathfinding
+let distTo = []                // distance-to-target for the monster's pathfinding
 let queue = []
 let rx = []                  // rooms: top-left tile and size
 let ry = []
@@ -322,10 +322,10 @@ fn corridor(ax, ay, bx, by) {
 
 fn makeMap() {
   grid = []
-  dist = []
+  distTo = []
   for i from 1 to MW * MH {
     add 1 to grid
-    add 9999 to dist
+    add 9999 to distTo
   }
   placeRooms()
   while length(rx) < 5 {
@@ -927,8 +927,8 @@ fn useEmitter() {
   emitN -= 1
   slotFlash = 18
   slotKind = 1
-  let tx = px + sin(yaw) * 2400 / 1000
-  let tz = pz - cos(yaw) * 2400 / 1000
+  let tx = px + sin3(yaw) * 2400 / 1000
+  let tz = pz - cos3(yaw) * 2400 / 1000
   if blocked(tx, tz, 200) == 1 {
     tx = px
     tz = pz
@@ -1171,8 +1171,8 @@ fn build3d() {
 }
 
 fn placeMonster() {
-  let s = sin(myaw)
-  let co = cos(myaw)
+  let s = sin3(myaw)
+  let co = cos3(myaw)
   move3d hunterId, mx / 10, 0, mz / 10
   turn3d hunterId, myaw + 1800
   let wantA = 0
@@ -1246,11 +1246,11 @@ fn bfs(gx, gy) {
   let n = MW * MH
   let i = 0
   while i < n {
-    dist[i] = 9999
+    distTo[i] = 9999
     i += 1
   }
   queue = []
-  dist[gy * MW + gx] = 0
+  distTo[gy * MW + gx] = 0
   add gy * MW + gx to queue
   let head = 0
   while head < length(queue) {
@@ -1258,21 +1258,21 @@ fn bfs(gx, gy) {
     head += 1
     let cxx = cur % MW
     let cyy = cur / MW
-    let d1 = dist[cur] + 1
-    if cxx > 0 and dist[cur - 1] > d1 and isSolid(cxx - 1, cyy) == 0 {
-      dist[cur - 1] = d1
+    let d1 = distTo[cur] + 1
+    if cxx > 0 and distTo[cur - 1] > d1 and isSolid(cxx - 1, cyy) == 0 {
+      distTo[cur - 1] = d1
       add cur - 1 to queue
     }
-    if cxx < MW - 1 and dist[cur + 1] > d1 and isSolid(cxx + 1, cyy) == 0 {
-      dist[cur + 1] = d1
+    if cxx < MW - 1 and distTo[cur + 1] > d1 and isSolid(cxx + 1, cyy) == 0 {
+      distTo[cur + 1] = d1
       add cur + 1 to queue
     }
-    if cyy > 0 and dist[cur - MW] > d1 and isSolid(cxx, cyy - 1) == 0 {
-      dist[cur - MW] = d1
+    if cyy > 0 and distTo[cur - MW] > d1 and isSolid(cxx, cyy - 1) == 0 {
+      distTo[cur - MW] = d1
       add cur - MW to queue
     }
-    if cyy < MH - 1 and dist[cur + MW] > d1 and isSolid(cxx, cyy + 1) == 0 {
-      dist[cur + MW] = d1
+    if cyy < MH - 1 and distTo[cur + MW] > d1 and isSolid(cxx, cyy + 1) == 0 {
+      distTo[cur + MW] = d1
       add cur + MW to queue
     }
   }
@@ -1283,21 +1283,21 @@ fn nextTile() {
   let tx = mx / 1600
   let ty = mz / 1600
   let best1 = ty * MW + tx
-  let bd = dist[best1]
-  if tx > 0 and dist[best1 - 1] < bd {
-    bd = dist[best1 - 1]
+  let bd = distTo[best1]
+  if tx > 0 and distTo[best1 - 1] < bd {
+    bd = distTo[best1 - 1]
     best1 = ty * MW + tx - 1
   }
-  if tx < MW - 1 and dist[ty * MW + tx + 1] < bd {
-    bd = dist[ty * MW + tx + 1]
+  if tx < MW - 1 and distTo[ty * MW + tx + 1] < bd {
+    bd = distTo[ty * MW + tx + 1]
     best1 = ty * MW + tx + 1
   }
-  if ty > 0 and dist[(ty - 1) * MW + tx] < bd {
-    bd = dist[(ty - 1) * MW + tx]
+  if ty > 0 and distTo[(ty - 1) * MW + tx] < bd {
+    bd = distTo[(ty - 1) * MW + tx]
     best1 = (ty - 1) * MW + tx
   }
-  if ty < MH - 1 and dist[(ty + 1) * MW + tx] < bd {
-    bd = dist[(ty + 1) * MW + tx]
+  if ty < MH - 1 and distTo[(ty + 1) * MW + tx] < bd {
+    bd = distTo[(ty + 1) * MW + tx]
     best1 = (ty + 1) * MW + tx
   }
   return best1
@@ -1340,21 +1340,21 @@ fn nextTileXZ(x, z) {
   let tx = x / 1600
   let ty = z / 1600
   let best1 = ty * MW + tx
-  let bd = dist[best1]
-  if tx > 0 and dist[best1 - 1] < bd {
-    bd = dist[best1 - 1]
+  let bd = distTo[best1]
+  if tx > 0 and distTo[best1 - 1] < bd {
+    bd = distTo[best1 - 1]
     best1 = ty * MW + tx - 1
   }
-  if tx < MW - 1 and dist[ty * MW + tx + 1] < bd {
-    bd = dist[ty * MW + tx + 1]
+  if tx < MW - 1 and distTo[ty * MW + tx + 1] < bd {
+    bd = distTo[ty * MW + tx + 1]
     best1 = ty * MW + tx + 1
   }
-  if ty > 0 and dist[(ty - 1) * MW + tx] < bd {
-    bd = dist[(ty - 1) * MW + tx]
+  if ty > 0 and distTo[(ty - 1) * MW + tx] < bd {
+    bd = distTo[(ty - 1) * MW + tx]
     best1 = (ty - 1) * MW + tx
   }
-  if ty < MH - 1 and dist[(ty + 1) * MW + tx] < bd {
-    bd = dist[(ty + 1) * MW + tx]
+  if ty < MH - 1 and distTo[(ty + 1) * MW + tx] < bd {
+    bd = distTo[(ty + 1) * MW + tx]
     best1 = (ty + 1) * MW + tx
   }
   return best1
@@ -1546,7 +1546,7 @@ fn swingCrowbar() {
   while i < length(rId) {
     if rHp[i] > 0 {
       let d = dst(px, pz, rX[i], rZ[i])
-      let ahead = ((rX[i] - px) * sin(yaw) - (rZ[i] - pz) * cos(yaw)) / 1000
+      let ahead = ((rX[i] - px) * sin3(yaw) - (rZ[i] - pz) * cos3(yaw)) / 1000
       if d < 1700 and ahead > 0 {
         rHp[i] -= dmg
         rStun[i] = 50
@@ -1810,8 +1810,8 @@ fn playerFrame() {
       tired = 0
     }
   }
-  let dx = (sin(yaw) * fwd + cos(yaw) * side) * spd / 1000
-  let dz = (0 - cos(yaw) * fwd + sin(yaw) * side) * spd / 1000
+  let dx = (sin3(yaw) * fwd + cos3(yaw) * side) * spd / 1000
+  let dz = (0 - cos3(yaw) * fwd + sin3(yaw) * side) * spd / 1000
   if fwd != 0 and side != 0 {
     dx = dx * 7 / 10
     dz = dz * 7 / 10
@@ -2176,7 +2176,7 @@ fn lobbyFrame() {
       lobNear = i
     }
   }
-  let bobY = sin(bob * 7) * 4 / 1000
+  let bobY = sin3(bob * 7) * 4 / 1000
   camera3d px / 10, 165 + bobY, pz / 10, yaw, pitch
 }
 
@@ -2601,20 +2601,20 @@ fn hudVitals() {
     // two range rings (7 m and 3.5 m)
     for a2 from 0 to 23 {
       let ang = a2 * 150
-      box rcx + sin(ang) * 38 / 1000, rcy - cos(ang) * 19 / 1000, 1, 1 color "#1f6b3c"
-      box rcx + sin(ang) * 19 / 1000, rcy - cos(ang) * 9 / 1000, 1, 1 color "#164d2b"
+      box rcx + sin3(ang) * 38 / 1000, rcy - cos3(ang) * 19 / 1000, 1, 1 color "#1f6b3c"
+      box rcx + sin3(ang) * 19 / 1000, rcy - cos3(ang) * 9 / 1000, 1, 1 color "#164d2b"
     }
     // the sweep
     let sw = (t * 30) % 3600
     for r2 from 1 to 9 {
-      box rcx + sin(sw) * r2 * 4 / 1000, rcy - cos(sw) * r2 * 2 / 1000, 1, 1 color "#3dff8a"
+      box rcx + sin3(sw) * r2 * 4 / 1000, rcy - cos3(sw) * r2 * 2 / 1000, 1, 1 color "#3dff8a"
     }
     box rcx - 1, rcy - 1, 3, 3 color "#2fff7a"
     // the creature, only while it is moving
     let ddx = mx - px
     let ddz = mz - pz
-    let lr = (ddx * cos(yaw) + ddz * sin(yaw)) / 1000
-    let lf = (ddx * sin(yaw) - ddz * cos(yaw)) / 1000
+    let lr = (ddx * cos3(yaw) + ddz * sin3(yaw)) / 1000
+    let lf = (ddx * sin3(yaw) - ddz * cos3(yaw)) / 1000
     if mstate != 3 and abs(lr) < 7000 and abs(lf) < 7000 {
       let rbx = rcx + lr * 38 / 7000
       let rby = rcy - lf * 19 / 7000
@@ -2947,7 +2947,7 @@ fn drawMap() {
   let ppx = x0 + px * 6 / 1600
   let ppy = y0 + pz * 6 / 1600
   box ppx - 1, ppy - 1, 3, 3 color "#ffffff"
-  box ppx + sin(yaw) * 4 / 1000 - 1, ppy - cos(yaw) * 4 / 1000 - 1, 2, 2 color "#ffd23f"
+  box ppx + sin3(yaw) * 4 / 1000 - 1, ppy - cos3(yaw) * 4 / 1000 - 1, 2, 2 color "#ffd23f"
   write "MAP" at 160, y0 + 114 color "#8c93a3" centered
 }
 
@@ -3003,7 +3003,7 @@ every frame {
     for c from 0 to 2 {
       if cellGot[c] == 0 {
         turn3d cellId[c], t * 12
-        move3d cellId[c], cellX[c] / 10, 110 + sin(t * 30) * 8 / 1000, cellZ[c] / 10
+        move3d cellId[c], cellX[c] / 10, 110 + sin3(t * 30) * 8 / 1000, cellZ[c] / 10
       }
     }
     // the elevator doors slide open when it is powered and you are close
@@ -3029,7 +3029,7 @@ every frame {
     if hidden == 1 {
       camera3d lkx[hideIdx] * TS + TS / 2, 150, lky[hideIdx] * TS + TS / 2, yaw, 0
     } else {
-      let bobY = sin(bob * 7) * 4 / 1000
+      let bobY = sin3(bob * 7) * 4 / 1000
       camera3d px / 10, 165 + bobY, pz / 10, yaw, pitch
     }
   } else if state == 2 {

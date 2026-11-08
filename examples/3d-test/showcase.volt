@@ -38,16 +38,16 @@ every frame {
   yaw += mousedx() * 3
   pitch -= mousedy() * 3
   pitch = constrain(pitch, -800, 800)
-  let fx = sin(yaw)
-  let fz = 0 - cos(yaw)
+  let fx = sin3(yaw)
+  let fz = 0 - cos3(yaw)
   if held("w") { px += fx * 4 / 1000
     pz += fz * 4 / 1000 }
   if held("s") { px -= fx * 4 / 1000
     pz -= fz * 4 / 1000 }
-  if held("a") { px -= cos(yaw) * 4 / 1000
-    pz -= sin(yaw) * 4 / 1000 }
-  if held("d") { px += cos(yaw) * 4 / 1000
-    pz += sin(yaw) * 4 / 1000 }
+  if held("a") { px -= cos3(yaw) * 4 / 1000
+    pz -= sin3(yaw) * 4 / 1000 }
+  if held("d") { px += cos3(yaw) * 4 / 1000
+    pz += sin3(yaw) * 4 / 1000 }
   t += 1
   if t > 90 {
     burst3d 0, 190, -300, "#4de1ff", 70, 380

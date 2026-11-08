@@ -35,6 +35,37 @@ class VoltError extends Error {
   }
 }
 
+// How many single-character edits turn `a` into `b` - used to guess what a
+// misspelled name was supposed to be, so error messages can suggest it.
+function editDistance(a, b) {
+  const dp = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+  for (let i = 0; i <= a.length; i++) dp[i][0] = i;
+  for (let j = 0; j <= b.length; j++) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1]
+        : 1 + Math.min(dp[i - 1][j - 1], dp[i - 1][j], dp[i][j - 1]);
+    }
+  }
+  return dp[a.length][b.length];
+}
+
+// The closest name to `target` among `candidates`, or null if nothing is
+// close enough to be worth suggesting (so a wildly different name doesn't
+// get a misleading "did you mean" guess).
+function closestName(target, candidates) {
+  let best = null;
+  let bestDist = Infinity;
+  for (const c of candidates) {
+    if (c === target) continue;
+    const d = editDistance(target, c);
+    if (d < bestDist) { bestDist = d; best = c; }
+  }
+  const limit = Math.max(2, Math.ceil(target.length / 3));
+  return bestDist <= limit ? best : null;
+}
+
 // =====================================================================
 //  1. LEXER - chops source text into tokens
 // =====================================================================
@@ -106,9 +137,8 @@ function lex(src) {
         i += 1;
         add('duration', Math.round(parseFloat(num) * 1000));
       } else {
-        if (num.includes('.')) {
-          throw new VoltError(
-            `Volt only supports whole numbers (decimals are allowed in times like 1.5s), found ${num}`, line);
+        if (!/^\d+(\.\d+)?$/.test(num)) {
+          throw new VoltError(`'${num}' isn't a valid number`, line);
         }
         add('number', num);
       }
@@ -151,7 +181,7 @@ function lex(src) {
     if (['==', '!=', '<=', '>=', '+=', '-=', '*=', '/='].includes(two)) { add(two, two); i += 2; continue; }
 
     // One-character symbols
-    if ('=+-*/%<>{}(),[]'.includes(c)) { add(c, c); i++; continue; }
+    if ('=+-*/%<>{}(),[].:'.includes(c)) { add(c, c); i++; continue; }
 
     throw new VoltError(`I don't understand the character '${c}'`, line);
   }
@@ -175,6 +205,16 @@ const NOT_A_COMMAND = ['=', '(', '[', '+=', '-=', '*=', '/=', 'eof'];
 
 function parse(tokens) {
   let pos = 0;
+
+  // Gamedev struct types ('Player = type { ... }') declared anywhere in the file,
+  // found with a quick scan so 'Player { ... }' can be recognised as a struct
+  // literal in expression position without confusing it with 'if someVar { ... }'.
+  const declaredTypes = new Set();
+  for (let k = 0; k + 3 < tokens.length; k++) {
+    if (tokens[k].type === 'ident' && tokens[k + 1].type === '=' && tokens[k + 2].type === 'ident' && tokens[k + 2].value === 'type' && tokens[k + 3].type === '{') {
+      declaredTypes.add(tokens[k].value);
+    }
+  }
 
   const peek = (ahead = 0) => tokens[Math.min(pos + ahead, tokens.length - 1)];
   const next = () => tokens[pos++];
@@ -473,6 +513,50 @@ function parse(tokens) {
 
       // count = count + 1     or     beep(3)     or     score += 1
       case 'ident': {
+        // A gamedev struct type: Player = type { name: string, health: int, speed: float }
+        if (peek(1).type === '=' && peek(2).type === 'ident' && peek(2).value === 'type' && peek(3).type === '{') {
+          if (!topLevel) topLevelOnly(t);
+          next(); next(); next(); next(); // name  =  type  {
+          const fields = [];
+          while (!check('}')) {
+            const fname = expect('ident', 'a field name').value;
+            expect(':', "':' after the field name, like health: int");
+            const fkind = expect('ident', 'a field type like string, int, float or bool').value;
+            fields.push({ name: fname, kindName: fkind });
+            if (!match(',')) break;
+          }
+          expect('}', "'}' to close the type");
+          return { kind: 'TypeDecl', name: t.value, fields, line };
+        }
+        // Changing a field, possibly through a list: player.health = 10   enemies[i].hp -= 5
+        if (peek(1).type === '.' || peek(1).type === '[') {
+          const save = pos;
+          next();
+          let e = { kind: 'Var', name: t.value, line };
+          let steps = 0;
+          while (check('.') || check('[')) {
+            if (check('.')) {
+              next();
+              const fname = expect('ident', 'a field name').value;
+              e = { kind: 'Member', target: e, field: fname, line };
+            } else {
+              next();
+              const idx = expression();
+              expect(']', "']'");
+              e = { kind: 'Index', target: e, index: idx, line };
+            }
+            steps++;
+          }
+          if (steps > 0 && e.kind === 'Member' && ['=', '+=', '-=', '*=', '/='].includes(peek().type)) {
+            const opTok = next();
+            let value = expression();
+            if (opTok.type !== '=') {
+              value = { kind: 'Binary', op: opTok.type[0], left: e, right: value, line };
+            }
+            return { kind: 'MemberAssign', target: e.target, field: e.field, value, line };
+          }
+          pos = save;   // not a field assignment after all - let the rest of this function try it
+        }
         if (['+=', '-=', '*=', '/='].includes(peek(1).type)) {
           next();
           const opTok = next();
@@ -765,14 +849,20 @@ function parse(tokens) {
     return primary();
   }
 
-  // A value, then any number of [index] after it: rows[y][x]
+  // A value, then any number of [index] or .field after it: rows[y][x]   player.health
   function primary() {
     let e = atom();
-    while (check('[') && (e.kind === 'Var' || e.kind === 'Index' || e.kind === 'List' || e.kind === 'Call')) {
-      const line = next().line;
-      const index = expression();
-      expect(']', "']'");
-      e = { kind: 'Index', target: e, index, line };
+    while ((check('[') || check('.')) && (e.kind === 'Var' || e.kind === 'Index' || e.kind === 'Member' || e.kind === 'List' || e.kind === 'Call' || e.kind === 'StructLit')) {
+      if (check('[')) {
+        const line = next().line;
+        const index = expression();
+        expect(']', "']'");
+        e = { kind: 'Index', target: e, index, line };
+      } else {
+        const line = next().line;
+        const field = expect('ident', 'a field name').value;
+        e = { kind: 'Member', target: e, field, line };
+      }
     }
     return e;
   }
@@ -797,6 +887,24 @@ function parse(tokens) {
           }
           expect(')', "')'");
           return { kind: 'Call', name: t.value, args, line: t.line };
+        }
+        // A struct value: Player { name: "Finn", health: 10, speed: 2 }
+        if (check('{') && declaredTypes.has(t.value)) {
+          next();
+          const fields = [];
+          while (!check('}')) {
+            const fname = expect('ident', 'a field name').value;
+            expect(':', "':' after the field name, like health: 10");
+            const value = expression();
+            fields.push({ name: fname, value });
+            if (!match(',')) break;
+          }
+          expect('}', "'}' to close the struct value");
+          return { kind: 'StructLit', type: t.value, fields, line: t.line };
+        }
+        // Looks like someone's trying Player { field: value } but never declared Player as a type
+        if (check('{') && peek(1).type === 'ident' && peek(2).type === ':') {
+          throw new VoltError(`'${t.value}' isn't a type. Declare it first, like: ${t.value} = type { name: string, health: int }`, t.line);
         }
         return { kind: 'Var', name: t.value, line: t.line };
       }
@@ -890,8 +998,26 @@ const TARGET_NAMES = {
 };
 
 // Built-in functions: name -> number of values they take
-const BUILTINS = { random: 2, abs: 1, min: 2, max: 2, constrain: 3, map: 5, number: 1, text: 1, length: 1, upper: 1, lower: 1, contains: 2, part: 3, sign: 1, held: 1, saved: 2, touchscreen: 0,
-  block3d: 7, ball3d: 5, cyl3d: 6, lamp3d: 6, put3d: 6, mousedx: 0, mousedy: 0, locked3d: 0, clicked3d: 0, hot3d: 4, sky3d: 1, crisp: 1, sin: 1, cos: 1, atan2: 2, sqrt: 1 };
+const BUILTINS = {
+  random: 2, abs: 1, min: 2, max: 2, constrain: 3, map: 5, number: 1, text: 1, length: 1, upper: 1, lower: 1, contains: 2, part: 3, sign: 1, held: 1, saved: 2, touchscreen: 0,
+  // 3D and engine helpers (sin3/cos3/atan2 use tenths of a degree and thousandths - see the 3D section of the reference)
+  block3d: 7, ball3d: 5, cyl3d: 6, lamp3d: 6, put3d: 6, mousedx: 0, mousedy: 0, locked3d: 0, clicked3d: 0, hot3d: 4, sky3d: 1, crisp: 1, sin3: 1, cos3: 1, atan2: 2,
+  // everyday math (decimal sin/cos in degrees)
+  sqrt: 1, sin: 1, cos: 1,
+  // small gamedev helpers - plain math, so they work on every target
+  dist: 4,       // dist(x1, y1, x2, y2) -> straight-line distance, rounded down
+  lerp: 3,       // lerp(from, to, percent) -> a point percent% of the way from 'from' to 'to'
+  overlaps: 8,   // overlaps(ax, ay, aw, ah, bx, by, bw, bh) -> true if the two boxes touch
+  // everyday math and text/list helpers, for non-game logic
+  pow: 2,        // pow(base, exponent) -> base to the power of exponent, rounded down
+  join: 2,       // join(list, separator) -> one piece of text, list items glued together with separator between them
+  split: 2,      // split(text, separator) -> a list of the pieces of text between each separator
+  // backend/Node helpers (#js run with Node; fetchText also works in #html)
+  readFile: 1,   // readFile(path) -> the file's contents as text
+  writeFile: 2,  // writeFile(path, text) -> saves text to a file, true if it worked
+  envVar: 1,     // envVar(name) -> an environment variable's value, or "" if it isn't set
+  fetchText: 1,  // fetchText(url) -> downloads a URL and returns its text
+};
 
 // Names that would clash with Volt, C++, Python, Ruby or JavaScript.
 // All of them are checked for every program, so a Volt file can switch languages freely.
@@ -984,6 +1110,7 @@ const PY_HELPERS = {
   ms: ['_start = time.monotonic()', 'def _ms():', '    return int((time.monotonic() - _start) * 1000)'],
   add: ['def _add(a, b):', '    if isinstance(a, str) or isinstance(b, str):', '        return str(a) + str(b)', '    return a + b'],
   num: ['def _num(v):', '    try:', '        return int(str(v).strip())', '    except ValueError:', '        return 0'],
+  div: ['def _div(a, b):', '    # whole numbers divide by dropping the remainder; a decimal on either side means real division', '    return a // b if isinstance(a, int) and isinstance(b, int) else a / b'],
 };
 
 const RB_HELPERS = {
@@ -1003,6 +1130,9 @@ const JS_HELPERS = {
     'const __lines = __rl[Symbol.asyncIterator]();',
     "async function __ask(q) { process.stdout.write(String(q) + ' '); const r = await __lines.next(); return r.done ? '' : r.value; }",
   ],
+  div: ['function __div(a, b) { return (Number.isInteger(a) && Number.isInteger(b)) ? Math.trunc(a / b) : a / b; }'],
+  fs: ["const __fs = require('fs');"],
+  writeFile: ['function __writeFile(p, s) { try { __fs.writeFileSync(p, String(s)); return true; } catch (e) { return false; } }'],
 };
 
 // The look of #html pages before any of your own CSS
@@ -1552,6 +1682,7 @@ function generate(ast, target = 'cpp', options = {}) {
   let usesSerial = false;
   let usesRandom = false;
   let usesServo = false;
+  let usesMath = false;
   let usesStepper = false;
   let usesForever = false;
   let usesGame = false;         // canvas, sprites, held keys ... (#html)
@@ -1559,6 +1690,11 @@ function generate(ast, target = 'cpp', options = {}) {
   const models = new Map();     // name -> Model3d node (.glb files)
   const images = new Map();     // name -> Image node
   const sprites = new Map();    // name -> Sprite node
+  const types = new Map();      // name -> TypeDecl node (gamedev structs, 'Player = type { ... }')
+  // Field names declared as `float` in any type - used only so `.field` access can tell a
+  // decimal field apart from a whole-number one (Member access doesn't know which specific
+  // struct type it's reading, so this is a same-field-name heuristic, not a real per-type check).
+  const floatFields = new Set();
   const audios = new Map();     // name -> Audio node
   let uid = 0;                  // makes hidden helper names unique
   let loopDepth = 0;            // inside repeat/while?
@@ -1591,6 +1727,12 @@ function generate(ast, target = 'cpp', options = {}) {
   }
   function listsOk(line) {
     if (T.board) throw new VoltError('Lists work in #python, #ruby, #js and #html programs, not on boards (yet)', line);
+  }
+  function jsOnly(what, line) {
+    if (!js) throw new VoltError(`${what} only works in #js and #html programs`, line);
+  }
+  function nodeOnly(what, line) {
+    if (!node) throw new VoltError(`${what} only works in #js programs run with Node (not #html pages, which run in a browser)`, line);
   }
 
   // Text in quotes, written safely for the output language
@@ -1637,6 +1779,15 @@ function generate(ast, target = 'cpp', options = {}) {
     return null;
   }
 
+  // Every variable and pin name visible right now - used only to suggest a
+  // fix for a typo'd name in an error message, never for codegen.
+  function allVarNames() {
+    const names = new Set();
+    for (const scope of scopes) for (const k of scope.keys()) names.add(k);
+    for (const k of pins.keys()) names.add(k);
+    return [...names];
+  }
+
   function checkName(name, line, isParam = false) {
     if (RESERVED.has(name) || name.startsWith('_')) {
       throw new VoltError(`'${name}' is a reserved name (Volt or one of its languages already uses it), please pick another`, line);
@@ -1669,22 +1820,30 @@ function generate(ast, target = 'cpp', options = {}) {
   function staticType(e) {
     switch (e.kind) {
       case 'String': case 'Ask': return 'text';
+      case 'Number': return e.value.includes('.') ? 'float' : 'num';
       case 'List': return 'list';
       case 'Index': return 'any';
+      case 'Member': return floatFields.has(e.field) ? 'float' : 'any';
+      case 'StructLit': return 'any';
       case 'Call':
-        if (['text', 'upper', 'lower', 'part'].includes(e.name)) return 'text';
+        if (['text', 'upper', 'lower', 'part', 'join', 'readFile', 'envVar', 'fetchText'].includes(e.name)) return 'text';
+        if (e.name === 'split') return 'list';
+        if (['sin', 'cos'].includes(e.name)) return 'float';
         if (e.name === 'saved') return e.args[1] && e.args[1].kind === 'List' ? 'list' : 'any';
         if (BUILTINS[e.name] !== undefined) return 'num';
         return cpp ? 'num' : 'any';
       case 'Var': { const v = lookupVar(e.name); return v ? v.type : 'any'; }
-      case 'Binary':
+      case 'Unary': return e.op === 'not' ? 'bool' : staticType(e.operand);
+      case 'Binary': {
+        const l = staticType(e.left);
+        const r = staticType(e.right);
         if (e.op === '+') {
-          const l = staticType(e.left);
-          const r = staticType(e.right);
           if (l === 'text' || r === 'text') return 'text';
           if (l === 'any' || r === 'any') return 'any';
         }
+        if (!['and', 'or', '==', '!=', '<', '>', '<=', '>='].includes(e.op) && (l === 'float' || r === 'float')) return 'float';
         return 'num';
+      }
       default: return 'num';
     }
   }
@@ -1730,6 +1889,18 @@ function generate(ast, target = 'cpp', options = {}) {
           setupExtra.push(`  ${servoObj(name)}.attach(${name});`);
         }
       }
+    } else if (node.kind === 'TypeDecl') {
+      htmlOnly(`'${node.name} = type { ... }'`, node.line);
+      checkName(node.name, node.line);
+      const seen = new Set();
+      for (const f of node.fields) {
+        if (seen.has(f.name)) throw new VoltError(`'${node.name}' already has a field called '${f.name}'`, node.line);
+        seen.add(f.name);
+      }
+      types.set(node.name, node.fields);
+      for (const f of node.fields) {
+        if (f.kindName.toLowerCase() === 'float') floatFields.add(f.name);
+      }
     } else if (node.kind === 'Fn') {
       checkName(node.name, node.line);
       funcs.set(node.name, node);
@@ -1758,7 +1929,10 @@ function generate(ast, target = 'cpp', options = {}) {
       sprites.set(node.name, node);
       globals.push(`let ${node.name} = null;`);
     } else if (node.kind === 'RawTop') {
-      if (!cpp && node.code.startsWith('#')) {
+      // A C/C++ directive (#include, #define) starts with # followed by a letter; a CSS id
+      // selector (#world3d { ... }) also starts with # but is followed by a name then '{',
+      // so it isn't mistaken for one here.
+      if (!cpp && !html && /^#[a-zA-Z]/.test(node.code)) {
         throw new VoltError(`'${node.code.split(/\s/)[0]}' only works in #c++ programs`, node.line);
       }
       if (html) cssLines.push(node.code);
@@ -1781,12 +1955,19 @@ function generate(ast, target = 'cpp', options = {}) {
   }
 
   // ---------- expressions ----------
-  // Each returns { code, type } where type is 'num', 'text', 'bool' or 'any' (unknown until it runs).
+  // Each returns { code, type } where type is 'num', 'float' (a decimal number), 'text', 'bool',
+  // 'list' or 'any' (unknown until it runs). 'float' only ever comes from a decimal literal -
+  // boards (#c++, #micropython) reject those, so cpp/micro code never has to handle it.
   // In C++, 'obj' marks a String object (so '+' joins text instead of adding pointers).
   function genExpr(e) {
     switch (e.kind) {
-      case 'Number':
-        return { code: e.value, type: 'num' };
+      case 'Number': {
+        const isDecimal = e.value.includes('.');
+        if (isDecimal && T.board) {
+          throw new VoltError(`Boards (#c++ and #micropython) only support whole numbers, found ${e.value}. Decimals work in #python, #ruby, #js and #html`, e.line);
+        }
+        return { code: e.value, type: isDecimal ? 'float' : 'num' };
+      }
 
       case 'Bool':
         if (py) return { code: e.value ? 'True' : 'False', type: 'bool' };
@@ -1823,7 +2004,12 @@ function generate(ast, target = 'cpp', options = {}) {
         if (models.has(e.name)) return { code: e.name, type: 'any' };
         if (images.has(e.name)) throw new VoltError(`'${e.name}' is an image. Cut sprites out of it with: sprite name = ${e.name} at x, y size w, h`, e.line);
         const v = lookupVar(e.name);
-        if (!v) throw new VoltError(`Unknown variable '${e.name}'. Did you forget 'let ${e.name} = ...'?`, e.line);
+        if (!v) {
+          const guess = closestName(e.name, allVarNames());
+          throw new VoltError(guess
+            ? `Unknown variable '${e.name}'. Did you mean '${guess}'?`
+            : `Unknown variable '${e.name}'. Did you forget 'let ${e.name} = ...'?`, e.line);
+        }
         return { code: v.top ? global(e.name) : e.name, type: v.type, obj: cpp && v.type === 'text' };
       }
 
@@ -1862,7 +2048,7 @@ function generate(ast, target = 'cpp', options = {}) {
       case 'Index': {
         listsOk(e.line);
         const target = genExpr(e.target);
-        if (target.type === 'num' || target.type === 'bool') {
+        if (target.type === 'num' || target.type === 'float' || target.type === 'bool') {
           throw new VoltError("Only lists and text can be read with [ ], like scores[0] or name[0]", e.line);
         }
         const i = genNumber(e.index, "A list position");
@@ -1876,16 +2062,51 @@ function generate(ast, target = 'cpp', options = {}) {
           if (rb) return { code: `!${truthy(inner)}`, type: 'bool' };
           return { code: `!(${bare(inner.code)})`, type: 'bool' };
         }
-        const inner = genNumber(e.operand, "'-'");
-        return { code: `-(${bare(inner)})`, type: 'num' };
+        const operand = genExpr(e.operand);
+        if (operand.type === 'text') throw new VoltError("'-' needs a number, not text. Use number(...) to turn text into a number", e.line);
+        return { code: `-(${bare(operand.code)})`, type: operand.type === 'float' ? 'float' : 'num' };
       }
 
       case 'Binary':
         return genBinary(e);
 
+      // player.health     enemies[i].hp
+      case 'Member': {
+        gameOnly("'.field'", e.line);
+        const target = genExpr(e.target);
+        return { code: `${target.code}.${e.field}`, type: floatFields.has(e.field) ? 'float' : 'any' };
+      }
+
+      // Player { name: "Finn", health: 10 }  - any field left out gets a sensible
+      // default (0 for int/float/num, "" for string/text, false for bool)
+      case 'StructLit': {
+        gameOnly("a struct value like Player { ... }", e.line);
+        const fields = types.get(e.type);
+        if (!fields) throw new VoltError(`'${e.type}' isn't a type. Declare it first, like: ${e.type} = type { name: string, health: int }`, e.line);
+        const known = new Set(fields.map((f) => f.name));
+        const given = new Map();
+        for (const f of e.fields) {
+          if (!known.has(f.name)) {
+            throw new VoltError(`'${e.type}' has no field called '${f.name}'. It has: ${[...known].join(', ')}`, e.line);
+          }
+          if (given.has(f.name)) throw new VoltError(`'${f.name}' is set twice in this ${e.type}`, e.line);
+          given.set(f.name, bare(genExpr(f.value).code));
+        }
+        const parts = fields.map((f) => `${f.name}: ${given.has(f.name) ? given.get(f.name) : defaultForKind(f.kindName)}`);
+        return { code: `{ ${parts.join(', ')} }`, type: 'any' };
+      }
+
       default:
         throw new Error(`Compiler bug: unknown expression ${e.kind}`);
     }
+  }
+
+  // The value an untouched struct field gets: 0 for numbers, "" for text, false for yes/no
+  function defaultForKind(kindName) {
+    const k = kindName.toLowerCase();
+    if (['string', 'text', 'str'].includes(k)) return '""';
+    if (['bool', 'boolean'].includes(k)) return 'false';
+    return '0';   // int, float, num, or anything else numeric-looking
   }
 
   // Ruby treats 0 and "" as true, so conditions go through _truthy() unless already true/false
@@ -1945,8 +2166,9 @@ function generate(ast, target = 'cpp', options = {}) {
       return { code: `(${truthy(left)} ${op} ${truthy(right)})`, type: 'bool' };
     }
 
+    const isNum = (t) => t === 'num' || t === 'float';
     if (['==', '!=', '<', '>', '<=', '>='].includes(e.op)) {
-      const textVsNumber = (left.type === 'text' && right.type === 'num') || (left.type === 'num' && right.type === 'text');
+      const textVsNumber = (left.type === 'text' && isNum(right.type)) || (isNum(left.type) && right.type === 'text');
       if (textVsNumber && !['==', '!='].includes(e.op)) {
         throw new VoltError(`Can't compare text and a number with '${e.op}'. Use number(...) to turn the text into a number`, e.line);
       }
@@ -1962,11 +2184,23 @@ function generate(ast, target = 'cpp', options = {}) {
     if (anyText) {
       throw new VoltError(`Can't use '${e.op}' with text, only with numbers. Use number(...) to turn text into a number`, e.line);
     }
-    const type = anyUnknown ? 'any' : 'num';
-    if (e.op === '/') {
-      // Volt numbers are whole numbers, so division drops the remainder
-      if (py) return { code: `(${L} // ${R})`, type };
-      if (js) return { code: `Math.trunc(${L} / ${R})`, type };
+    const anyFloat = left.type === 'float' || right.type === 'float';
+    const type = anyUnknown ? 'any' : anyFloat ? 'float' : 'num';
+    if (e.op === '/' && !anyFloat) {
+      if (anyUnknown) {
+        // Can't tell at compile time whether this is whole numbers or a decimal - e.g. a
+        // struct field read generically, or a function parameter (params aren't typed).
+        // Decide for real at runtime instead of guessing and risking a wrong truncation.
+        if (py) { help('div'); return { code: `_div(${L}, ${R})`, type }; }
+        if (js) { help('div'); return { code: `__div(${L}, ${R})`, type }; }
+        // Ruby's native '/' already divides exactly this way depending on the actual value
+      } else {
+        // Both sides are known whole numbers, so division drops the remainder. A decimal on
+        // either side means real division instead (the plain '/' below, already correct in
+        // every target here).
+        if (py) return { code: `(${L} // ${R})`, type };
+        if (js) return { code: `Math.trunc(${L} / ${R})`, type };
+      }
     }
     return { code: `(${L} ${e.op} ${R})`, type };
   }
@@ -1979,7 +2213,7 @@ function generate(ast, target = 'cpp', options = {}) {
       if (args.length !== need) {
         throw new VoltError(`'${e.name}' needs ${need} value${need === 1 ? '' : 's'}, got ${args.length}`, e.line);
       }
-      const numeric = ['random', 'abs', 'min', 'max', 'constrain', 'map', 'sign'];
+      const numeric = ['random', 'abs', 'min', 'max', 'constrain', 'map', 'sign', 'dist', 'lerp', 'overlaps', 'sqrt', 'pow', 'sin', 'cos'];
       if (numeric.includes(e.name)) {
         args.forEach((a, i) => {
           if (a.type === 'text') throw new VoltError(`'${e.name}' needs numbers, not text. Use number(...) to turn text into a number`, e.args[i].line);
@@ -2013,7 +2247,7 @@ function generate(ast, target = 'cpp', options = {}) {
           if (js) return { code: `(Math.trunc((${a} - ${b}) * (${f} - ${d}) / (${x} - ${b})) + ${d})`, type: 'num' };
           return { code: `map(${a}, ${b}, ${x}, ${d}, ${f})`, type: 'num' };
         case 'number':
-          if (args[0].type === 'num') return { code: args[0].code, type: 'num' };
+          if (args[0].type === 'num' || args[0].type === 'float') return { code: args[0].code, type: args[0].type };
           if (py) { help('num'); return { code: `_num(${a})`, type: 'num' }; }
           if (rb) return { code: `(${a}).to_s.to_i`, type: 'num' };
           if (js) return { code: `(parseInt(${a}, 10) || 0)`, type: 'num' };
@@ -2093,14 +2327,13 @@ function generate(ast, target = 'cpp', options = {}) {
           gameOnly(`'${e.name}'`, e.line);
           uses3d = true;
           return { code: `__${e.name}(${c.join(', ')})`, type: 'num' };
-        // maths for 3D: angles in tenths of a degree, results in thousandths (sin(900) is 1000)
-        case 'sin':
-        case 'cos':
+        // maths for 3D: angles in tenths of a degree, results in thousandths (sin3(900) is 1000)
+        case 'sin3':
+        case 'cos3':
         case 'atan2':
-        case 'sqrt':
           if (!js) throw new VoltError(`'${e.name}' only works in #html and #js programs`, e.line);
           help('math3');
-          return { code: `__${e.name}3(${c.join(', ')})`, type: 'num' };
+          return { code: `__${e.name.replace(/3$/, '')}3(${c.join(', ')})`, type: 'num' };
         // touchscreen() -> true on phones and tablets      (#html)
         case 'touchscreen':
           gameOnly("'touchscreen'", e.line);
@@ -2109,6 +2342,83 @@ function generate(ast, target = 'cpp', options = {}) {
         case 'held':
           gameOnly("'held'", e.line);
           return { code: `__held(${a})`, type: 'bool' };
+        // dist(x1, y1, x2, y2) -> straight-line distance, rounded down
+        case 'dist': {
+          const sq = `((${a}) - (${x})) * ((${a}) - (${x})) + ((${b}) - (${d})) * ((${b}) - (${d}))`;
+          if (py) return { code: `int((${sq}) ** 0.5)`, type: 'num' };
+          if (rb) return { code: `Math.sqrt(${sq}).to_i`, type: 'num' };
+          if (js) return { code: `Math.trunc(Math.sqrt(${sq}))`, type: 'num' };
+          return { code: `(long)sqrt((double)(${sq}))`, type: 'num' };
+        }
+        // lerp(from, to, percent) -> a point percent% (0-100) of the way from 'from' to 'to'
+        case 'lerp': {
+          if (py) return { code: `(${a} + (${b} - (${a})) * (${x}) // 100)`, type: 'num' };
+          if (rb) return { code: `(${a} + (${b} - (${a})) * (${x}) / 100)`, type: 'num' };
+          if (js) return { code: `Math.trunc(${a} + (${b} - (${a})) * (${x}) / 100)`, type: 'num' };
+          return { code: `(${a} + (${b} - (${a})) * (${x}) / 100)`, type: 'num' };
+        }
+        // overlaps(ax, ay, aw, ah, bx, by, bw, bh) -> true if the two boxes touch
+        case 'overlaps': {
+          const [ax, ay, aw, ah, bx, by, bw, bh] = c;
+          const cond = `(${ax}) < (${bx}) + (${bw}) and (${ax}) + (${aw}) > (${bx}) and (${ay}) < (${by}) + (${bh}) and (${ay}) + (${ah}) > (${by})`;
+          if (py) return { code: `(${cond})`, type: 'bool' };
+          const jsCond = cond.replace(/\band\b/g, '&&');
+          return { code: `(${jsCond})`, type: 'bool' };
+        }
+        // sqrt(x) -> square root, rounded down
+        case 'sqrt':
+          if (py) { usesMath = true; return { code: `int(math.sqrt(${a}))`, type: 'num' }; }
+          if (rb) return { code: `Math.sqrt(${a}).to_i`, type: 'num' };
+          if (js) return { code: `Math.trunc(Math.sqrt(${a}))`, type: 'num' };
+          return { code: `(long)sqrt((double)(${a}))`, type: 'num' };
+        // pow(base, exponent) -> base to the power of exponent, rounded down
+        case 'pow':
+          if (py) return { code: `int((${a}) ** (${b}))`, type: 'num' };
+          if (rb) return { code: `((${a}) ** (${b})).to_i`, type: 'num' };
+          if (js) return { code: `Math.trunc(Math.pow(${a}, ${b}))`, type: 'num' };
+          return { code: `(long)pow((double)(${a}), (double)(${b}))`, type: 'num' };
+        // sin(degrees) / cos(degrees) -> sine/cosine of an angle given in degrees.
+        // Needs real decimals, so (for now) it's scripts/web only, not boards.
+        case 'sin':
+          if (T.board) throw new VoltError("'sin' needs decimals, which boards (#c++, #micropython) don't support yet", e.line);
+          if (py) { usesMath = true; return { code: `math.sin((${a}) * math.pi / 180)`, type: 'float' }; }
+          if (rb) return { code: `Math.sin((${a}) * Math::PI / 180)`, type: 'float' };
+          return { code: `Math.sin((${a}) * Math.PI / 180)`, type: 'float' };
+        case 'cos':
+          if (T.board) throw new VoltError("'cos' needs decimals, which boards (#c++, #micropython) don't support yet", e.line);
+          if (py) { usesMath = true; return { code: `math.cos((${a}) * math.pi / 180)`, type: 'float' }; }
+          if (rb) return { code: `Math.cos((${a}) * Math::PI / 180)`, type: 'float' };
+          return { code: `Math.cos((${a}) * Math.PI / 180)`, type: 'float' };
+        // join(list, separator) -> list items glued into one piece of text
+        case 'join':
+          listsOk(e.line);
+          if (py) return { code: `str(${b}).join(str(__j) for __j in ${a})`, type: 'text' };
+          return { code: `(${a}).join(${b})`, type: 'text' };
+        // split(text, separator) -> a list of the pieces between each separator
+        case 'split':
+          listsOk(e.line);
+          if (py) return { code: `str(${a}).split(str(${b}))`, type: 'list' };
+          if (rb) return { code: `(${a}).to_s.split(${b})`, type: 'list' };
+          return { code: `String(${a}).split(${b})`, type: 'list' };
+        // readFile(path) -> the file's contents as text      (#js run with Node)
+        case 'readFile':
+          nodeOnly("'readFile'", e.line);
+          help('fs');
+          return { code: `__fs.readFileSync(${a}, 'utf8')`, type: 'text' };
+        // writeFile(path, text) -> saves text to a file, true if it worked      (#js run with Node)
+        case 'writeFile':
+          nodeOnly("'writeFile'", e.line);
+          help('fs');
+          help('writeFile');
+          return { code: `__writeFile(${a}, ${b})`, type: 'bool' };
+        // envVar(name) -> an environment variable's value, or "" if it isn't set      (#js run with Node)
+        case 'envVar':
+          nodeOnly("'envVar'", e.line);
+          return { code: `(process.env[${a}] || "")`, type: 'text' };
+        // fetchText(url) -> downloads a URL and returns its text      (#js and #html)
+        case 'fetchText':
+          jsOnly("'fetchText'", e.line);
+          return { code: `(await (await fetch(${a})).text())`, type: 'text' };
       }
     }
 
@@ -2117,7 +2427,12 @@ function generate(ast, target = 'cpp', options = {}) {
       if (pins.has(e.name) || lookupVar(e.name)) {
         throw new VoltError(`'${e.name}' is not a function`, e.line);
       }
-      throw new VoltError(`Unknown function '${e.name}'. Make it with 'fn ${e.name}(...) { }'`, e.line);
+      {
+        const guess = closestName(e.name, [...funcs.keys(), ...Object.keys(BUILTINS)]);
+        throw new VoltError(guess
+          ? `Unknown function '${e.name}'. Did you mean '${guess}'?`
+          : `Unknown function '${e.name}'. Make it with 'fn ${e.name}(...) { }'`, e.line);
+      }
     }
     if (args.length !== fn.params.length) {
       throw new VoltError(`'${e.name}' needs ${fn.params.length} value${fn.params.length === 1 ? '' : 's'}, got ${args.length}`, e.line);
@@ -2213,7 +2528,12 @@ function generate(ast, target = 'cpp', options = {}) {
         if (pins.has(s.name)) throw new VoltError(`Can't change pin '${s.name}' with '='. Use set, on, off or toggle`, s.line);
         if (funcs.has(s.name)) throw new VoltError(`Can't change function '${s.name}' with '='`, s.line);
         const v = lookupVar(s.name);
-        if (!v) throw new VoltError(`Unknown variable '${s.name}'. Did you mean 'let ${s.name} = ...'?`, s.line);
+        if (!v) {
+          const guess = closestName(s.name, allVarNames());
+          throw new VoltError(guess
+            ? `Unknown variable '${s.name}'. Did you mean '${guess}'?`
+            : `Unknown variable '${s.name}'. Did you mean 'let ${s.name} = ...'?`, s.line);
+        }
         const value = genExpr(s.value);
         checkAssignType(s.name, v.type, value.type, s.line);
         return [`${p}${v.top ? global(s.name) : s.name} = ${bare(value.code)}${END}`];
@@ -2789,7 +3109,15 @@ function generate(ast, target = 'cpp', options = {}) {
       case 'Pin':
       case 'RawTop':
       case 'Fn':
+      case 'TypeDecl':
         return []; // handled separately
+
+      case 'MemberAssign': {
+        gameOnly("'.field = ...'", s.line);
+        const target = genExpr(s.target);
+        const value = genExpr(s.value);
+        return [`${p}${target.code}.${s.field} = ${bare(value.code)}${END}`];
+      }
 
       default:
         throw new Error(`Compiler bug: unknown statement ${s.kind}`);
@@ -2884,6 +3212,7 @@ function generate(ast, target = 'cpp', options = {}) {
   if (micro) {
     const imports = ['from machine import Pin, PWM, ADC', 'import time'];
     if (usesRandom) imports.push('import random');
+    if (usesMath) imports.push('import math');
     return [
       '# Generated by Volt (MicroPython). Edit the .volt file, not this one.',
       ...imports,
@@ -2904,6 +3233,7 @@ function generate(ast, target = 'cpp', options = {}) {
   if (py) {
     const imports = ['import time'];
     if (usesRandom) imports.push('import random');
+    if (usesMath) imports.push('import math');
     return [
       '# Generated by Volt (Python). Edit the .volt file, not this one.',
       ...imports,
@@ -3071,9 +3401,50 @@ function detectTarget(src) {
   return { target: 'cpp', src };
 }
 
+// Splices `import "file.volt"` lines in place with that file's contents,
+// recursively, before anything is lexed - so a .volt file (or a library
+// plugin's snippet) can be reused from other .volt files instead of only
+// ever being copy-pasted in by hand. Must be its own unindented line,
+// written exactly as `import "name.volt"` (a literal path in quotes, no
+// expressions). The path resolves the same way 'image'/'audio' files do:
+// against options.baseDir, then options.extraDirs.
+// Importing the same file twice (directly, or via two other imports) is
+// fine - the second one is silently skipped, so shared libraries don't
+// produce "already a function called ..." errors.
+// Known limitation: error line numbers after a spliced-in import point at
+// the merged text, not the original file - there's no source map (yet).
+function resolveImports(source, dirs, seen) {
+  const lines = source.split('\n');
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^import\s+"([^"]+)"\s*$/.exec(lines[i]);
+    if (!m) { out.push(lines[i]); continue; }
+    const name = m[1];
+    if (!dirs.length) {
+      throw new VoltError(`Can't import '${name}' - this program has no folder to look in`, i + 1);
+    }
+    const full = dirs.map((d) => path.resolve(d, name)).find((x) => fs.existsSync(x));
+    if (!full) {
+      throw new VoltError(`Can't import '${name}'. Put it in the same folder as your .volt file`, i + 1);
+    }
+    if (seen.has(full)) { out.push(`// (already imported '${name}')`); continue; }
+    seen.add(full);
+    const imported = fs.readFileSync(full, 'utf8').replace(/\r\n?/g, '\n');
+    out.push(`// ---- imported from '${name}' ----`);
+    out.push(resolveImports(imported, [path.dirname(full), ...dirs.slice(1)], seen));
+    out.push(`// ---- end '${name}' ----`);
+  }
+  return out.join('\n');
+}
+
 // options.baseDir: the .volt file's folder, so 'image' can pack pictures into the page
 function compile(source, options = {}) {
-  const detected = detectTarget(source.replace(/\r\n?/g, '\n'));
+  let normalized = source.replace(/\r\n?/g, '\n');
+  if (/^import\s+"/m.test(normalized)) {
+    const dirs = [options.baseDir, ...(options.extraDirs || [])].filter(Boolean);
+    normalized = resolveImports(normalized, dirs, new Set());
+  }
+  const detected = detectTarget(normalized);
   const tokens = lex(detected.src);
   const ast = parse(tokens);
   // #python means a board (MicroPython) when the program uses pins, otherwise a normal script
@@ -3129,6 +3500,10 @@ function main() {
   } catch (e) {
     if (e instanceof VoltError) {
       console.error(`${file}, line ${e.line}: ${e.message}`);
+      const srcLine = src.split('\n')[e.line - 1];
+      if (srcLine !== undefined && srcLine.trim() !== '') {
+        console.error(`  ${e.line} | ${srcLine}`);
+      }
       process.exit(1);
     }
     throw e;

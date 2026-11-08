@@ -1,0 +1,13 @@
+{
+  "name": "combat-vfx",
+  "type": "library",
+  "version": "1.0.0",
+  "description": "Anime-style combat effects for #html Volt games: power auras, sweeping slashes, hit impacts with freeze-frames, a critical-hit lightning strike, beams, charge orbs, dash afterimages, speed lines and a domain-style void field. Glowing, additive overlay drawn on top of your canvas game.",
+  "snippets": [
+    {
+      "file": "engine.volt",
+      "label": "Combat VFX (aura, slash, impact, crit, beam, orb, domain)",
+      "description": "Drop-in effects engine for games that use `canvas`, plus fx* functions: fxAura, fxSlash, fxImpact, fxCrit, fxBeam, fxOrb, fxGhost, fxDomain, fxHitstop and more."
+    }
+  ]
+}

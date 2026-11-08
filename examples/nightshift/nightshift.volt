@@ -44,7 +44,7 @@ let opS = []                 // opS[c] = 1 when tile c is open to the south
 let seen = []
 let stack = []
 let nb = []
-let dist = []                // distance-to-target for the creature's pathfinding
+let distTo = []                // distance-to-target for the creature's pathfinding
 let queue = []
 let startC = 0               // the tile with the elevator
 let lockC = []               // lockers: tile and wall direction
@@ -325,7 +325,7 @@ fn makeMap() {
   opE = []
   opS = []
   seen = []
-  dist = []
+  distTo = []
   rdist = []
   explored = []
   eMap = []
@@ -341,7 +341,7 @@ fn makeMap() {
     add 0 to opE
     add 0 to opS
     add 0 to seen
-    add 9999 to dist
+    add 9999 to distTo
     add 9999 to rdist
   }
   // the elevator is on the south edge
@@ -385,22 +385,22 @@ fn bfs(goal) {
   let n = MW * MH
   let i = 0
   while i < n {
-    dist[i] = 9999
+    distTo[i] = 9999
     i += 1
   }
   queue = []
-  dist[goal] = 0
+  distTo[goal] = 0
   add goal to queue
   let head = 0
   while head < length(queue) {
     let cur = queue[head]
     head += 1
-    let d1 = dist[cur] + 1
+    let d1 = distTo[cur] + 1
     for d from 0 to 3 {
       if canGo(cur, d) == 1 {
         let nx = nbr(cur, d)
-        if dist[nx] > d1 {
-          dist[nx] = d1
+        if distTo[nx] > d1 {
+          distTo[nx] = d1
           add nx to queue
         }
       }
@@ -508,8 +508,8 @@ fn placeThings() {
   let far = 0
   let fd = 0
   for c from 0 to MW * MH - 1 {
-    if dist[c] > fd and dist[c] < 9999 {
-      fd = dist[c]
+    if distTo[c] > fd and distTo[c] < 9999 {
+      fd = distTo[c]
       far = c
     }
   }
@@ -526,7 +526,7 @@ fn placeThings() {
     tries += 1
     let c = random(0, MW * MH - 1)
     let ok = 1
-    if dist[c] < 4 or dist[c] > 9000 {
+    if distTo[c] < 4 or distTo[c] > 9000 {
       ok = 0
     }
     for u from 0 to length(used) - 1 {
@@ -598,7 +598,7 @@ fn placeThings() {
   while placed < nRaid and rt < 600 {
     rt += 1
     let rc = random(0, MW * MH - 1)
-    if dist[rc] >= 6 and dist[rc] < 9999 and rc != far {
+    if distTo[rc] >= 6 and distTo[rc] < 9999 and rc != far {
       let rxv = (rc % MW) * CS + 2000
       let rzv = (rc / MW) * CS + 2000
       add rxv to rX
@@ -618,7 +618,7 @@ fn placeThings() {
     bt += 1
     let bc = random(0, MW * MH - 1)
     let bd = random(0, 3)
-    if dist[bc] >= 1 and dist[bc] <= 3 and canGo(bc, bd) == 0 {
+    if distTo[bc] >= 1 and distTo[bc] <= 3 and canGo(bc, bd) == 0 {
       benchX = (bc % MW) * CS + 2000 + dirX(bd) * 1150
       benchZ = (bc / MW) * CS + 2000 + dirZ(bd) * 1150
       benchDir = bd
@@ -636,7 +636,7 @@ fn placeThings() {
   while ct < 400 {
     ct += 1
     let cc2 = random(0, MW * MH - 1)
-    if dist[cc2] >= 5 and dist[cc2] < 9999 and cc2 != far {
+    if distTo[cc2] >= 5 and distTo[cc2] < 9999 and cc2 != far {
       cwX = (cc2 % MW) * CS + 2000
       cwZ = (cc2 / MW) * CS + 2000
       ct = 999
@@ -1000,12 +1000,12 @@ fn bestCheck() {
 fn nextCell() {
   let c = cellOf(mx, mz)
   let bestN = c
-  let bd = dist[c]
+  let bd = distTo[c]
   for d from 0 to 3 {
     if canGo(c, d) == 1 {
       let nx = nbr(c, d)
-      if dist[nx] < bd {
-        bd = dist[nx]
+      if distTo[nx] < bd {
+        bd = distTo[nx]
         bestN = nx
       }
     }
@@ -1439,8 +1439,8 @@ fn playerFrame() {
       tired = 0
     }
   }
-  let dx = (sin(yaw) * fwd + cos(yaw) * side) * spd / 1000
-  let dz = (0 - cos(yaw) * fwd + sin(yaw) * side) * spd / 1000
+  let dx = (sin3(yaw) * fwd + cos3(yaw) * side) * spd / 1000
+  let dz = (0 - cos3(yaw) * fwd + sin3(yaw) * side) * spd / 1000
   if fwd != 0 and side != 0 {
     dx = dx * 7 / 10
     dz = dz * 7 / 10
@@ -1727,8 +1727,8 @@ fn useEmitter() {
     return 0
   }
   emitN -= 1
-  let tx = px + sin(yaw) * 2400 / 1000
-  let tz = pz - cos(yaw) * 2400 / 1000
+  let tx = px + sin3(yaw) * 2400 / 1000
+  let tz = pz - cos3(yaw) * 2400 / 1000
   if blocked(tx, tz, 300) == 1 {
     tx = px
     tz = pz
@@ -2178,7 +2178,7 @@ fn drawMap() {
   let ppx = x0 + px * 15 / CS
   let ppy = y0 + pz * 15 / CS
   box ppx - 1, ppy - 1, 3, 3 color "#ffffff"
-  box ppx + sin(yaw) * 5 / 1000 - 1, ppy - cos(yaw) * 5 / 1000 - 1, 2, 2 color "#ffd23f"
+  box ppx + sin3(yaw) * 5 / 1000 - 1, ppy - cos3(yaw) * 5 / 1000 - 1, 2, 2 color "#ffd23f"
   write "MAP" at 160, y0 + 120 color "#8c93a3" centered
 }
 
@@ -2222,7 +2222,7 @@ every frame {
     heartbeat()
     for c from 0 to 2 {
       if cellGot[c] == 0 {
-        let hov = 110 + sin(t * 30) * 8 / 1000
+        let hov = 110 + sin3(t * 30) * 8 / 1000
         turn3d cellId[c], t * 12
         move3d cellId[c], cellX[c] / 10, hov, cellZ[c] / 10
         turn3d cellG1[c], t * 12
@@ -2247,7 +2247,7 @@ every frame {
     if hidden == 1 {
       camera3d lockX[hideIdx] / 10, 150, lockZ[hideIdx] / 10, yaw, 0
     } else {
-      let bobY = sin(bob * 7) * 4 / 1000
+      let bobY = sin3(bob * 7) * 4 / 1000
       camera3d px / 10, 165 + bobY, pz / 10, yaw, pitch
     }
   } else if state == 2 {
