@@ -418,6 +418,8 @@ In your program **1 unit = 1 cm** (a 2 m corridor is 200) and **y is up**. **Ang
 
 `examples/one-more-floor/one-more-floor.volt` is a complete 3D horror game made this way: random floors, a creature that patrols, hears, chases and sniffs out lockers, a flashlight, stamina and an elevator. Three.js is MIT licensed (`lib/THREE_LICENSE.txt`).
 
+`examples/28_thornkeep_realm.volt` is a walkable medieval RPG fantasy map built the same way: a castle, a village, a market, a lake with a bridge, forest and farmland, all just `block3d`/`cyl3d`/`ball3d` calls placed by a handful of small builder functions (`cottage`, `wallTower`, `tree`...) - a good example to copy from for your own open-world map.
+
 ### Models: model3d, put3d, anim3d
 
 | Command | What it does |
