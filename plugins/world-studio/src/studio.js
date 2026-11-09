@@ -30,7 +30,14 @@ const KIND = {
   cyl: { label: 'Cylinder', icon: '▮' },
   lamp: { label: 'Lamp', icon: '✦' },
   spawn: { label: 'Spawn', icon: '⚑' },
+  model: { label: 'Model', icon: '◆' },
 };
+// Loaded .glb bytes never live on a scene object (S.objects must stay small,
+// JSON-serializable data - it's undone, autosaved and exported as text).
+// This cache holds the actual THREE.Group + measured size per filename, for
+// this session only. A world loaded back from a .volt file knows the
+// filename but has no mesh until the person re-attaches that file.
+const modelCache = new Map();   // filename -> { scene, box:{x,y,z}, center:{x,y,z} }
 const worldDefaults = () => ({
   title: 'My 3D world', bg: '#05060a', fog: 1600, ambient: 8, fov: 75, shadows: true,
   torch: 60, torchRange: 1800, sky: -1, bloom: 0, vignette: 0, grain: 0,
@@ -53,6 +60,7 @@ function makeObj(kind, over = {}) {
   if (kind === 'ball') Object.assign(o, { r: 50, y: 50, color: '#c8ccd4', glow: '', shine: false, rough: 40, metal: 0, solid: true });
   if (kind === 'cyl') Object.assign(o, { r: 30, h: 300, y: 150, color: '#8a8f99', glow: '', shine: false, rough: 40, metal: 0, solid: true });
   if (kind === 'lamp') Object.assign(o, { y: 200, color: '#ffcc88', power: 40, range: 700 });
+  if (kind === 'model') Object.assign(o, { file: '', scale: 100, solid: true });
   Object.assign(o, over);
   if (!o.name) o.name = uniqueName(KIND[kind].label);
   return o;
@@ -217,6 +225,11 @@ function boundsOf(o) {   // [w, h, d] in metres, plus a y offset, for the select
     case 'ball': return [o.r / 50, o.r / 50, o.r / 50, 0];
     case 'cyl': return [o.r / 50, o.h / 100, o.r / 50, 0];
     case 'lamp': return [0.3, 0.3, 0.3, 0];
+    case 'model': {
+      const c = modelCache.get(o.file), sc = (o.scale || 100) / 100;
+      if (c && c.box) return [Math.max(0.05, c.box.x * sc), Math.max(0.05, c.box.y * sc), Math.max(0.05, c.box.z * sc), c.center.y * sc];
+      return [0.6, 1.2, 0.6, 0.6];
+    }
     default: return [0.5, 1.7, 0.5, 0.85];
   }
 }
@@ -237,6 +250,20 @@ function buildNode(o) {
     n.add(new THREE.Mesh(new THREE.SphereGeometry(0.1, 14, 10), new THREE.MeshBasicMaterial({ color: hex6(o.color, '#ffcc88') })));
     const l = new THREE.PointLight(hex6(o.color, '#ffcc88'), clamp(o.power, 0, 100) * 0.5, Math.max(1, o.range) / 100, 1.6);
     l.visible = false; n.add(l); n.userData.light = l;
+  } else if (o.kind === 'model') {
+    n = new THREE.Group();
+    const cached = o.file ? modelCache.get(o.file) : null;
+    const sc = (o.scale || 100) / 100;
+    if (cached && cached.scene) {
+      const inst = cached.scene.clone(true);
+      inst.scale.setScalar(sc);
+      inst.traverse((c) => { if (c.isMesh) { c.castShadow = c.receiveShadow = true; } });
+      n.add(inst);
+    } else {
+      const ph = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0x5bd1ff, wireframe: true, transparent: true, opacity: 0.6 }));
+      ph.position.y = 0.5; n.add(ph);
+      n.userData.placeholder = true;
+    }
   } else {
     n = new THREE.Group();
     const body = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 1.65, 18), new THREE.MeshBasicMaterial({ color: 0x5bd1ff, transparent: true, opacity: 0.22, depthWrite: false }));
@@ -286,7 +313,7 @@ function applyNodeMode(n) {
   const game = mode !== 'edit';
   if (n.userData.light) n.userData.light.visible = game;
   const o = S.objects.find((x) => x.id === n.userData.rootId);
-  if (n.userData.marker) n.visible = mode !== 'play' && !!o && o.visible !== false;
+  if (n.userData.marker || n.userData.placeholder) n.visible = mode !== 'play' && !!o && o.visible !== false;
   n.userData.outline.visible = !!o && o.id === sel && mode !== 'play';
 }
 
@@ -562,7 +589,13 @@ cv.addEventListener('pointermove', (e) => {
   }
 });
 function scaleObject(o, d, delta) {
-  const s = d.start, key = o.kind === 'block' ? { x: 'w', y: 'h', z: 'd' }[d.axis] : o.kind === 'ball' ? 'r' : (d.axis === 'y' ? 'h' : 'r');
+  const s = d.start;
+  if (o.kind === 'model') {   // one uniform scale %, not a per-axis size
+    o.scale = Math.max(1, Math.round(s.scale + delta));
+    o.x = s.x; o.y = s.y; o.z = s.z;
+    return;
+  }
+  const key = o.kind === 'block' ? { x: 'w', y: 'h', z: 'd' }[d.axis] : o.kind === 'ball' ? 'r' : (d.axis === 'y' ? 'h' : 'r');
   const nv = Math.max(1, sn(s[key] + delta)), applied = nv - s[key];
   o[key] = nv;
   o.x = s.x; o.y = s.y; o.z = s.z;
@@ -615,18 +648,24 @@ const PRESETS = {
   ball: { kind: 'ball', label: 'Ball', glyph: '●', over: { r: 50 }, base: 'Ball' },
   lamp: { kind: 'lamp', label: 'Lamp', glyph: '✦', over: {}, base: 'Lamp' },
   spawn: { kind: 'spawn', label: 'Spawn', glyph: '⚑', over: {}, base: 'Spawn' },
+  model: { kind: 'model', label: 'Model (.glb)', glyph: '◆', over: {}, base: 'Model' },
 };
-function addPreset(key, at) {
-  const P = PRESETS[key];
-  if (key === 'spawn') { const old = S.objects.filter((o) => o.kind === 'spawn'); if (old.length >= 1) { toast('Only the first Spawn is used by the game - moved it here instead.'); const o = old[0]; if (at) { o.x = sn(at[0]); o.z = sn(at[1]); touch(o); select(o.id); commit(); syncPropValues(); } return; } }
+function dropPoint(at) {   // where a new object should land: the drop point, or ~6m ahead of the camera
   let x, z;
   if (at) { x = at[0]; z = at[1]; }
   else {
     const f = fwd3(), ray = new THREE.Ray(new THREE.Vector3(cam.x, cam.y, cam.z), f), p = new THREE.Vector3();
-    const flat = { x: Math.sin(cam.yaw), z: -Math.cos(cam.yaw) };   // never further than ~6 m ahead of you
+    const flat = { x: Math.sin(cam.yaw), z: -Math.cos(cam.yaw) };
     if (ray.intersectPlane(new THREE.Plane(YUP, 0), p) && Math.hypot(p.x - cam.x, p.z - cam.z) < 6) { x = p.x * 100; z = p.z * 100; }
     else { x = (cam.x + flat.x * 6) * 100; z = (cam.z + flat.z * 6) * 100; }
   }
+  return [x, z];
+}
+function addPreset(key, at) {
+  const P = PRESETS[key];
+  if (key === 'spawn') { const old = S.objects.filter((o) => o.kind === 'spawn'); if (old.length >= 1) { toast('Only the first Spawn is used by the game - moved it here instead.'); const o = old[0]; if (at) { o.x = sn(at[0]); o.z = sn(at[1]); touch(o); select(o.id); commit(); syncPropValues(); } return; } }
+  if (key === 'model') { pickModelFile(at); return; }
+  const [x, z] = dropPoint(at);
   const o = makeObj(P.kind, Object.assign({ name: uniqueName(P.base) }, P.over));
   o.x = sn(x); o.z = sn(z);
   if (P.kind === 'block') o.y = key === 'floor' ? -o.h / 2 : o.h / 2;
@@ -634,6 +673,52 @@ function addPreset(key, at) {
   else if (P.kind === 'ball') o.y = o.r;
   else if (P.kind === 'spawn') o.y = 0;
   S.objects.push(o); refreshNode(o); select(o.id); commit();
+}
+// ---------------------------------------------------------------------
+//  Model (.glb) import - the sandboxed panel has no filesystem access, so
+//  this reads the file with the browser's own file picker, straight into
+//  memory; nothing is sent anywhere. Only the filename is ever stored on
+//  the scene object - the real asset has to sit next to the .volt file
+//  for `model3d name = "file.glb"` to find it at compile time.
+// ---------------------------------------------------------------------
+function loadModelBytes(file, onLoaded, onFail) {
+  const reader = new FileReader();
+  reader.onerror = () => onFail(new Error('Could not read the file'));
+  reader.onload = () => {
+    new THREE.GLTFLoader().parse(reader.result, '', (g) => {
+      const box = new THREE.Box3().setFromObject(g.scene);
+      const fin1 = (v) => (Number.isFinite(v) && v > 0 ? v : 0.1), fin0 = (v) => (Number.isFinite(v) ? v : 0);
+      const size = box.getSize(new THREE.Vector3()), center = box.getCenter(new THREE.Vector3());
+      modelCache.set(file.name, { scene: g.scene, box: { x: fin1(size.x), y: fin1(size.y), z: fin1(size.z) }, center: { x: fin0(center.x), y: fin0(center.y), z: fin0(center.z) } });
+      onLoaded(file.name);
+    }, () => onFail(new Error("Couldn't read \"" + file.name + "\" - use a .glb file with its textures packed inside.")));
+  };
+  reader.readAsArrayBuffer(file);
+}
+function pickModelFile(at) {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = '.glb,.gltf,model/gltf-binary';
+  inp.addEventListener('change', () => {
+    const file = inp.files && inp.files[0]; if (!file) return;
+    loadModelBytes(file, (name) => {
+      const [x, z] = dropPoint(at);
+      const o = makeObj('model', { name: uniqueName('Model'), file: name, scale: 100 });
+      o.x = sn(x); o.z = sn(z); o.y = 0;
+      S.objects.push(o); refreshNode(o); select(o.id); commit();
+    }, (err) => toast(err.message, true));
+  });
+  inp.click();
+}
+function rebrowseModel(o) {
+  if (!o || o.kind !== 'model') return;
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = '.glb,.gltf,model/gltf-binary';
+  inp.addEventListener('change', () => {
+    const file = inp.files && inp.files[0]; if (!file) return;
+    loadModelBytes(file, (name) => { o.file = name; refreshNode(o); renderProps(); commit(); toast('Loaded "' + name + '"'); },
+      (err) => toast(err.message, true));
+  });
+  inp.click();
 }
 function deleteSelected() {
   const o = byId(sel); if (!o) return;
@@ -697,6 +782,14 @@ function objForm(o) {
     h += '<div class="sec">Game</div>' + fCheck('solid', 'Blocks player', o.solid);
   }
   if (o.kind === 'lamp') h += '<div class="sec">Light</div>' + fColor('color', 'Colour', o.color) + fRange('power', 'Power', o.power, 0, 100) + fNum('range', 'Range (cm)', o.range, { min: 1, step: 50 });
+  if (o.kind === 'model') {
+    const cached = o.file ? modelCache.get(o.file) : null;
+    h += '<div class="sec">Model</div>' +
+      `<div class="note">${o.file ? esc(o.file) : 'No file chosen yet.'}${o.file && !cached ? ' <b>- not loaded this session.</b> Attach it again to preview it and to use Play.' : ''}</div>` +
+      `<button type="button" class="tb" data-act="rebrowse" style="margin:2px 10px 8px">${o.file ? '⭱ Replace file…' : '⭱ Choose a .glb file…'}</button>` +
+      fNum('scale', 'Scale (%)', o.scale, { min: 1 }) +
+      '<div class="sec">Game</div>' + fCheck('solid', 'Blocks player', o.solid);
+  }
   if (o.kind === 'spawn') h += '<div class="note">The player starts here, 165 cm up, looking the way the arrow points. Rotate it to turn the start view.</div>';
   return h;
 }
@@ -737,7 +830,8 @@ $('#props').addEventListener('input', (e) => {
   if (selWorld) setWorldProp(k, v); else setObjProp(k, v);
 });
 $('#props').addEventListener('change', () => commit());
-const INT_MIN1 = new Set(['w', 'h', 'd', 'r', 'range']);
+$('#props').addEventListener('click', (e) => { if (e.target.closest('[data-act="rebrowse"]')) rebrowseModel(byId(sel)); });
+const INT_MIN1 = new Set(['w', 'h', 'd', 'r', 'range', 'scale']);
 function setObjProp(k, v) {
   const o = byId(sel); if (!o) return;
   let again = false;
@@ -812,6 +906,11 @@ function colliders(rad) {
     if (o.kind === 'block') { const a = (o.yaw || 0) * D2R, c = Math.abs(Math.cos(a)), s = Math.abs(Math.sin(a)); hx = (o.w * c + o.d * s) / 2; hz = (o.w * s + o.d * c) / 2; bot = o.y - o.h / 2; top = o.y + o.h / 2; }
     else if (o.kind === 'cyl') { hx = hz = o.r; bot = o.y - o.h / 2; top = o.y + o.h / 2; }
     else if (o.kind === 'ball') { hx = hz = o.r; bot = o.y - o.r; top = o.y + o.r; }
+    else if (o.kind === 'model') {
+      const c = modelCache.get(o.file), sc = (o.scale || 100) / 100;
+      const bx = (c ? c.box.x * 100 : 100) * sc, by = (c ? c.box.y * 100 : 150) * sc, bz = (c ? c.box.z * 100 : 100) * sc;
+      hx = bx / 2; hz = bz / 2; bot = o.y; top = o.y + by;
+    }
     else continue;
     if (top < 15 || bot > 160) continue;   // can't touch a standing player
     out.push([Math.round(o.x), Math.round(o.z), Math.round(hx + rad), Math.round(hz + rad)]);
@@ -980,14 +1079,27 @@ function genVolt(opt) {
   wl += ' ambient ' + r(w.ambient) + ' fov ' + r(w.fov);
   if (w.shadows) wl += ' shadows';
   L.push(wl);
+  const modelIdent = new Map();   // filename -> ident, one model3d load per distinct file
+  for (const o of S.objects) {
+    if (o.kind === 'model' && o.file && !modelIdent.has(o.file)) {
+      const base = o.file.replace(/\.[^.]+$/, '') || 'model';
+      modelIdent.set(o.file, identFor(base, used));
+    }
+  }
+  if (modelIdent.size) {
+    L.push('');
+    for (const [file, mi] of modelIdent) L.push(`model3d ${mi} = ${JSON.stringify(file)}`);
+  }
   L.push('');
   for (const o of S.objects) {
     if (o.kind === 'spawn') continue;
+    if (o.kind === 'model' && !o.file) continue;   // nothing to place without a file
     const n = idn.get(o.id);
     if (o.kind === 'block') L.push(`let ${n} = block3d(${r(o.x)}, ${r(o.y)}, ${r(o.z)}, ${r(o.w)}, ${r(o.h)}, ${r(o.d)}, ${q(o.color)})`);
     else if (o.kind === 'ball') L.push(`let ${n} = ball3d(${r(o.x)}, ${r(o.y)}, ${r(o.z)}, ${r(o.r)}, ${q(o.color)})`);
     else if (o.kind === 'cyl') L.push(`let ${n} = cyl3d(${r(o.x)}, ${r(o.y)}, ${r(o.z)}, ${r(o.r)}, ${r(o.h)}, ${q(o.color)})`);
     else if (o.kind === 'lamp') L.push(`let ${n} = lamp3d(${r(o.x)}, ${r(o.y)}, ${r(o.z)}, ${q(o.color)}, ${r(o.power)}, ${r(o.range)})`);
+    else if (o.kind === 'model') L.push(`let ${n} = put3d(${modelIdent.get(o.file)}, ${r(o.x)}, ${r(o.y)}, ${r(o.z)}, 0, ${r(o.scale)})`);
     if (o.kind !== 'lamp') {
       if (o.yaw) L.push(`turn3d ${n}, ${r(o.yaw * 10)}`);
       if (o.glow) L.push(`glow3d ${n}, ${q(o.glow)}`);
@@ -1081,17 +1193,22 @@ function importSource(src) {
     world.fog = g('fog') != null ? g('fog') : 0; world.ambient = g('ambient') != null ? g('ambient') : world.ambient;
     if (g('fov') != null) world.fov = g('fov'); world.shadows = /\bshadows\b/.test(rest);
   }
-  const lineRe = /^\s*let\s+([A-Za-z_]\w*)\s*=\s*(block3d|ball3d|cyl3d|lamp3d)\(([^)]*)\)/gm;
+  const modelByIdent = {};   // model3d ident -> filename, for resolving put3d's first arg
+  for (const dm of src.matchAll(/^\s*model3d\s+([A-Za-z_]\w*)\s*=\s*"([^"]+)"/gm)) modelByIdent[dm[1]] = dm[2];
+  const lineRe = /^\s*let\s+([A-Za-z_]\w*)\s*=\s*(block3d|ball3d|cyl3d|lamp3d|put3d)\(([^)]*)\)/gm;
   let mm;
   while ((mm = lineRe.exec(src))) {
     const a = argsOf(mm[3]), nm = mm[1], k = mm[2];
-    if (a.some((v, i) => !(strv(v) != null) && !Number.isFinite(Number(v)) && i < a.length)) continue;   // skip lines that use variables
+    if (k !== 'put3d' && a.some((v, i) => !(strv(v) != null) && !Number.isFinite(Number(v)) && i < a.length)) continue;   // skip lines that use variables
     const n = (i) => Number(a[i]);
     let o = null;
     if (k === 'block3d' && a.length >= 6) o = makeObjQuiet('block', nm, { x: n(0), y: n(1), z: n(2), w: n(3), h: n(4), d: n(5), color: hex6(strv(a[6]) || '#8a8f99') });
     if (k === 'ball3d' && a.length >= 4) o = makeObjQuiet('ball', nm, { x: n(0), y: n(1), z: n(2), r: n(3), color: hex6(strv(a[4]) || '#c8ccd4') });
     if (k === 'cyl3d' && a.length >= 5) o = makeObjQuiet('cyl', nm, { x: n(0), y: n(1), z: n(2), r: n(3), h: n(4), color: hex6(strv(a[5]) || '#8a8f99') });
     if (k === 'lamp3d' && a.length >= 3) o = makeObjQuiet('lamp', nm, { x: n(0), y: n(1), z: n(2), color: hex6(strv(a[3]) || '#ffcc88'), power: a[4] != null ? n(4) : 40, range: a[5] != null ? n(5) : 600 });
+    if (k === 'put3d' && a.length >= 4 && modelByIdent[a[0]] && Number.isFinite(n(1)) && Number.isFinite(n(2)) && Number.isFinite(n(3))) {
+      o = makeObjQuiet('model', nm, { file: modelByIdent[a[0]], x: n(1), y: n(2), z: n(3), yaw: a[4] != null && Number.isFinite(n(4)) ? n(4) / 10 : 0, scale: a[5] != null && Number.isFinite(n(5)) ? n(5) : 100 });
+    }
     if (o) { o.id = nextI(); objs.push(o); byName[nm] = o; }
   }
   for (const gm of src.matchAll(/^\s*glow3d\s+([A-Za-z_]\w*)\s*,\s*"([^"]+)"/gm)) if (byName[gm[1]]) byName[gm[1]].glow = hex6(gm[2], '#ffffff');
@@ -1117,7 +1234,9 @@ function adoptImported(res, label) {
   commit(); updateButtons();
   const sp = spawnOf();
   frameAll();
-  toast(`Loaded ${res.count} objects from the ${res.how}${res.partial ? ' - only plain block3d/ball3d/cyl3d/lamp3d lines could be read' : ''}.`);
+  const needReattach = S.objects.filter((o) => o.kind === 'model' && o.file && !modelCache.has(o.file)).length;
+  toast(`Loaded ${res.count} objects from the ${res.how}${res.partial ? ' - only plain block3d/ball3d/cyl3d/lamp3d/put3d lines could be read' : ''}.` +
+    (needReattach ? ` ${needReattach} model${needReattach > 1 ? 's' : ''} need their .glb file re-attached (see Properties) to preview or Play.` : ''));
 }
 function autoLoadFromFile() {
   getSource().then((src) => {
@@ -1137,8 +1256,10 @@ $('#bLoad').onclick = () => {
 const expOpt = { mode: 'game', collide: true, hud: true };
 $('#bExport').onclick = () => {
   const opts = (k) => `<label><input type="${k[0]}" name="${k[1]}" data-o="${k[2]}"${k[3] ? ' checked' : ''}> ${k[4]}</label>`;
+  const modelFiles = [...new Set(S.objects.filter((o) => o.kind === 'model' && o.file).map((o) => o.file))];
   openDialog('Export to Volt',
     '<p style="margin:2px 0 8px;color:var(--muted)">Turns your world into <b>#html</b> Volt 3D code. <b>Replace file</b> swaps the whole .volt file in the editor (Ctrl+Z in the code editor undoes it).</p>' +
+    (modelFiles.length ? `<p style="margin:2px 0 8px;color:var(--muted)">This world uses ${modelFiles.length > 1 ? 'these model files' : 'this model file'}: <b>${modelFiles.map(esc).join(', ')}</b>. Put ${modelFiles.length > 1 ? 'them' : 'it'} next to your .volt file so the game can find ${modelFiles.length > 1 ? 'them' : 'it'}.</p>` : '') +
     '<div class="opts">' +
       opts(['radio', 'mode', 'mode=game', expOpt.mode === 'game', 'Complete walk-around game']) +
       opts(['radio', 'mode', 'mode=scene', expOpt.mode === 'scene', 'Just the world (paste into my own game)']) +
