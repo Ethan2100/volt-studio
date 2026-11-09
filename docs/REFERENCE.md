@@ -171,6 +171,7 @@ An `#html` program builds a web page as it runs. These commands only work in `#h
 | `button "Click me" { … }` | Adds a button; the block runs each time it's clicked |
 | `when key "k" pressed { … }` | Runs the block each time that key is pressed |
 | `ask "Question?"` | Shows a box with your question and waits for an answer |
+| `background.color = "..."` | Simple page styling - no CSS needed (see below) |
 | `## css` | A line of CSS for the page |
 | `# javascript` | A raw line of JavaScript |
 
@@ -190,6 +191,42 @@ button "Click me" {
   }
 }
 ```
+
+### Simple styling
+
+For quick visual tweaks without writing any CSS, two built-in names can be styled directly with `=`:
+
+| | What it does | Example |
+|---|---|---|
+| `background.color` (or `.colour`) | The page's background color | `background.color = "yellow"` |
+| `background.image` | A picture behind the page | `background.image = "stars.png"` |
+| `text.color` (or `.colour`) | Color of printed text | `text.color = "white"` |
+| `text.font` | Font family | `text.font = "Georgia"` |
+| `text.size` | Font size (a plain number means pixels) | `text.size = 20` |
+| `text.align` | Text alignment | `text.align = "center"` |
+
+```volt
+#html
+background.color = "#101522"
+text.color = "white"
+text.font = "Georgia"
+text.size = 20
+
+title "Night Mode"
+print "Dark background, easy-to-read text - no CSS needed."
+```
+
+These can also be changed while the page is running, e.g. inside `every frame` or `when key`, for things like a day/night cycle or a flash on taking damage:
+
+```volt
+when key "h" pressed {
+  text.color = "red"
+  wait 200ms
+  text.color = "white"
+}
+```
+
+For anything these two don't cover - styling a specific button, a custom element you build with `html "..."` - use a `## css` line, same as before.
 
 ### Key presses
 

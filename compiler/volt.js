@@ -203,6 +203,19 @@ const GAME_WORDS = ['canvas', 'image', 'sprite', 'draw', 'paint', 'box', 'write'
 const LIST_WORDS = ['add', 'remove'];
 const NOT_A_COMMAND = ['=', '(', '[', '+=', '-=', '*=', '/=', 'eof'];
 
+// Simple page styling, so you don't need to know CSS: background.color = "yellow"
+// Each target maps its field names (spelling variants included) to a real CSS property.
+const STYLE_TARGETS = {
+  background: {
+    el: 'document.body',
+    props: { color: 'backgroundColor', colour: 'backgroundColor', image: 'backgroundImage' },
+  },
+  text: {
+    el: '__out',
+    props: { color: 'color', colour: 'color', font: 'fontFamily', size: 'fontSize', align: 'textAlign' },
+  },
+};
+
 function parse(tokens) {
   let pos = 0;
 
@@ -1731,6 +1744,28 @@ function generate(ast, target = 'cpp', options = {}) {
   function jsOnly(what, line) {
     if (!js) throw new VoltError(`${what} only works in #js and #html programs`, line);
   }
+  // background.color = "yellow"   text.size = 20   -> plain CSS, no CSS knowledge needed
+  function genStyleAssign(s, p) {
+    htmlOnly(`'${s.target.name}.${s.field} = ...'`, s.line);
+    const spec = STYLE_TARGETS[s.target.name];
+    const cssProp = spec.props[s.field];
+    if (!cssProp) {
+      const known = [...new Set(Object.keys(spec.props))];
+      const suggestion = closestName(s.field, known);
+      throw new VoltError(
+        `'${s.target.name}' doesn't have a '${s.field}' to set${suggestion ? ` (did you mean '${suggestion}'?)` : ''}. Try: ${known.map((k) => `${s.target.name}.${k}`).join(', ')}`,
+        s.line,
+      );
+    }
+    const value = genExpr(s.value);
+    let code = bare(value.code);
+    if (cssProp === 'fontSize' && (value.type === 'num' || value.type === 'float')) {
+      code = `(${code}) + 'px'`;          // text.size = 20  ->  "20px"
+    } else if (cssProp === 'backgroundImage') {
+      code = `"url(" + (${code}) + ")"`;  // background.image = "stars.png"
+    }
+    return [`${p}${spec.el}.style.${cssProp} = ${code}${END}`];
+  }
   function nodeOnly(what, line) {
     if (!node) throw new VoltError(`${what} only works in #js programs run with Node (not #html pages, which run in a browser)`, line);
   }
@@ -3113,6 +3148,9 @@ function generate(ast, target = 'cpp', options = {}) {
         return []; // handled separately
 
       case 'MemberAssign': {
+        if (s.target.kind === 'Var' && STYLE_TARGETS[s.target.name]) {
+          return genStyleAssign(s, p);
+        }
         gameOnly("'.field = ...'", s.line);
         const target = genExpr(s.target);
         const value = genExpr(s.value);
