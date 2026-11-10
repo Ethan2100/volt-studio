@@ -198,8 +198,12 @@ function lex(src) {
             if (src[k] === '}') { close = k; break; }
           }
           const inner = close < 0 ? null : src.slice(i + 1, close);
-          // (no space after { or before }: "{hp}" is a hole, "a { b }" and CSS-like text are not)
-          if (inner !== null && /^[A-Za-z_(]/.test(inner) && !/\s$/.test(inner) && !/[\n{]/.test(inner)) {
+          // (no space after { or before }: "{hp}" is a hole, "a { b }" and CSS-like text are not.
+          //  A hole may start with a number when it is a sum - "{40 + 2}" - but a bare "{0}" or
+          //  "{1}" is left alone, because that is a numbered slot in ordinary writing.)
+          const looksLikeValue = inner !== null
+            && (/^[A-Za-z_(]/.test(inner) || (/^[0-9]/.test(inner) && !/^[0-9.]+$/.test(inner)));
+          if (looksLikeValue && !/\s$/.test(inner) && !/[\n{]/.test(inner)) {
             holes.push({ at: str.length, src: inner, col: i - lineStart + 2 });
             str += src.slice(i, close + 1);
             i = close + 1;

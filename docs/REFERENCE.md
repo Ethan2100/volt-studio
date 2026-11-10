@@ -783,7 +783,8 @@ Whatever is between the braces is ordinary Volt: a name, some maths, a call like
 even text in quotes like `{trim(name)}`.
 
 Braces with something that isn't Volt between them are left exactly as they are, so CSS, JSON and
-ordinary writing still work:
+ordinary writing still work. A brace holding only a number, like `{0}` or `{1}`, is left alone too,
+because that is usually a numbered slot in ordinary writing rather than a value:
 
 ```volt
 #html
@@ -1258,7 +1259,7 @@ New in Volt 4:
 ```volt
 #python
 let hp = 7
-print "HP: {hp}/{10}"              // values inside text
+print "HP: {hp}/{hp + 3}"           // values inside text
 
 let n = 0
 n++                                 // and n-- and n %= 3
