@@ -37,6 +37,7 @@ const t = {
   // Returns null when that language isn't installed here, so the test can skip itself.
   run(volt, src, { stdin = '', dir = null } = {}) {
     const { target, code } = volt.compile(src, dir ? { baseDir: dir } : {});
+    if (target === 'cpp') return t.runCpp(code);
     const tool = { js: ['node'], python: ['python3'], ruby: ['ruby'] }[target];
     if (!tool) throw new Error(`t.run can't run '${target}' programs`);
     const { spawnSync } = require('child_process');
@@ -49,10 +50,24 @@ const t = {
     if (r.status !== 0) throw new Error(`the ${target} program failed:\n${r.stderr || r.stdout}\n--- generated code ---\n${code}`);
     return r.stdout.replace(/\r\n/g, '\n').trimEnd();
   },
+  // Compiles Arduino C++ with g++ against test/arduino-stub/Arduino.h and runs it:
+  // setup() once, then loop() three times. Serial.println goes to the output.
+  runCpp(code) {
+    const { spawnSync } = require('child_process');
+    if (spawnSync('g++', ['--version']).error) return null;
+    const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'volt-cpp-'));
+    fs.writeFileSync(path.join(tmp, 'p.cpp'), '#include "Arduino.h"\n' + code.replace(/#include <Servo\.h>/g, ''));
+    const c = spawnSync('g++', ['-std=c++11', '-w', '-I', path.join(__dirname, 'arduino-stub'), '-o', path.join(tmp, 'p'), path.join(tmp, 'p.cpp')], { encoding: 'utf8', timeout: 60000 });
+    if (c.status !== 0) { fs.rmSync(tmp, { recursive: true, force: true }); throw new Error(`the C++ did not compile:\n${c.stderr}\n--- generated code ---\n${code}`); }
+    const r = spawnSync(path.join(tmp, 'p'), [], { encoding: 'utf8', timeout: 20000 });
+    fs.rmSync(tmp, { recursive: true, force: true });
+    if (r.status !== 0) throw new Error(`the C++ program crashed:\n${r.stderr}`);
+    return r.stdout.trimEnd();
+  },
   // Runs the same program as #js, #python and #ruby and checks all three print 'expected'
   same(volt, body, expected, targets = ['js', 'python', 'ruby']) {
     for (const target of targets) {
-      const got = t.run(volt, `#${target}\n${body}`);
+      const got = t.run(volt, `#${target === 'cpp' ? 'c++' : target}\n${body}`);
       if (got === null) continue;
       assert.strictEqual(got, expected, `#${target} printed something different`);
     }

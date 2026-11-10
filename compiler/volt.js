@@ -99,7 +99,8 @@ const KEYWORDS = new Set([
   'true', 'false', 'and', 'or', 'not',
 ]);
 
-const TWO_CHAR = new Set(['==', '!=', '<=', '>=', '+=', '-=', '*=', '/=']);
+const TWO_CHAR = new Set(['==', '!=', '<=', '>=', '+=', '-=', '*=', '/=', '%=']);
+const ASSIGN_OPS = ['=', '+=', '-=', '*=', '/=', '%='];
 
 function lex(src) {
   const tokens = [];
@@ -182,13 +183,27 @@ function lex(src) {
     if (c === '"') {
       const startLine = line;
       let str = '';
+      // Places where the text has {something} in it: "HP: {hp}". The parser decides whether
+      // the something is Volt (then its value goes there) or just text with braces in it.
+      const holes = [];       // { at: position in str, src: the text between the braces, col }
       i++; // skip opening quote
       while (i < src.length && src[i] !== '"') {
+        if (src[i] === '{') {
+          const close = src.indexOf('}', i);
+          const inner = close < 0 ? null : src.slice(i + 1, close);
+          // (no space after { or before }: "{hp}" is a hole, "a { b }" and CSS-like text are not)
+          if (inner !== null && /^[A-Za-z_(]/.test(inner) && !/\s$/.test(inner) && !/["\n{\\]/.test(inner)) {
+            holes.push({ at: str.length, src: inner, col: i - lineStart + 2 });
+            str += src.slice(i, close + 1);
+            i = close + 1;
+            continue;
+          }
+        }
         if (src[i] === '\n') throw new VoltError('Text in quotes must end on the same line', { line: startLine, col: tokStart - lineStart + 1, endCol: i - lineStart + 1 });
         if (src[i] === '\\') {
           // \" quote   \\ backslash   \n new line   \t tab
-          const esc = { '"': '"', '\\': '\\', n: '\n', t: '\t' }[src[i + 1]];
-          if (esc === undefined) throw new VoltError(`Unknown escape '\\${src[i + 1] || ''}' in text. Use \\" \\\\ \\n or \\t`, here());
+          const esc = { '"': '"', '\\': '\\', n: '\n', t: '\t', '{': '{', '}': '}' }[src[i + 1]];
+          if (esc === undefined) throw new VoltError(`Unknown escape '\\${src[i + 1] || ''}' in text. Use \\" \\\\ \\n \\t or \\{`, here());
           str += esc;
           i += 2;
           continue;
@@ -198,6 +213,7 @@ function lex(src) {
       if (i >= src.length) throw new VoltError('Missing closing " on text', { line: startLine, col: tokStart - lineStart + 1, endCol: i - lineStart + 1 });
       i++; // skip closing quote
       add('string', str);
+      if (holes.length) tokens[tokens.length - 1].holes = holes;
       continue;
     }
 
@@ -227,7 +243,7 @@ const PAGE_WORDS = ['button', 'title', 'html'];
 const GAME_WORDS = ['canvas', 'image', 'sprite', 'draw', 'paint', 'box', 'write', 'camera', 'touchpad', 'music', 'save', 'audio', 'sound', 'volume',
   'world3d', 'clear3d', 'camera3d', 'render3d', 'move3d', 'turn3d', 'show3d', 'glow3d', 'torch3d', 'model3d', 'anim3d', 'fx3d', 'shine3d', 'burst3d', 'look3d'];
 const LIST_WORDS = ['add', 'remove'];
-const NOT_A_COMMAND = ['=', '(', '[', '+=', '-=', '*=', '/=', 'eof'];
+const NOT_A_COMMAND = ['=', '(', '[', '+=', '-=', '*=', '/=', '%=', 'eof'];
 
 // Simple page styling, so you don't need to know CSS: background.color = "yellow"
 // Each target maps its field names (spelling variants included) to a real CSS property.
@@ -245,14 +261,16 @@ const STYLE_TARGETS = {
 // options.errors: pass an array to make the parser keep going after a mistake. Each problem is
 // pushed onto it and parsing picks up again at the next top-level line, so an editor can show
 // every error in the file at once. Without it, the first problem is thrown (as always).
+// options.expression: parse just one value (used for the {holes} in text).
 function parse(tokens, options = {}) {
   let pos = 0;
   const errors = options.errors || null;
+  const warnings = options.warnings || errors;
 
   // Gamedev struct types ('Player = type { ... }') declared anywhere in the file,
   // found with a quick scan so 'Player { ... }' can be recognised as a struct
   // literal in expression position without confusing it with 'if someVar { ... }'.
-  const declaredTypes = new Set();
+  const declaredTypes = options.declaredTypes || new Set();
   for (let k = 0; k + 3 < tokens.length; k++) {
     if (tokens[k].type === 'ident' && tokens[k + 1].type === '=' && tokens[k + 2].type === 'ident' && tokens[k + 2].value === 'type' && tokens[k + 3].type === '{') {
       declaredTypes.add(tokens[k].value);
@@ -387,12 +405,30 @@ function parse(tokens, options = {}) {
         next();
         const name = expect('ident', 'a function name').value;
         expect('(', "'('");
+        // fn spawn(x, y, speed = 2)      (values with a default can be left out when calling)
         const params = [];
+        const defaults = [];
         if (!check(')')) {
-          do { params.push(expect('ident', 'a parameter name').value); } while (match(','));
+          do {
+            const pTok = expect('ident', 'a parameter name');
+            params.push(pTok.value);
+            if (match('=')) {
+              const d = unary();
+              const plain = d.kind === 'Number' || d.kind === 'String' || d.kind === 'Bool' || (d.kind === 'Unary' && d.op === '-' && d.operand.kind === 'Number');
+              if (!plain) throw new VoltError(`The default for '${pTok.value}' must be a plain value: a number, text, true or false`, d);
+              defaults.push(d);
+            } else {
+              if (defaults.some((x) => x)) {
+                throw new VoltError(`'${pTok.value}' needs a default too: once one parameter has '= value', all the ones after it must`, pTok);
+              }
+              defaults.push(null);
+            }
+          } while (match(','));
         }
         expect(')', "')'");
-        return { kind: 'Fn', name, params, body: block(), line };
+        const fnNode = { kind: 'Fn', name, params, body: block(), line };
+        if (defaults.some((x) => x)) fnNode.defaults = defaults;
+        return fnNode;
       }
 
       // return x
@@ -534,6 +570,15 @@ function parse(tokens, options = {}) {
           next();
           return { kind: 'ForEach', name: item, list: expression(), body: block(), line };
         }
+        // for each enemy, i in enemies { ... }      (i is the position: 0, 1, 2 ...)
+        if (peek().type === 'ident' && peek().value === 'each' && peek(1).type === 'ident' && peek(2).type === ',' && peek(3).type === 'ident' && peek(4).type === 'ident' && peek(4).value === 'in') {
+          next();
+          const item = next().value;
+          next();
+          const index = next().value;
+          next();
+          return { kind: 'ForEach', name: item, index, list: expression(), body: block(), line };
+        }
         const name = expect('ident', 'a name for the counter, like i').value;
         const from = peek();
         if (!(from.type === 'ident' && from.value === 'from')) {
@@ -584,6 +629,44 @@ function parse(tokens, options = {}) {
 
       // count = count + 1     or     beep(3)     or     score += 1
       case 'ident': {
+        // continue      (skips the rest of this turn of the loop)
+        if (t.value === 'continue' && (peek(1).line > t.line || peek(1).type === '}' || peek(1).type === 'eof')) {
+          next();
+          return { kind: 'Continue', line };
+        }
+        // match state { "idle" { ... }  "run", "walk" { ... }  else { ... } }
+        if (t.value === 'match' && !['=', '(', '[', '.', '+=', '-=', '*=', '/=', '%=', 'eof'].includes(peek(1).type) && peek(1).line === t.line) {
+          next();
+          const subject = expression();
+          const open = expect('{', "'{' after the value to match, like: match state {");
+          const cases = [];
+          let otherwise = null;
+          while (!check('}')) {
+            if (check('eof')) throw new VoltError("This 'match' is never closed with '}'", open);
+            if (match('else')) {
+              if (otherwise) throw new VoltError("A 'match' can only have one 'else'", peek());
+              otherwise = block();
+              continue;
+            }
+            if (otherwise) throw new VoltError("'else' must be the last part of a 'match'", peek());
+            const values = [expression()];
+            while (match(',')) values.push(expression());
+            cases.push({ values, body: block() });
+          }
+          expect('}', "'}'");
+          if (!cases.length) throw new VoltError('A match needs at least one value to compare with, like: match state { "idle" { ... } }', open);
+          return { kind: 'Match', subject, cases, otherwise, line };
+        }
+        // score++      lives--
+        if ((peek(1).type === '+' || peek(1).type === '-') && peek(2).type === peek(1).type
+          && peek(1).line === t.line && peek(1).col === t.endCol && peek(2).col === peek(1).endCol
+          && (peek(3).line > t.line || peek(3).type === '}' || peek(3).type === 'eof')) {
+          next();
+          const opTok = next();
+          next();
+          const target = { kind: 'Var', name: t.value, line };
+          return { kind: 'Assign', name: t.value, value: { kind: 'Binary', op: opTok.type, left: target, right: { kind: 'Number', value: '1', line }, line }, line };
+        }
         // A gamedev struct type: Player = type { name: string, health: int, speed: float }
         if (peek(1).type === '=' && peek(2).type === 'ident' && peek(2).value === 'type' && peek(3).type === '{') {
           if (!topLevel) topLevelOnly(t);
@@ -618,7 +701,7 @@ function parse(tokens, options = {}) {
             }
             steps++;
           }
-          if (steps > 0 && e.kind === 'Member' && ['=', '+=', '-=', '*=', '/='].includes(peek().type)) {
+          if (steps > 0 && e.kind === 'Member' && ASSIGN_OPS.includes(peek().type)) {
             const opTok = next();
             let value = expression();
             if (opTok.type !== '=') {
@@ -628,7 +711,7 @@ function parse(tokens, options = {}) {
           }
           pos = save;   // not a field assignment after all - let the rest of this function try it
         }
-        if (['+=', '-=', '*=', '/='].includes(peek(1).type)) {
+        if (ASSIGN_OPS.includes(peek(1).type) && peek(1).type !== '=') {
           next();
           const opTok = next();
           const value = expression();
@@ -642,7 +725,7 @@ function parse(tokens, options = {}) {
           const index = expression();
           expect(']', "']'");
           const opTok = next();
-          if (!['=', '+=', '-=', '*=', '/='].includes(opTok.type)) {
+          if (!ASSIGN_OPS.includes(opTok.type)) {
             throw new VoltError(`Expected '=' after ${t.value}[...], like: ${t.value}[0] = 5`, opTok);
           }
           let value = expression();
@@ -940,6 +1023,38 @@ function parse(tokens, options = {}) {
     return e;
   }
 
+  // "HP: {hp}/{maxHp}" -> "HP: " + hp + "/" + maxHp. A {hole} only counts when what's inside is
+  // a real Volt value; anything else ("a { b }", CSS, JSON) stays as the text it always was.
+  function interpolated(t) {
+    const parts = [];
+    let from = 0;
+    for (const h of t.holes) {
+      let value = null;
+      try {
+        const sub = lex(h.src);
+        for (const st of sub) { st.line = t.line; st.col += h.col - 1; st.endCol += h.col - 1; }
+        value = parse(sub, { expression: true, declaredTypes });
+      } catch (e) {
+        if (!(e instanceof VoltError)) throw e;
+        if (warnings) {
+          const w = new VoltError(`{${h.src}} isn't a Volt value, so it is shown as plain text`, { line: t.line, col: h.col - 1, endCol: h.col + h.src.length + 1 }, 'To show real braces on purpose, write \\{ and \\}');
+          w.severity = 'warning';
+          warnings.push(w);
+        }
+      }
+      if (!value) continue;
+      if (h.at > from) parts.push({ kind: 'String', value: t.value.slice(from, h.at), line: t.line });
+      parts.push(value);
+      from = h.at + h.src.length + 2;
+    }
+    if (!parts.length) return { kind: 'String', value: t.value, line: t.line };
+    if (from < t.value.length) parts.push({ kind: 'String', value: t.value.slice(from), line: t.line });
+    // Start from text so that "{a}{b}" joins instead of adding two numbers
+    let e = parts[0].kind === 'String' ? parts.shift() : { kind: 'String', value: '', line: t.line };
+    for (const part of parts) e = { kind: 'Binary', op: '+', left: e, right: part, line: t.line, interp: true };
+    return e;
+  }
+
   function atom() {
     const start = peek();
     return span(atomInner(), start, true);
@@ -949,7 +1064,7 @@ function parse(tokens, options = {}) {
     const t = next();
     switch (t.type) {
       case 'number': return { kind: 'Number', value: t.value, line: t.line };
-      case 'string': return { kind: 'String', value: t.value, line: t.line };
+      case 'string': return t.holes ? interpolated(t) : { kind: 'String', value: t.value, line: t.line };
       case 'true':   return { kind: 'Bool', value: true, line: t.line };
       case 'false':  return { kind: 'Bool', value: false, line: t.line };
       case 'uptime': return { kind: 'Uptime', line: t.line };
@@ -1018,6 +1133,11 @@ function parse(tokens, options = {}) {
   const andExpr = binaryLevel(comparison, ['and']);
   const expression = binaryLevel(andExpr, ['or']);
 
+  if (options.expression) {
+    const e = expression();
+    if (!check('eof')) throw new VoltError(`Expected the end of the value but found ${describe(peek())}`, peek());
+    return e;
+  }
   return program();
 }
 
@@ -1095,6 +1215,24 @@ const BUILTINS = {
   writeFile: 2,  // writeFile(path, text) -> saves text to a file, true if it worked
   envVar: 1,     // envVar(name) -> an environment variable's value, or "" if it isn't set
   fetchText: 1,  // fetchText(url) -> downloads a URL and returns its text
+  fetchJson: 1,  // fetchJson(url) -> downloads JSON and returns it: data.name, data.items[0]      (#js and #html)
+  // ---- standard library (Volt 4) ----
+  floor: 1, ceil: 1, round: 1,     // rounding down, up, and to the nearest whole number
+  clamp: 3,      // clamp(value, low, high) -> value kept between low and high (same as constrain)
+  trim: 1,       // trim(text) -> text without spaces at the start and end
+  replace: 3,    // replace(text, find, with) -> text with every 'find' swapped for 'with'
+  startsWith: 2, endsWith: 2,      // startsWith("hello", "he") -> true
+  indexOf: 2,    // indexOf(listOrText, item) -> where it is (0 is the start), or -1 if it isn't there
+  repeatText: 2, // repeatText("ab", 3) -> "ababab"
+  first: 1, last: 1,               // first(list), last(list)
+  sort: 1,       // sort(list) -> a new list, smallest first
+  reverse: 1,    // reverse(list) -> a new list, back to front
+  slice: 3,      // slice(list, from, count) -> a new list with 'count' items starting at 'from'
+  sum: 1,        // sum(list) -> every number in it added up
+  pick: 1,       // pick(list) -> one item at random
+  shuffle: 1,    // shuffle(list) -> a new list in a random order
+  chance: 1,     // chance(25) -> true about 25% of the time
+  now: 0,        // now() -> the clock, in milliseconds since 1970 (for timing and dates)
 };
 
 // Names that would clash with Volt, C++, Python, Ruby or JavaScript.
@@ -1140,6 +1278,9 @@ const CPP_HELPERS = {
   abs: 'long __abs(long v) { return v < 0 ? -v : v; }',
   upper: 'String __upper(String s) { s.toUpperCase(); return s; }',
   lower: 'String __lower(String s) { s.toLowerCase(); return s; }',
+  trim: 'String __trim(String s) { s.trim(); return s; }',
+  replace: 'String __replace(String s, String a, String b) { s.replace(a, b); return s; }',
+  repeatText: 'String __repeatText(String s, long n) { String out = ""; for (long i = 0; i < n; i++) out += s; return out; }',
 };
 
 // Stepper driver (28BYJ-48 + ULN2003): half-steps, 4096 per turn, coils on IN1..IN4
@@ -1191,6 +1332,7 @@ const PY_HELPERS = {
   ms: ['_start = time.monotonic()', 'def _ms():', '    return int((time.monotonic() - _start) * 1000)'],
   add: ['def _add(a, b):', '    if isinstance(a, str) or isinstance(b, str):', '        return str(a) + str(b)', '    return a + b'],
   num: ['def _num(v):', '    try:', '        return int(str(v).strip())', '    except ValueError:', '        return 0'],
+  index_of: ['def _index_of(v, x):', '    if isinstance(v, list):', '        return v.index(x) if x in v else -1', '    return str(v).find(str(x))'],
   div: ['def _div(a, b):', '    # whole numbers divide by dropping the remainder; a decimal on either side means real division', '    return a // b if isinstance(a, int) and isinstance(b, int) else a / b'],
 };
 
@@ -1214,6 +1356,10 @@ const JS_HELPERS = {
   div: ['function __div(a, b) { return (Number.isInteger(a) && Number.isInteger(b)) ? Math.trunc(a / b) : a / b; }'],
   fs: ["const __fs = require('fs');"],
   writeFile: ['function __writeFile(p, s) { try { __fs.writeFileSync(p, String(s)); return true; } catch (e) { return false; } }'],
+  indexOf: ['function __indexOf(v, x) { return Array.isArray(v) ? v.indexOf(x) : String(v).indexOf(String(x)); }'],
+  pick: ['function __pick(a) { return a[Math.floor(Math.random() * a.length)]; }'],
+  shuffle: ['function __shuffle(a) { const b = [...a]; for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; }'],
+  sort: ['function __sort(a) { return [...a].sort((x, y) => (x < y ? -1 : x > y ? 1 : 0)); }'],
 };
 
 // The look of #html pages before any of your own CSS
@@ -1780,6 +1926,7 @@ function generate(ast, target = 'cpp', options = {}) {
   let usesMath = false;
   let usesStepper = false;
   let usesForever = false;
+  let usesTypes = false;        // struct types in #python (needs types.SimpleNamespace)
   let usesGame = false;         // canvas, sprites, held keys ... (#html)
   let uses3d = false;           // world3d, block3d ... (#html): adds Three.js
   const models = new Map();     // name -> Model3d node (.glb files)
@@ -1855,6 +2002,12 @@ function generate(ast, target = 'cpp', options = {}) {
   function gameOnly(what, line) {
     if (!html) throw new VoltError(`${what} is for games, so it only works in #html programs`, line);
     usesGame = true;
+  }
+  // Struct types ('Player = type { ... }', player.health) work in #html, #js, #python and #ruby
+  function structsOk(what, where) {
+    if (html) { usesGame = true; return; }
+    if (T.board) throw new VoltError(`${what} doesn't work on boards (#c++ and #micropython) yet. It works in #html, #js, #python and #ruby`, where);
+    if (!js && !py && !rb) throw new VoltError(`${what} doesn't work in this kind of program`, where);
   }
   function listsOk(line) {
     if (T.board) throw new VoltError('Lists work in #python, #ruby, #js and #html programs, not on boards (yet)', line);
@@ -1952,11 +2105,11 @@ function generate(ast, target = 'cpp', options = {}) {
     return [...names];
   }
 
-  function checkName(name, line, isParam = false) {
+  function checkName(name, line, isParam = false, isType = false) {
     if (RESERVED.has(name) || name.startsWith('_')) {
       throw new VoltError(`'${name}' is a reserved name (Volt or one of its languages already uses it), please pick another`, line);
     }
-    if (rb && /^[A-Z]/.test(name)) {
+    if (rb && /^[A-Z]/.test(name) && !isType) {
       throw new VoltError(`In #ruby, names must start with a lowercase letter ('${name}' would be a Ruby constant)`, line);
     }
     // (a function parameter may share its name with a top-level variable; inside the function it means the parameter)
@@ -1990,9 +2143,11 @@ function generate(ast, target = 'cpp', options = {}) {
       case 'Member': return floatFields.has(e.field) ? 'float' : 'any';
       case 'StructLit': return 'any';
       case 'Call':
-        if (['text', 'upper', 'lower', 'part', 'join', 'readFile', 'envVar', 'fetchText'].includes(e.name)) return 'text';
-        if (e.name === 'split') return 'list';
+        if (funcs.has(e.name)) return cpp ? 'num' : 'any';
+        if (['text', 'upper', 'lower', 'part', 'join', 'readFile', 'envVar', 'fetchText', 'trim', 'replace', 'repeatText'].includes(e.name)) return 'text';
+        if (['split', 'sort', 'reverse', 'slice', 'shuffle'].includes(e.name)) return 'list';
         if (['sin', 'cos'].includes(e.name)) return 'float';
+        if (['first', 'last', 'pick', 'fetchJson'].includes(e.name)) return 'any';
         if (e.name === 'saved') return e.args[1] && e.args[1].kind === 'List' ? 'list' : 'any';
         if (BUILTINS[e.name] !== undefined && !funcs.has(e.name)) return 'num';
         return cpp ? 'num' : 'any';
@@ -2054,8 +2209,11 @@ function generate(ast, target = 'cpp', options = {}) {
         }
       }
     } else if (node.kind === 'TypeDecl') {
-      htmlOnly(`'${node.name} = type { ... }'`, node);
-      checkName(node.name, node);
+      // (in #html, declaring a type on its own doesn't pull in the game runtime - using one does)
+      if (!html) structsOk(`'${node.name} = type { ... }'`, node);
+      if (rb && !/^[A-Z]/.test(node.name)) throw new VoltError(`In #ruby, a type's name must start with a capital letter, like ${node.name[0].toUpperCase()}${node.name.slice(1)}`, node);
+      checkName(node.name, node, false, true);
+      if (types.has(node.name)) throw new VoltError(`'${node.name}' already exists`, node);
       const seen = new Set();
       for (const f of node.fields) {
         if (seen.has(f.name)) throw new VoltError(`'${node.name}' already has a field called '${f.name}'`, node);
@@ -2065,6 +2223,8 @@ function generate(ast, target = 'cpp', options = {}) {
       for (const f of node.fields) {
         if (f.kindName.toLowerCase() === 'float') floatFields.add(f.name);
       }
+      if (rb) globals.push(`${node.name} = Struct.new(${node.fields.map((f) => `:${f.name}`).join(', ')}, keyword_init: true)`);
+      if (py) usesTypes = true;
     } else if (node.kind === 'Fn') {
       checkName(node.name, node);
       funcs.set(node.name, node);
@@ -2237,7 +2397,7 @@ function generate(ast, target = 'cpp', options = {}) {
 
       // player.health     enemies[i].hp
       case 'Member': {
-        gameOnly("'.field'", e);
+        structsOk("'.field'", e);
         const target = genExpr(e.target);
         return { code: `${target.code}.${e.field}`, type: floatFields.has(e.field) ? 'float' : 'any' };
       }
@@ -2245,7 +2405,7 @@ function generate(ast, target = 'cpp', options = {}) {
       // Player { name: "Finn", health: 10 }  - any field left out gets a sensible
       // default (0 for int/float/num, "" for string/text, false for bool)
       case 'StructLit': {
-        gameOnly("a struct value like Player { ... }", e);
+        structsOk("a struct value like Player { ... }", e);
         const fields = types.get(e.type);
         if (!fields) throw new VoltError(`'${e.type}' isn't a type. Declare it first, like: ${e.type} = type { name: string, health: int }`, e);
         const known = new Set(fields.map((f) => f.name));
@@ -2257,7 +2417,10 @@ function generate(ast, target = 'cpp', options = {}) {
           if (given.has(f.name)) throw new VoltError(`'${f.name}' is set twice in this ${e.type}`, e);
           given.set(f.name, bare(genExpr(f.value).code));
         }
-        const parts = fields.map((f) => `${f.name}: ${given.has(f.name) ? given.get(f.name) : defaultForKind(f.kindName)}`);
+        const val = (f) => (given.has(f.name) ? given.get(f.name) : defaultForKind(f.kindName));
+        if (py) return { code: `types.SimpleNamespace(${fields.map((f) => `${f.name}=${val(f)}`).join(', ')})`, type: 'any' };
+        if (rb) return { code: `${e.type}.new(${fields.map((f) => `${f.name}: ${val(f)}`).join(', ')})`, type: 'any' };
+        const parts = fields.map((f) => `${f.name}: ${val(f)}`);
         return { code: `{ ${parts.join(', ')} }`, type: 'any' };
       }
 
@@ -2270,7 +2433,7 @@ function generate(ast, target = 'cpp', options = {}) {
   function defaultForKind(kindName) {
     const k = kindName.toLowerCase();
     if (['string', 'text', 'str'].includes(k)) return '""';
-    if (['bool', 'boolean'].includes(k)) return 'false';
+    if (['bool', 'boolean'].includes(k)) return py ? 'False' : 'false';
     return '0';   // int, float, num, or anything else numeric-looking
   }
 
@@ -2370,7 +2533,20 @@ function generate(ast, target = 'cpp', options = {}) {
     return { code: `(${L} ${e.op} ${R})`, type };
   }
 
+  function numbersOnly(e, args) {
+    args.forEach((a, i) => {
+      if (a.type === 'text') throw new VoltError(`'${e.name}' needs numbers, not text. Use number(...) to turn text into a number`, e.args[i]);
+    });
+  }
+
   function genCall(e) {
+    // Values left out of a call are filled in from the function's defaults: fn spawn(x, y, speed = 2)
+    const callee = funcs.get(e.name);
+    if (callee && callee.defaults && e.args.length < callee.params.length) {
+      const filled = [...e.args];
+      for (let k = e.args.length; k < callee.params.length && callee.defaults[k]; k++) filled.push(callee.defaults[k]);
+      e = { ...e, args: filled };
+    }
     const args = e.args.map((a) => genExpr(a));
 
     // (a function the program defines itself wins over a built-in with the same name)
@@ -2585,6 +2761,112 @@ function generate(ast, target = 'cpp', options = {}) {
         case 'fetchText':
           jsOnly("'fetchText'", e);
           return { code: `(await (await fetch(${a})).text())`, type: 'text' };
+        case 'fetchJson':
+          jsOnly("'fetchJson'", e);
+          return { code: `(await (await fetch(${a})).json())`, type: 'any' };
+
+        // ---- standard library (Volt 4) ----
+        // Boards only have whole numbers, so rounding one gives the same number back
+        case 'floor':
+        case 'ceil':
+          numbersOnly(e, args);
+          if (T.board) return { code: `(${a})`, type: 'num' };
+          if (py) { usesMath = true; return { code: `math.${e.name}(${a})`, type: 'num' }; }
+          if (rb) return { code: `(${a}).${e.name}`, type: 'num' };
+          return { code: `Math.${e.name}(${a})`, type: 'num' };
+        case 'round':
+          numbersOnly(e, args);
+          if (T.board) return { code: `(${a})`, type: 'num' };
+          if (py) { usesMath = true; return { code: `int(math.floor((${a}) + 0.5))`, type: 'num' }; }
+          if (rb) return { code: `(${a}).round`, type: 'num' };
+          return { code: `Math.round(${a})`, type: 'num' };
+        case 'clamp':
+          numbersOnly(e, args);
+          return { code: clamp(a, b, x), type: args.some((r) => r.type === 'float') ? 'float' : 'num' };
+        case 'trim':
+          if (py) return { code: `str(${a}).strip()`, type: 'text' };
+          if (rb) return { code: `(${a}).to_s.strip`, type: 'text' };
+          if (js) return { code: `String(${a}).trim()`, type: 'text' };
+          return { code: `${cppHelper('trim')}(String(${a}))`, type: 'text', obj: true };
+        case 'replace':
+          if (py) return { code: `str(${a}).replace(str(${b}), str(${x}))`, type: 'text' };
+          if (rb) return { code: `(${a}).to_s.gsub((${b}).to_s) { (${x}).to_s }`, type: 'text' };
+          if (js) return { code: `String(${a}).split(String(${b})).join(String(${x}))`, type: 'text' };
+          return { code: `${cppHelper('replace')}(String(${a}), String(${b}), String(${x}))`, type: 'text', obj: true };
+        case 'startsWith':
+        case 'endsWith': {
+          const start = e.name === 'startsWith';
+          if (py) return { code: `str(${a}).${start ? 'startswith' : 'endswith'}(str(${b}))`, type: 'bool' };
+          if (rb) return { code: `(${a}).to_s.${start ? 'start_with?' : 'end_with?'}((${b}).to_s)`, type: 'bool' };
+          return { code: `String(${a}).${e.name}(String(${b}))`, type: 'bool' };
+        }
+        case 'indexOf':
+          if (T.board) return { code: `String(${a}).indexOf(String(${b}))`, type: 'num' };
+          if (py) { help('index_of'); return { code: `_index_of(${a}, ${b})`, type: 'num' }; }
+          if (rb) return { code: `((${a}).is_a?(Array) ? (${a}).index(${b}) : (${a}).to_s.index((${b}).to_s)) || -1`, type: 'num' };
+          help('indexOf');
+          return { code: `__indexOf(${a}, ${b})`, type: 'num' };
+        case 'repeatText':
+          if (py) return { code: `(str(${a}) * max(0, ${b}))`, type: 'text' };
+          if (rb) return { code: `((${a}).to_s * [0, ${b}].max)`, type: 'text' };
+          if (js) return { code: `String(${a}).repeat(Math.max(0, ${b}))`, type: 'text' };
+          return { code: `${cppHelper('repeatText')}(String(${a}), ${b})`, type: 'text', obj: true };
+        case 'first':
+        case 'last': {
+          listsOk(e);
+          const at = e.name === 'first' ? '0' : '-1';
+          if (py) return { code: `(${a})[${at}]`, type: 'any' };
+          if (rb) return { code: `(${a}).${e.name}`, type: 'any' };
+          return { code: e.name === 'first' ? `(${a})[0]` : `(${a}).slice(-1)[0]`, type: 'any' };
+        }
+        case 'sort':
+          listsOk(e);
+          if (py) return { code: `sorted(${a})`, type: 'list' };
+          if (rb) return { code: `(${a}).sort`, type: 'list' };
+          help('sort');
+          return { code: `__sort(${a})`, type: 'list' };
+        case 'reverse':
+          listsOk(e);
+          if (py) return { code: `list(reversed(${a}))`, type: 'list' };
+          if (rb) return { code: `(${a}).reverse`, type: 'list' };
+          return { code: `[...${a}].reverse()`, type: 'list' };
+        case 'slice':
+          listsOk(e);
+          if (py) return { code: `(${a})[${b}:(${b}) + (${x})]`, type: 'list' };
+          if (rb) return { code: `((${a})[${b}, ${x}] || [])`, type: 'list' };
+          return { code: `(${a}).slice(${b}, (${b}) + (${x}))`, type: 'list' };
+        case 'sum':
+          listsOk(e);
+          if (py) return { code: `sum(${a})`, type: 'num' };
+          if (rb) return { code: `(${a}).sum`, type: 'num' };
+          return { code: `(${a}).reduce((__x, __y) => __x + __y, 0)`, type: 'num' };
+        case 'pick':
+          listsOk(e);
+          usesRandom = true;
+          if (py) return { code: `random.choice(${a})`, type: 'any' };
+          if (rb) return { code: `(${a}).sample`, type: 'any' };
+          help('pick');
+          return { code: `__pick(${a})`, type: 'any' };
+        case 'shuffle':
+          listsOk(e);
+          usesRandom = true;
+          if (py) return { code: `random.sample(${a}, len(${a}))`, type: 'list' };
+          if (rb) return { code: `(${a}).shuffle`, type: 'list' };
+          help('shuffle');
+          return { code: `__shuffle(${a})`, type: 'list' };
+        case 'chance':
+          numbersOnly(e, args);
+          usesRandom = true;
+          if (py) return { code: `(random.random() * 100 < (${a}))`, type: 'bool' };
+          if (rb) return { code: `(rand * 100 < (${a}))`, type: 'bool' };
+          if (js) return { code: `(Math.random() * 100 < (${a}))`, type: 'bool' };
+          return { code: `(random(0, 100) < (${a}))`, type: 'bool' };
+        case 'now':
+          if (cpp) throw new VoltError("Boards don't have a clock for now(). Use 'uptime' (milliseconds since the board started)", e);
+          if (micro) return { code: 'time.ticks_ms()', type: 'num' };
+          if (py) return { code: 'int(time.time() * 1000)', type: 'num' };
+          if (rb) return { code: '(Time.now.to_f * 1000).to_i', type: 'num' };
+          return { code: 'Date.now()', type: 'num' };
       }
     }
 
@@ -2602,7 +2884,9 @@ function generate(ast, target = 'cpp', options = {}) {
       }
     }
     if (args.length !== fn.params.length) {
-      throw new VoltError(`'${e.name}' needs ${fn.params.length} value${fn.params.length === 1 ? '' : 's'}, got ${args.length}`, e);
+      const required = fn.defaults ? fn.defaults.findIndex((d) => d) : fn.params.length;
+      const want = required < fn.params.length ? `${required} to ${fn.params.length} values` : `${fn.params.length} value${fn.params.length === 1 ? '' : 's'}`;
+      throw new VoltError(`'${e.name}' needs ${want}, got ${args.length}`, e, `It is made like this: fn ${fn.name}(${fn.params.join(', ')})`);
     }
     if (cpp) {
       args.forEach((a, i) => {
@@ -3016,6 +3300,36 @@ function generate(ast, target = 'cpp', options = {}) {
         if (loopDepth === 0) throw new VoltError("'break' only works inside 'repeat' or 'while'", s);
         return [`${p}break${END}`];
 
+      // continue: skip to the next turn of the loop
+      case 'Continue':
+        if (loopDepth === 0) throw new VoltError("'continue' only works inside a loop (repeat, while, for)", s);
+        return [`${p}${rb ? 'next' : 'continue'}${END}`];
+
+      // match value { a { } b, c { } else { } }: the value is worked out once, then compared in order
+      case 'Match': {
+        const subject = genExpr(s.subject);
+        const tmp = hidden(`m${uid++}`);
+        const type = subject.type === 'bool' ? 'num' : subject.type;
+        let decl;
+        if (cpp) decl = `${p}${type === 'text' ? 'String' : 'long'} ${tmp} = ${bare(subject.code)};`;
+        else if (js) decl = `${p}const ${tmp} = ${bare(subject.code)};`;
+        else decl = `${p}${tmp} = ${bare(subject.code)}`;
+        scopes.push(new Map([[tmp, type]]));
+        const ref = { kind: 'Var', name: tmp, line: s.line };
+        const test = (c) => c.values
+          .map((v) => ({ kind: 'Binary', op: '==', left: ref, right: v, line: v.line, col: v.col, endCol: v.endCol }))
+          .reduce((l, r) => ({ kind: 'Binary', op: 'or', left: l, right: r, line: r.line }));
+        let chain = s.otherwise;
+        for (let k = s.cases.length - 1; k >= 0; k--) {
+          chain = [{ kind: 'If', cond: test(s.cases[k]), then: s.cases[k].body, otherwise: chain, line: s.line }];
+        }
+        const out = genStmt(chain[0], depth);
+        scopes.pop();
+        // (C++ and JavaScript keep the hidden variable inside its own { } so two matches never clash)
+        if (cpp || js) return [`${p}{`, `  ${decl}`, ...out.map((l) => `  ${l}`), `${p}}`];
+        return [decl, ...out];
+      }
+
       case 'Return': {
         if (!inFunction) throw new VoltError("'return' only works inside a function (fn)", s);
         const value = s.value ? genExpr(s.value) : { code: '0', type: 'num' };
@@ -3153,10 +3467,21 @@ function generate(ast, target = 'cpp', options = {}) {
         scopes.push(new Map());
         checkName(s.name, s);
         scopes.pop();
+        if (s.index) {
+          if (s.index === s.name) throw new VoltError(`The item and its position need different names, like: for each ${s.name}, i in ...`, s);
+          scopes.push(new Map());
+          checkName(s.index, s);
+          scopes.pop();
+        }
         loopDepth++;
-        const body = genBlock(s.body, depth + 1, [s.name], 'any');
+        const body = genBlock(s.body, depth + 1, s.index ? [s.name, s.index] : [s.name], 'any');
         loopDepth--;
         // (loops over a copy, so removing items inside the loop is safe)
+        if (s.index) {
+          if (py) return [`${p}for ${s.index}, ${s.name} in enumerate(list(${list})):`, ...body];
+          if (rb) return [`${p}(${list}).dup.each_with_index do |${s.name}, ${s.index}|`, ...body, `${p}end`];
+          return [`${p}for (const [${s.index}, ${s.name}] of [...${list}].entries()) {`, ...body, `${p}}`];
+        }
         if (py) return [`${p}for ${s.name} in list(${list}):`, ...body];
         if (rb) return [`${p}(${list}).dup.each do |${s.name}|`, ...body, `${p}end`];
         return [`${p}for (const ${s.name} of [...${list}]) {`, ...body, `${p}}`];
@@ -3307,7 +3632,7 @@ function generate(ast, target = 'cpp', options = {}) {
         if (s.target.kind === 'Var' && STYLE_TARGETS[s.target.name]) {
           return genStyleAssign(s, p);
         }
-        gameOnly("'.field = ...'", s);
+        structsOk("'.field = ...'", s);
         const target = genExpr(s.target);
         const value = genExpr(s.value);
         return [`${p}${target.code}.${s.field} = ${bare(value.code)}${END}`];
@@ -3433,6 +3758,7 @@ function generate(ast, target = 'cpp', options = {}) {
     const imports = ['import time'];
     if (usesRandom) imports.push('import random');
     if (usesMath) imports.push('import math');
+    if (usesTypes) imports.push('import types');
     return [
       '# Generated by Volt (Python). Edit the .volt file, not this one.',
       ...imports,
