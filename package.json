@@ -35,6 +35,7 @@
       "lib/**",
       "compiler/**",
       "renderer/**",
+      "plugins/**",
       "examples/**",
       "docs/**",
       "build/icon.png",

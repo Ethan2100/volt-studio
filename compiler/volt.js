@@ -28,10 +28,22 @@ const path = require('path');
 const VERSION = '3.3.0';
 
 // Errors that are the Volt programmer's fault (not a bug in the compiler)
+// 'where' is a line number, or a token / tree node (anything with .line, .col, .endCol) so the
+// error can point at the exact spot. 'hint' is an optional extra line of advice.
 class VoltError extends Error {
-  constructor(message, line) {
+  constructor(message, where, hint) {
     super(message);
-    this.line = line;
+    this.name = 'VoltError';
+    if (where && typeof where === 'object') {
+      this.line = where.line;
+      this.col = where.col;          // 1-based column where the problem starts (undefined = whole line)
+      this.endCol = where.endCol;    // 1-based column just after it
+    } else {
+      this.line = where;
+    }
+    this.hint = hint || null;
+    this.file = null;                // set when the error is inside an imported file
+    this.severity = 'error';
   }
 }
 
@@ -62,7 +74,8 @@ function closestName(target, candidates) {
     const d = editDistance(target, c);
     if (d < bestDist) { bestDist = d; best = c; }
   }
-  const limit = Math.max(2, Math.ceil(target.length / 3));
+  // Short names need a closer match: 'foo' -> 'cos' or 'b' -> 'a' would be a wild guess
+  const limit = target.length <= 2 ? 0 : target.length <= 4 ? 1 : Math.max(2, Math.ceil(target.length / 3));
   return bestDist <= limit ? best : null;
 }
 
@@ -86,25 +99,36 @@ const KEYWORDS = new Set([
   'true', 'false', 'and', 'or', 'not',
 ]);
 
+const TWO_CHAR = new Set(['==', '!=', '<=', '>=', '+=', '-=', '*=', '/=']);
+
 function lex(src) {
   const tokens = [];
   let i = 0;
   let line = 1;
-  const add = (type, value) => tokens.push({ type, value, line });
-  const isWordChar = (ch) => ch !== undefined && /[a-zA-Z0-9_]/.test(ch);
+  let lineStart = 0;      // index of the first character of the current line
+  let tokStart = 0;       // index where the token being read starts
+  // 'end' is the index just after the token (where reading stopped, unless given)
+  const add = (type, value, end = i) => {
+    tokens.push({ type, value, line, col: tokStart - lineStart + 1, endCol: end - lineStart + 1 });
+  };
+  const here = () => ({ line, col: i - lineStart + 1, endCol: i - lineStart + 2 });
+  const isWordCode = (k) => (k >= 48 && k <= 57) || (k >= 65 && k <= 90) || (k >= 97 && k <= 122) || k === 95;
+  const isWordChar = (ch) => ch !== undefined && isWordCode(ch.charCodeAt(0));
 
   while (i < src.length) {
     const c = src[i];
+    tokStart = i;
 
     // Newlines (count them so errors can say which line)
-    if (c === '\n') { line++; i++; continue; }
+    if (c === '\n') { line++; i++; lineStart = i; continue; }
 
     // Other whitespace
-    if (/\s/.test(c)) { i++; continue; }
+    if (c === ' ' || c === '\t' || c === '\r' || /\s/.test(c)) { i++; continue; }
 
     // Comments: // until end of line
     if (c === '/' && src[i + 1] === '/') {
-      while (i < src.length && src[i] !== '\n') i++;
+      const nl = src.indexOf('\n', i);
+      i = nl < 0 ? src.length : nl;
       continue;
     }
 
@@ -113,8 +137,9 @@ function lex(src) {
     //   ## code         -> goes at the top of the file (CSS in #html programs)
     //   #include <x.h>  -> goes at the top of the file (#c++ only)
     if (c === '#') {
-      let text = '';
-      while (i < src.length && src[i] !== '\n') text += src[i++];
+      const nl = src.indexOf('\n', i);
+      const text = src.slice(i, nl < 0 ? src.length : nl);
+      i += text.length;
       if (text.startsWith('##')) {
         add('rawtop', text.slice(2).trim());
       } else if (/^#[a-zA-Z]/.test(text)) {
@@ -138,7 +163,7 @@ function lex(src) {
         add('duration', Math.round(parseFloat(num) * 1000));
       } else {
         if (!/^\d+(\.\d+)?$/.test(num)) {
-          throw new VoltError(`'${num}' isn't a valid number`, line);
+          throw new VoltError(`'${num}' isn't a valid number`, { line, col: tokStart - lineStart + 1, endCol: i - lineStart + 1 });
         }
         add('number', num);
       }
@@ -147,8 +172,8 @@ function lex(src) {
 
     // Words: either keywords (let, every, ...) or names (led, count, ...)
     if (/[a-zA-Z_]/.test(c)) {
-      let word = '';
-      while (isWordChar(src[i])) word += src[i++];
+      while (i < src.length && isWordCode(src.charCodeAt(i))) i++;
+      const word = src.slice(tokStart, i);
       add(KEYWORDS.has(word) ? word : 'ident', word);
       continue;
     }
@@ -159,18 +184,18 @@ function lex(src) {
       let str = '';
       i++; // skip opening quote
       while (i < src.length && src[i] !== '"') {
-        if (src[i] === '\n') throw new VoltError('Text in quotes must end on the same line', startLine);
+        if (src[i] === '\n') throw new VoltError('Text in quotes must end on the same line', { line: startLine, col: tokStart - lineStart + 1, endCol: i - lineStart + 1 });
         if (src[i] === '\\') {
           // \" quote   \\ backslash   \n new line   \t tab
           const esc = { '"': '"', '\\': '\\', n: '\n', t: '\t' }[src[i + 1]];
-          if (esc === undefined) throw new VoltError(`Unknown escape '\\${src[i + 1] || ''}' in text. Use \\" \\\\ \\n or \\t`, line);
+          if (esc === undefined) throw new VoltError(`Unknown escape '\\${src[i + 1] || ''}' in text. Use \\" \\\\ \\n or \\t`, here());
           str += esc;
           i += 2;
           continue;
         }
         str += src[i++];
       }
-      if (i >= src.length) throw new VoltError('Missing closing " on text', startLine);
+      if (i >= src.length) throw new VoltError('Missing closing " on text', { line: startLine, col: tokStart - lineStart + 1, endCol: i - lineStart + 1 });
       i++; // skip closing quote
       add('string', str);
       continue;
@@ -178,14 +203,15 @@ function lex(src) {
 
     // Two-character symbols
     const two = src.slice(i, i + 2);
-    if (['==', '!=', '<=', '>=', '+=', '-=', '*=', '/='].includes(two)) { add(two, two); i += 2; continue; }
+    if (TWO_CHAR.has(two)) { add(two, two, i + 2); i += 2; continue; }
 
     // One-character symbols
-    if ('=+-*/%<>{}(),[].:'.includes(c)) { add(c, c); i++; continue; }
+    if ('=+-*/%<>{}(),[].:'.includes(c)) { add(c, c, i + 1); i++; continue; }
 
-    throw new VoltError(`I don't understand the character '${c}'`, line);
+    throw new VoltError(`I don't understand the character '${c}'`, here());
   }
 
+  tokStart = i;
   add('eof', null);
   return tokens;
 }
@@ -216,8 +242,12 @@ const STYLE_TARGETS = {
   },
 };
 
-function parse(tokens) {
+// options.errors: pass an array to make the parser keep going after a mistake. Each problem is
+// pushed onto it and parsing picks up again at the next top-level line, so an editor can show
+// every error in the file at once. Without it, the first problem is thrown (as always).
+function parse(tokens, options = {}) {
   let pos = 0;
+  const errors = options.errors || null;
 
   // Gamedev struct types ('Player = type { ... }') declared anywhere in the file,
   // found with a quick scan so 'Player { ... }' can be recognised as a struct
@@ -239,15 +269,27 @@ function parse(tokens) {
     if (check(type)) return next();
     const t = peek();
     if (type === 'ident' && KEYWORDS.has(t.type)) {
-      throw new VoltError(`'${t.value}' is a Volt word, so it can't be used as a name. Pick another, like '${t.value}1' or 'my${t.value[0].toUpperCase()}${t.value.slice(1)}'`, t.line);
+      throw new VoltError(`'${t.value}' is a Volt word, so it can't be used as a name. Pick another, like '${t.value}1' or 'my${t.value[0].toUpperCase()}${t.value.slice(1)}'`, t);
     }
-    throw new VoltError(`Expected ${what} but found ${describe(t)}`, t.line);
+    throw new VoltError(`Expected ${what} but found ${describe(t)}`, t);
   }
 
   // program := statement*
   function program() {
     const body = [];
-    while (!check('eof')) body.push(statement(true));
+    while (!check('eof')) {
+      if (!errors) { body.push(statement(true)); continue; }
+      const start = pos;
+      try {
+        body.push(statement(true));
+      } catch (e) {
+        if (!(e instanceof VoltError)) throw e;
+        errors.push(e);
+        // Skip ahead to the next line that starts at the left edge: that's a new top-level statement
+        if (pos <= start) pos = start + 1;
+        while (!check('eof') && !(peek().col === 1 && peek().line > tokens[pos - 1].line && peek().type !== '}')) pos++;
+      }
+    }
     return body;
   }
 
@@ -256,7 +298,7 @@ function parse(tokens) {
     const open = expect('{', "'{'");
     const body = [];
     while (!check('}')) {
-      if (check('eof')) throw new VoltError("This '{' is never closed with '}'", open.line);
+      if (check('eof')) throw new VoltError("This '{' is never closed with '}'", open);
       body.push(statement(false));
     }
     expect('}', "'}'");
@@ -264,7 +306,7 @@ function parse(tokens) {
   }
 
   function topLevelOnly(t) {
-    throw new VoltError(`'${t.value}' can only be used at the top level, not inside { }`, t.line);
+    throw new VoltError(`'${t.value}' can only be used at the top level, not inside { }`, t);
   }
 
   // A time: either 500ms / 2s, or an expression followed by ms or s ("wait gap ms")
@@ -281,10 +323,26 @@ function parse(tokens) {
       if (unit.value === 'ms') return value;
       return { kind: 'Binary', op: '*', left: value, right: { kind: 'Number', value: '1000', line: unit.line }, line: unit.line };
     }
-    throw new VoltError(`Expected 'ms' or 's' after the time for ${what}, found ${describe(unit)}`, unit.line);
+    throw new VoltError(`Expected 'ms' or 's' after the time for ${what}, found ${describe(unit)}`, unit);
+  }
+
+  // Remember where a tree node sits in the source, so errors can underline the exact spot
+  // and the editor can find things. Statements point at their first word; values at all of it.
+  function span(node, startTok, wholeThing) {
+    if (node && node.col === undefined) {
+      const endTok = wholeThing ? (tokens[pos - 1] || startTok) : startTok;
+      node.col = startTok.col;
+      node.endCol = endTok.line === startTok.line ? endTok.endCol : undefined;
+    }
+    return node;
   }
 
   function statement(topLevel) {
+    const t = peek();
+    return span(statementInner(topLevel), t, false);
+  }
+
+  function statementInner(topLevel) {
     const t = peek();
     const line = t.line;
 
@@ -299,7 +357,7 @@ function parse(tokens) {
           const numTok = next();
           if (numTok.type === 'number') return numTok.value;
           if (numTok.type === 'ident' && /^A\d+$/.test(numTok.value)) return numTok.value;
-          throw new VoltError(`Expected a pin number like 13 or A0 but found ${describe(numTok)}`, numTok.line);
+          throw new VoltError(`Expected a pin number like 13 or A0 but found ${describe(numTok)}`, numTok);
         };
         // pin motor = 8, 9, 10, 11 stepper      (a stepper uses 4 pins: IN1, IN2, IN3, IN4)
         const nums = [pinNumber()];
@@ -431,7 +489,7 @@ function parse(tokens) {
         let freq = expression();
         if (!check('for') && !check('to')) {
           // the first value was the pin: tone buzzer 440 for 200ms
-          if (freq.kind !== 'Var') throw new VoltError("Expected 'for' after the pitch, like: tone 440 for 200ms", peek().line);
+          if (freq.kind !== 'Var') throw new VoltError("Expected 'for' after the pitch, like: tone 440 for 200ms", peek());
           pin = freq.name;
           freq = expression();
         }
@@ -479,7 +537,7 @@ function parse(tokens) {
         const name = expect('ident', 'a name for the counter, like i').value;
         const from = peek();
         if (!(from.type === 'ident' && from.value === 'from')) {
-          throw new VoltError(`Expected 'from' after '${name}', like: for ${name} from 1 to 10 { }`, from.line);
+          throw new VoltError(`Expected 'from' after '${name}', like: for ${name} from 1 to 10 { }`, from);
         }
         next();
         const start = expression();
@@ -585,7 +643,7 @@ function parse(tokens) {
           expect(']', "']'");
           const opTok = next();
           if (!['=', '+=', '-=', '*=', '/='].includes(opTok.type)) {
-            throw new VoltError(`Expected '=' after ${t.value}[...], like: ${t.value}[0] = 5`, opTok.line);
+            throw new VoltError(`Expected '=' after ${t.value}[...], like: ${t.value}[0] = 5`, opTok);
           }
           let value = expression();
           if (opTok.type !== '=') {
@@ -639,7 +697,7 @@ function parse(tokens) {
   const isWord = (w) => peek().type === 'ident' && peek().value === w && peek().line === tokens[pos - 1].line;
   function word(w, example) {
     if (isWord(w)) return next();
-    throw new VoltError(`Expected '${w}' but found ${describe(peek())}. Like this: ${example}`, peek().line);
+    throw new VoltError(`Expected '${w}' but found ${describe(peek())}. Like this: ${example}`, peek());
   }
   function pair() {
     const a = expression();
@@ -844,11 +902,12 @@ function parse(tokens) {
 
   function binaryLevel(nextLevel, ops) {
     return function () {
+      const start = peek();
       let left = nextLevel();
       while (ops.includes(peek().type)) {
         const op = next();
         const right = nextLevel();
-        left = { kind: 'Binary', op: op.type, left, right, line: op.line };
+        left = span({ kind: 'Binary', op: op.type, left, right, line: op.line }, start, true);
       }
       return left;
     };
@@ -857,30 +916,36 @@ function parse(tokens) {
   function unary() {
     if (check('not') || check('-')) {
       const op = next();
-      return { kind: 'Unary', op: op.type, operand: unary(), line: op.line };
+      return span({ kind: 'Unary', op: op.type, operand: unary(), line: op.line }, op, true);
     }
     return primary();
   }
 
   // A value, then any number of [index] or .field after it: rows[y][x]   player.health
   function primary() {
+    const start = peek();
     let e = atom();
     while ((check('[') || check('.')) && (e.kind === 'Var' || e.kind === 'Index' || e.kind === 'Member' || e.kind === 'List' || e.kind === 'Call' || e.kind === 'StructLit')) {
       if (check('[')) {
         const line = next().line;
         const index = expression();
         expect(']', "']'");
-        e = { kind: 'Index', target: e, index, line };
+        e = span({ kind: 'Index', target: e, index, line }, start, true);
       } else {
         const line = next().line;
         const field = expect('ident', 'a field name').value;
-        e = { kind: 'Member', target: e, field, line };
+        e = span({ kind: 'Member', target: e, field, line }, start, true);
       }
     }
     return e;
   }
 
   function atom() {
+    const start = peek();
+    return span(atomInner(), start, true);
+  }
+
+  function atomInner() {
     const t = next();
     switch (t.type) {
       case 'number': return { kind: 'Number', value: t.value, line: t.line };
@@ -917,7 +982,7 @@ function parse(tokens) {
         }
         // Looks like someone's trying Player { field: value } but never declared Player as a type
         if (check('{') && peek(1).type === 'ident' && peek(2).type === ':') {
-          throw new VoltError(`'${t.value}' isn't a type. Declare it first, like: ${t.value} = type { name: string, health: int }`, t.line);
+          throw new VoltError(`'${t.value}' isn't a type. Declare it first, like: ${t.value} = type { name: string, health: int }`, t);
         }
         return { kind: 'Var', name: t.value, line: t.line };
       }
@@ -943,7 +1008,7 @@ function parse(tokens) {
         return { kind: 'List', items, line: t.line };
       }
       default:
-        throw new VoltError(`Expected a value but found ${describe(t)}`, t.line);
+        throw new VoltError(`Expected a value but found ${describe(t)}`, t);
     }
   }
 
@@ -1058,8 +1123,11 @@ const RESERVED = new Set([
   'export', 'extends', 'debugger', 'of', 'document', 'window', 'console', 'Math',
   'Date', 'prompt', 'alert', 'setTimeout', 'setInterval', 'parseInt', 'arguments',
   'eval', 'Number', 'Object', 'Array', 'process', 'require', 'NaN', 'Infinity',
-  // Volt built-in functions
-  ...Object.keys(BUILTINS),
+  // Volt built-in functions whose names the generated code itself relies on (Arduino's map(),
+  // Python's random module ...). Every OTHER built-in can be reused as a name: a program's own
+  // 'dist' variable or 'fn lerp()' simply wins over the built-in. That way adding a built-in
+  // to Volt can never break a program that already used the word.
+  'random', 'abs', 'min', 'max', 'constrain', 'map', 'sqrt', 'pow', 'sin', 'cos', 'atan2',
 ]);
 
 // C++ helper functions, added to the output only when used.
@@ -1168,8 +1236,22 @@ const HTML_CSS = `  :root { color-scheme: light dark; }
   }`;
 
 // 3D games bundle Three.js (lib/three.min.js, MIT) and our small 3D runtime into the page
-const THREE_SRC = () => fs.readFileSync(path.join(__dirname, '..', 'lib', 'three.min.js'), 'utf8').replace(/<\/script/gi, '<\\/script');
-const VOLT3D_SRC = () => fs.readFileSync(path.join(__dirname, '..', 'lib', 'volt3d.js'), 'utf8');
+// (read once and kept: Three.js is 800 KB, and the editor recompiles as you type)
+const fileCache = new Map();    // path -> { key, value }
+function cachedFile(file, encoding, transform) {
+  const st = fs.statSync(file);
+  const key = `${st.mtimeMs}:${st.size}:${encoding}`;
+  const hit = fileCache.get(file);
+  if (hit && hit.key === key) return hit.value;
+  let value = fs.readFileSync(file, encoding === 'base64' ? undefined : encoding);
+  if (encoding === 'base64') value = value.toString('base64');
+  if (transform) value = transform(value);
+  fileCache.set(file, { key, value });
+  return value;
+}
+const SAFE_DATA = new Set();     // data: URLs made here - pure base64, so they need no escaping
+const THREE_SRC = () => cachedFile(path.join(__dirname, '..', 'lib', 'three.min.js'), 'utf8', (t) => t.replace(/<\/script/gi, '<\\/script'));
+const VOLT3D_SRC = () => cachedFile(path.join(__dirname, '..', 'lib', 'volt3d.js'), 'utf8');
 
 // Helpers for #html games, added to the page only when it uses canvas
 const GAME_RUNTIME = [
@@ -1713,6 +1795,42 @@ function generate(ast, target = 'cpp', options = {}) {
   let loopDepth = 0;            // inside repeat/while?
   let inFunction = false;       // inside fn?
 
+  // options.diagnostics: pass an array and problems are pushed onto it (errors and warnings)
+  // instead of the first error being thrown - used by volt.check() for editors.
+  const diag = options.diagnostics || null;
+  // Runs fn; in diagnostics mode a VoltError is recorded and 'fallback' is returned instead
+  function guard(fn, fallback, onError) {
+    if (!diag) return fn();
+    try {
+      return fn();
+    } catch (e) {
+      if (!(e instanceof VoltError)) throw e;
+      diag.push(e);
+      if (onError) onError();
+      return fallback;
+    }
+  }
+  function warn(message, where, hint) {
+    if (!diag) return;
+    const w = new VoltError(message, where, hint);
+    w.severity = 'warning';
+    diag.push(w);
+  }
+  // For the "never used" warnings. Raw (#) code can use Volt names too, so those count as used.
+  const usedFuncs = new Set();
+  const localDecls = [];        // { name, node, used } for every 'let' inside a block
+  let rawText = '';
+  if (diag) {
+    (function walk(list) {
+      for (const n of list) {
+        if (n.kind === 'Raw' || n.kind === 'RawTop') rawText += n.code + '\n';
+        for (const k of ['body', 'then', 'otherwise']) if (Array.isArray(n[k])) walk(n[k]);
+        if (Array.isArray(n.cases)) for (const c of n.cases) walk(c.body);
+      }
+    }(ast));
+  }
+  const inRaw = (name) => new RegExp(`\\b${name}\\b`).test(rawText);
+
   // ---------- small helpers ----------
   const pad = (depth) => IND.repeat(depth);
   const hidden = (name) => (py || rb ? `_${name}` : `__${name}`);
@@ -1746,7 +1864,7 @@ function generate(ast, target = 'cpp', options = {}) {
   }
   // background.color = "yellow"   text.size = 20   -> plain CSS, no CSS knowledge needed
   function genStyleAssign(s, p) {
-    htmlOnly(`'${s.target.name}.${s.field} = ...'`, s.line);
+    htmlOnly(`'${s.target.name}.${s.field} = ...'`, s);
     const spec = STYLE_TARGETS[s.target.name];
     const cssProp = spec.props[s.field];
     if (!cssProp) {
@@ -1772,6 +1890,8 @@ function generate(ast, target = 'cpp', options = {}) {
 
   // Text in quotes, written safely for the output language
   function strLit(s) {
+    // Packed-in pictures, sounds and models are megabytes of base64 with nothing to escape
+    if (SAFE_DATA.has(s)) return `"${s}"`;
     let out = JSON.stringify(s);
     if (rb) out = out.replace(/#/g, '\\#');               // Ruby would treat #{ } as code
     if (html) out = out.replace(/</g, '\\u003c');          // keep </script> from ending the page script
@@ -1795,7 +1915,9 @@ function generate(ast, target = 'cpp', options = {}) {
     if (dirs.length) {
       const full = dirs.map((d) => path.resolve(d, f)).find((x) => fs.existsSync(x));
       if (!full) throw new VoltError(`Can't find the ${what === 'a sound' ? 'sound' : 'image'} '${f}'. Put it in the same folder as your .volt file`, line);
-      return `data:${types[ext]};base64,${fs.readFileSync(full).toString('base64')}`;
+      const url = cachedFile(full, 'base64', (b) => `data:${types[ext]};base64,${b}`);
+      SAFE_DATA.add(url);
+      return url;
     }
     return `../${f.replace(/\\/g, '/')}`;   // the page sits one folder down, in name/index.html
   }
@@ -1812,6 +1934,13 @@ function generate(ast, target = 'cpp', options = {}) {
       if (scopes[i].has(name)) return { type: scopes[i].get(name), top: i === 0 };
     }
     return null;
+  }
+
+  // The innermost 'let' with this name has now been read (for the "never used" warning)
+  function markUsed(name) {
+    for (let i = localDecls.length - 1; i >= 0; i--) {
+      if (localDecls[i].name === name && scopes.includes(localDecls[i].scope)) { localDecls[i].used = true; return; }
+    }
   }
 
   // Every variable and pin name visible right now - used only to suggest a
@@ -1865,7 +1994,7 @@ function generate(ast, target = 'cpp', options = {}) {
         if (e.name === 'split') return 'list';
         if (['sin', 'cos'].includes(e.name)) return 'float';
         if (e.name === 'saved') return e.args[1] && e.args[1].kind === 'List' ? 'list' : 'any';
-        if (BUILTINS[e.name] !== undefined) return 'num';
+        if (BUILTINS[e.name] !== undefined && !funcs.has(e.name)) return 'num';
         return cpp ? 'num' : 'any';
       case 'Var': { const v = lookupVar(e.name); return v ? v.type : 'any'; }
       case 'Unary': return e.op === 'not' ? 'bool' : staticType(e.operand);
@@ -1884,12 +2013,12 @@ function generate(ast, target = 'cpp', options = {}) {
   }
 
   // ---------- pass 1: collect pins, functions, top-level variables, top-of-file code ----------
-  for (const node of ast) {
+  for (const node of ast) guard(() => {
     if (node.kind === 'Pin') {
-      boardOnly('Using pins', node.line);
-      checkName(node.name, node.line);
+      boardOnly('Using pins', node);
+      checkName(node.name, node);
       if (micro && /^A/.test(node.num)) {
-        throw new VoltError(`Pins like ${node.num} only work in #c++. On ESP32/Pico, use the GPIO number instead`, node.line);
+        throw new VoltError(`Pins like ${node.num} only work in #c++. On ESP32/Pico, use the GPIO number instead`, node);
       }
       pins.set(node.name, node);
       const { name, num, mode } = node;
@@ -1903,7 +2032,7 @@ function generate(ast, target = 'cpp', options = {}) {
           globals.push(`long ${posVar(name)} = 0;`, `long ${rpmVar(name)} = 10;`);
           setupExtra.push(`  for (int __p = 0; __p < 4; __p++) pinMode(${name}[__p], OUTPUT);`);
         }
-        continue;
+        return;
       }
       if (micro) {
         globals.push({
@@ -1925,11 +2054,11 @@ function generate(ast, target = 'cpp', options = {}) {
         }
       }
     } else if (node.kind === 'TypeDecl') {
-      htmlOnly(`'${node.name} = type { ... }'`, node.line);
-      checkName(node.name, node.line);
+      htmlOnly(`'${node.name} = type { ... }'`, node);
+      checkName(node.name, node);
       const seen = new Set();
       for (const f of node.fields) {
-        if (seen.has(f.name)) throw new VoltError(`'${node.name}' already has a field called '${f.name}'`, node.line);
+        if (seen.has(f.name)) throw new VoltError(`'${node.name}' already has a field called '${f.name}'`, node);
         seen.add(f.name);
       }
       types.set(node.name, node.fields);
@@ -1937,29 +2066,29 @@ function generate(ast, target = 'cpp', options = {}) {
         if (f.kindName.toLowerCase() === 'float') floatFields.add(f.name);
       }
     } else if (node.kind === 'Fn') {
-      checkName(node.name, node.line);
+      checkName(node.name, node);
       funcs.set(node.name, node);
     } else if (node.kind === 'Image') {
-      gameOnly("'image'", node.line);
-      checkName(node.name, node.line);
+      gameOnly("'image'", node);
+      checkName(node.name, node);
       images.set(node.name, node);
       globals.push(`const ${node.name} = __image(${strLit(imageSource(node))}, ${strLit(node.file)});`);
     } else if (node.kind === 'Model3d') {
-      gameOnly("'model3d'", node.line);
-      checkName(node.name, node.line);
+      gameOnly("'model3d'", node);
+      checkName(node.name, node);
       models.set(node.name, node);
       uses3d = true;
-      globals.push(`const ${node.name} = __model3d(${strLit(embedFile(node.file, node.line, { glb: 'model/gltf-binary' }, 'a 3D model', '.glb'))}, ${strLit(node.file)});`);
+      globals.push(`const ${node.name} = __model3d(${strLit(embedFile(node.file, node, { glb: 'model/gltf-binary' }, 'a 3D model', '.glb'))}, ${strLit(node.file)});`);
     } else if (node.kind === 'Audio') {
-      gameOnly("'audio'", node.line);
-      checkName(node.name, node.line);
+      gameOnly("'audio'", node);
+      checkName(node.name, node);
       audios.set(node.name, node);
-      globals.push(`const ${node.name} = __audio([${node.files.map((f) => strLit(soundSource(f, node.line))).join(', ')}], ${strLit(node.name)});`);
+      globals.push(`const ${node.name} = __audio([${node.files.map((f) => strLit(soundSource(f, node))).join(', ')}], ${strLit(node.name)});`);
     } else if (node.kind === 'Sprite') {
-      gameOnly("'sprite'", node.line);
-      checkName(node.name, node.line);
+      gameOnly("'sprite'", node);
+      checkName(node.name, node);
       if (!images.has(node.image)) {
-        throw new VoltError(`There is no image called '${node.image}'. Load it first, like: image ${node.image} = "tiles.png"`, node.line);
+        throw new VoltError(`There is no image called '${node.image}'. Load it first, like: image ${node.image} = "tiles.png"`, node);
       }
       sprites.set(node.name, node);
       globals.push(`let ${node.name} = null;`);
@@ -1968,26 +2097,26 @@ function generate(ast, target = 'cpp', options = {}) {
       // selector (#world3d { ... }) also starts with # but is followed by a name then '{',
       // so it isn't mistaken for one here.
       if (!cpp && !html && /^#[a-zA-Z]/.test(node.code)) {
-        throw new VoltError(`'${node.code.split(/\s/)[0]}' only works in #c++ programs`, node.line);
+        throw new VoltError(`'${node.code.split(/\s/)[0]}' only works in #c++ programs`, node);
       }
       if (html) cssLines.push(node.code);
       else topLines.push(node.code);
       if (node.code.includes('Serial.')) usesSerial = true;
     }
-  }
+  });
   // Top-level variables (after functions, so 'let x = f(1)' knows f is a function)
-  for (const node of ast) {
-    if (node.kind !== 'Let' || !node.topLevel) continue;
-    checkName(node.name, node.line);
+  for (const node of ast) guard(() => {
+    if (node.kind !== 'Let' || !node.topLevel) return;
+    checkName(node.name, node);
     let type = staticType(node.value);
     if (type === 'bool' || (cpp && type === 'any')) type = 'num';
-    if (type === 'list') listsOk(node.line);
+    if (type === 'list') listsOk(node);
     scopes[0].set(node.name, type);
     const empty = type === 'text' ? '""' : type === 'list' ? '[]' : '0';
     if (cpp) globals.push(type === 'text' ? `String ${node.name} = "";` : `long ${node.name} = 0;`);
     else if (js) globals.push(`let ${node.name} = ${empty};`);
     else globals.push(`${global(node.name)} = ${empty}`);
-  }
+  });
 
   // ---------- expressions ----------
   // Each returns { code, type } where type is 'num', 'float' (a decimal number), 'text', 'bool',
@@ -1999,7 +2128,7 @@ function generate(ast, target = 'cpp', options = {}) {
       case 'Number': {
         const isDecimal = e.value.includes('.');
         if (isDecimal && T.board) {
-          throw new VoltError(`Boards (#c++ and #micropython) only support whole numbers, found ${e.value}. Decimals work in #python, #ruby, #js and #html`, e.line);
+          throw new VoltError(`Boards (#c++ and #micropython) only support whole numbers, found ${e.value}. Decimals work in #python, #ruby, #js and #html`, e);
         }
         return { code: e.value, type: isDecimal ? 'float' : 'num' };
       }
@@ -2019,7 +2148,7 @@ function generate(ast, target = 'cpp', options = {}) {
         return { code: '_ms()', type: 'num' };
 
       case 'Ask': {
-        if (cpp) throw new VoltError("'ask' needs a keyboard, so it doesn't work in #c++. Try #python, #ruby, #js or #html", e.line);
+        if (cpp) throw new VoltError("'ask' needs a keyboard, so it doesn't work in #c++. Try #python, #ruby, #js or #html", e);
         const q = genExpr(e.prompt).code;
         if (py) return { code: `input(str(${bare(q)}) + " ")`, type: 'text' };
         if (rb) { help('ask'); return { code: `_ask(${bare(q)})`, type: 'text' }; }
@@ -2029,27 +2158,28 @@ function generate(ast, target = 'cpp', options = {}) {
 
       case 'Var': {
         if (pins.has(e.name)) {
-          throw new VoltError(`'${e.name}' is a pin. Use 'read ${e.name}' to get its value`, e.line);
+          throw new VoltError(`'${e.name}' is a pin. Use 'read ${e.name}' to get its value`, e);
         }
         if (funcs.has(e.name)) {
-          throw new VoltError(`'${e.name}' is a function. Call it with ${e.name}(...)`, e.line);
+          throw new VoltError(`'${e.name}' is a function. Call it with ${e.name}(...)`, e);
         }
-        if (sprites.has(e.name)) throw new VoltError(`'${e.name}' is a sprite. Show it with: draw ${e.name} at x, y`, e.line);
-        if (audios.has(e.name)) throw new VoltError(`'${e.name}' is a sound. Play it with: sound ${e.name}`, e.line);
+        if (sprites.has(e.name)) throw new VoltError(`'${e.name}' is a sprite. Show it with: draw ${e.name} at x, y`, e);
+        if (audios.has(e.name)) throw new VoltError(`'${e.name}' is a sound. Play it with: sound ${e.name}`, e);
         if (models.has(e.name)) return { code: e.name, type: 'any' };
-        if (images.has(e.name)) throw new VoltError(`'${e.name}' is an image. Cut sprites out of it with: sprite name = ${e.name} at x, y size w, h`, e.line);
+        if (images.has(e.name)) throw new VoltError(`'${e.name}' is an image. Cut sprites out of it with: sprite name = ${e.name} at x, y size w, h`, e);
         const v = lookupVar(e.name);
         if (!v) {
           const guess = closestName(e.name, allVarNames());
           throw new VoltError(guess
             ? `Unknown variable '${e.name}'. Did you mean '${guess}'?`
-            : `Unknown variable '${e.name}'. Did you forget 'let ${e.name} = ...'?`, e.line);
+            : `Unknown variable '${e.name}'. Did you forget 'let ${e.name} = ...'?`, e);
         }
+        if (diag) markUsed(e.name);
         return { code: v.top ? global(e.name) : e.name, type: v.type, obj: cpp && v.type === 'text' };
       }
 
       case 'Read': {
-        const p = getPin(e.pin, e.line, null, "'read'");
+        const p = getPin(e.pin, e, null, "'read'");
         const n = e.pin;
         let code;
         switch (p.mode) {
@@ -2074,17 +2204,17 @@ function generate(ast, target = 'cpp', options = {}) {
 
       // [1, 2, 3]
       case 'List': {
-        listsOk(e.line);
+        listsOk(e);
         const items = e.items.map((x) => bare(genExpr(x).code));
         return { code: `[${items.join(', ')}]`, type: 'list' };
       }
 
       // scores[0]     rows[y][x]      (counting starts at 0)
       case 'Index': {
-        listsOk(e.line);
+        listsOk(e);
         const target = genExpr(e.target);
         if (target.type === 'num' || target.type === 'float' || target.type === 'bool') {
-          throw new VoltError("Only lists and text can be read with [ ], like scores[0] or name[0]", e.line);
+          throw new VoltError("Only lists and text can be read with [ ], like scores[0] or name[0]", e);
         }
         const i = genNumber(e.index, "A list position");
         return { code: `${target.code}[${bare(i)}]`, type: target.type === 'text' ? 'text' : 'any' };
@@ -2098,7 +2228,7 @@ function generate(ast, target = 'cpp', options = {}) {
           return { code: `!(${bare(inner.code)})`, type: 'bool' };
         }
         const operand = genExpr(e.operand);
-        if (operand.type === 'text') throw new VoltError("'-' needs a number, not text. Use number(...) to turn text into a number", e.line);
+        if (operand.type === 'text') throw new VoltError("'-' needs a number, not text. Use number(...) to turn text into a number", e);
         return { code: `-(${bare(operand.code)})`, type: operand.type === 'float' ? 'float' : 'num' };
       }
 
@@ -2107,7 +2237,7 @@ function generate(ast, target = 'cpp', options = {}) {
 
       // player.health     enemies[i].hp
       case 'Member': {
-        gameOnly("'.field'", e.line);
+        gameOnly("'.field'", e);
         const target = genExpr(e.target);
         return { code: `${target.code}.${e.field}`, type: floatFields.has(e.field) ? 'float' : 'any' };
       }
@@ -2115,16 +2245,16 @@ function generate(ast, target = 'cpp', options = {}) {
       // Player { name: "Finn", health: 10 }  - any field left out gets a sensible
       // default (0 for int/float/num, "" for string/text, false for bool)
       case 'StructLit': {
-        gameOnly("a struct value like Player { ... }", e.line);
+        gameOnly("a struct value like Player { ... }", e);
         const fields = types.get(e.type);
-        if (!fields) throw new VoltError(`'${e.type}' isn't a type. Declare it first, like: ${e.type} = type { name: string, health: int }`, e.line);
+        if (!fields) throw new VoltError(`'${e.type}' isn't a type. Declare it first, like: ${e.type} = type { name: string, health: int }`, e);
         const known = new Set(fields.map((f) => f.name));
         const given = new Map();
         for (const f of e.fields) {
           if (!known.has(f.name)) {
-            throw new VoltError(`'${e.type}' has no field called '${f.name}'. It has: ${[...known].join(', ')}`, e.line);
+            throw new VoltError(`'${e.type}' has no field called '${f.name}'. It has: ${[...known].join(', ')}`, e);
           }
-          if (given.has(f.name)) throw new VoltError(`'${f.name}' is set twice in this ${e.type}`, e.line);
+          if (given.has(f.name)) throw new VoltError(`'${f.name}' is set twice in this ${e.type}`, e);
           given.set(f.name, bare(genExpr(f.value).code));
         }
         const parts = fields.map((f) => `${f.name}: ${given.has(f.name) ? given.get(f.name) : defaultForKind(f.kindName)}`);
@@ -2156,7 +2286,7 @@ function generate(ast, target = 'cpp', options = {}) {
 
   function genNumber(e, where) {
     const r = genExpr(e);
-    if (r.type === 'text') throw new VoltError(`${where} needs a number, not text. Use number(...) to turn text into a number`, e.line);
+    if (r.type === 'text') throw new VoltError(`${where} needs a number, not text. Use number(...) to turn text into a number`, e);
     return r.code;
   }
 
@@ -2205,7 +2335,7 @@ function generate(ast, target = 'cpp', options = {}) {
     if (['==', '!=', '<', '>', '<=', '>='].includes(e.op)) {
       const textVsNumber = (left.type === 'text' && isNum(right.type)) || (isNum(left.type) && right.type === 'text');
       if (textVsNumber && !['==', '!='].includes(e.op)) {
-        throw new VoltError(`Can't compare text and a number with '${e.op}'. Use number(...) to turn the text into a number`, e.line);
+        throw new VoltError(`Can't compare text and a number with '${e.op}'. Use number(...) to turn the text into a number`, e);
       }
       let op = e.op;
       if (js && op === '==') op = '===';
@@ -2217,7 +2347,7 @@ function generate(ast, target = 'cpp', options = {}) {
 
     // Arithmetic: - * / %
     if (anyText) {
-      throw new VoltError(`Can't use '${e.op}' with text, only with numbers. Use number(...) to turn text into a number`, e.line);
+      throw new VoltError(`Can't use '${e.op}' with text, only with numbers. Use number(...) to turn text into a number`, e);
     }
     const anyFloat = left.type === 'float' || right.type === 'float';
     const type = anyUnknown ? 'any' : anyFloat ? 'float' : 'num';
@@ -2243,15 +2373,16 @@ function generate(ast, target = 'cpp', options = {}) {
   function genCall(e) {
     const args = e.args.map((a) => genExpr(a));
 
-    if (BUILTINS[e.name] !== undefined) {
+    // (a function the program defines itself wins over a built-in with the same name)
+    if (BUILTINS[e.name] !== undefined && !funcs.has(e.name)) {
       const need = BUILTINS[e.name];
       if (args.length !== need) {
-        throw new VoltError(`'${e.name}' needs ${need} value${need === 1 ? '' : 's'}, got ${args.length}`, e.line);
+        throw new VoltError(`'${e.name}' needs ${need} value${need === 1 ? '' : 's'}, got ${args.length}`, e);
       }
       const numeric = ['random', 'abs', 'min', 'max', 'constrain', 'map', 'sign', 'dist', 'lerp', 'overlaps', 'sqrt', 'pow', 'sin', 'cos'];
       if (numeric.includes(e.name)) {
         args.forEach((a, i) => {
-          if (a.type === 'text') throw new VoltError(`'${e.name}' needs numbers, not text. Use number(...) to turn text into a number`, e.args[i].line);
+          if (a.type === 'text') throw new VoltError(`'${e.name}' needs numbers, not text. Use number(...) to turn text into a number`, e.args[i]);
         });
       }
       const c = args.map((a) => bare(a.code));
@@ -2339,7 +2470,7 @@ function generate(ast, target = 'cpp', options = {}) {
           return { code: `(((${a}) > 0) - ((${a}) < 0))`, type: 'num' };
         // saved("best", 0) -> what 'save' stored, or the default      (#html)
         case 'saved':
-          gameOnly("'saved'", e.line);
+          gameOnly("'saved'", e);
           return { code: `__saved(${a}, ${b})`, type: args[1].type === 'list' ? 'list' : 'any' };
         // 3D (#html): block3d(x, y, z, w, h, d, "#color") -> id      lamp3d(x, y, z, "#color", power, range) -> id
         case 'block3d':
@@ -2347,11 +2478,11 @@ function generate(ast, target = 'cpp', options = {}) {
         case 'cyl3d':
         case 'lamp3d':
         case 'put3d':
-          gameOnly(`'${e.name}'`, e.line);
+          gameOnly(`'${e.name}'`, e);
           uses3d = true;
           return { code: `__${e.name}(${c.join(', ')})`, type: 'num' };
         case 'crisp':
-          gameOnly(`'${e.name}'`, e.line);
+          gameOnly(`'${e.name}'`, e);
           return { code: `__crisp(${c.join(', ')})`, type: 'num' };
         case 'mousedx':
         case 'mousedy':
@@ -2359,23 +2490,23 @@ function generate(ast, target = 'cpp', options = {}) {
         case 'clicked3d':
         case 'hot3d':
         case 'sky3d':
-          gameOnly(`'${e.name}'`, e.line);
+          gameOnly(`'${e.name}'`, e);
           uses3d = true;
           return { code: `__${e.name}(${c.join(', ')})`, type: 'num' };
         // maths for 3D: angles in tenths of a degree, results in thousandths (sin3(900) is 1000)
         case 'sin3':
         case 'cos3':
         case 'atan2':
-          if (!js) throw new VoltError(`'${e.name}' only works in #html and #js programs`, e.line);
+          if (!js) throw new VoltError(`'${e.name}' only works in #html and #js programs`, e);
           help('math3');
           return { code: `__${e.name.replace(/3$/, '')}3(${c.join(', ')})`, type: 'num' };
         // touchscreen() -> true on phones and tablets      (#html)
         case 'touchscreen':
-          gameOnly("'touchscreen'", e.line);
+          gameOnly("'touchscreen'", e);
           return { code: '__touchscreen()', type: 'bool' };
         // held("left") -> true while the key is down      (#html)
         case 'held':
-          gameOnly("'held'", e.line);
+          gameOnly("'held'", e);
           return { code: `__held(${a})`, type: 'bool' };
         // dist(x1, y1, x2, y2) -> straight-line distance, rounded down
         case 'dist': {
@@ -2415,66 +2546,67 @@ function generate(ast, target = 'cpp', options = {}) {
         // sin(degrees) / cos(degrees) -> sine/cosine of an angle given in degrees.
         // Needs real decimals, so (for now) it's scripts/web only, not boards.
         case 'sin':
-          if (T.board) throw new VoltError("'sin' needs decimals, which boards (#c++, #micropython) don't support yet", e.line);
+          if (T.board) throw new VoltError("'sin' needs decimals, which boards (#c++, #micropython) don't support yet", e);
           if (py) { usesMath = true; return { code: `math.sin((${a}) * math.pi / 180)`, type: 'float' }; }
           if (rb) return { code: `Math.sin((${a}) * Math::PI / 180)`, type: 'float' };
           return { code: `Math.sin((${a}) * Math.PI / 180)`, type: 'float' };
         case 'cos':
-          if (T.board) throw new VoltError("'cos' needs decimals, which boards (#c++, #micropython) don't support yet", e.line);
+          if (T.board) throw new VoltError("'cos' needs decimals, which boards (#c++, #micropython) don't support yet", e);
           if (py) { usesMath = true; return { code: `math.cos((${a}) * math.pi / 180)`, type: 'float' }; }
           if (rb) return { code: `Math.cos((${a}) * Math::PI / 180)`, type: 'float' };
           return { code: `Math.cos((${a}) * Math.PI / 180)`, type: 'float' };
         // join(list, separator) -> list items glued into one piece of text
         case 'join':
-          listsOk(e.line);
+          listsOk(e);
           if (py) return { code: `str(${b}).join(str(__j) for __j in ${a})`, type: 'text' };
           return { code: `(${a}).join(${b})`, type: 'text' };
         // split(text, separator) -> a list of the pieces between each separator
         case 'split':
-          listsOk(e.line);
+          listsOk(e);
           if (py) return { code: `str(${a}).split(str(${b}))`, type: 'list' };
           if (rb) return { code: `(${a}).to_s.split(${b})`, type: 'list' };
           return { code: `String(${a}).split(${b})`, type: 'list' };
         // readFile(path) -> the file's contents as text      (#js run with Node)
         case 'readFile':
-          nodeOnly("'readFile'", e.line);
+          nodeOnly("'readFile'", e);
           help('fs');
           return { code: `__fs.readFileSync(${a}, 'utf8')`, type: 'text' };
         // writeFile(path, text) -> saves text to a file, true if it worked      (#js run with Node)
         case 'writeFile':
-          nodeOnly("'writeFile'", e.line);
+          nodeOnly("'writeFile'", e);
           help('fs');
           help('writeFile');
           return { code: `__writeFile(${a}, ${b})`, type: 'bool' };
         // envVar(name) -> an environment variable's value, or "" if it isn't set      (#js run with Node)
         case 'envVar':
-          nodeOnly("'envVar'", e.line);
+          nodeOnly("'envVar'", e);
           return { code: `(process.env[${a}] || "")`, type: 'text' };
         // fetchText(url) -> downloads a URL and returns its text      (#js and #html)
         case 'fetchText':
-          jsOnly("'fetchText'", e.line);
+          jsOnly("'fetchText'", e);
           return { code: `(await (await fetch(${a})).text())`, type: 'text' };
       }
     }
 
     const fn = funcs.get(e.name);
+    usedFuncs.add(e.name);
     if (!fn) {
       if (pins.has(e.name) || lookupVar(e.name)) {
-        throw new VoltError(`'${e.name}' is not a function`, e.line);
+        throw new VoltError(`'${e.name}' is not a function`, e);
       }
       {
         const guess = closestName(e.name, [...funcs.keys(), ...Object.keys(BUILTINS)]);
         throw new VoltError(guess
           ? `Unknown function '${e.name}'. Did you mean '${guess}'?`
-          : `Unknown function '${e.name}'. Make it with 'fn ${e.name}(...) { }'`, e.line);
+          : `Unknown function '${e.name}'. Make it with 'fn ${e.name}(...) { }'`, e);
       }
     }
     if (args.length !== fn.params.length) {
-      throw new VoltError(`'${e.name}' needs ${fn.params.length} value${fn.params.length === 1 ? '' : 's'}, got ${args.length}`, e.line);
+      throw new VoltError(`'${e.name}' needs ${fn.params.length} value${fn.params.length === 1 ? '' : 's'}, got ${args.length}`, e);
     }
     if (cpp) {
       args.forEach((a, i) => {
-        if (a.type === 'text') throw new VoltError("In #c++, functions can only be given numbers, not text", e.args[i].line);
+        if (a.type === 'text') throw new VoltError("In #c++, functions can only be given numbers, not text", e.args[i]);
       });
     }
     const call = `${e.name}(${args.map((a) => bare(a.code)).join(', ')})`;
@@ -2513,7 +2645,27 @@ function generate(ast, target = 'cpp', options = {}) {
   function genBlock(stmts, depth, params = [], paramType = null) {
     scopes.push(new Map(params.map((p) => [p, paramType || (cpp ? 'num' : 'any')])));
     const out = [];
-    for (const s of stmts) out.push(...genStmt(s, depth));
+    let ended = null;           // the statement that ends this block early (return, break, stop ...)
+    for (const s of stmts) {
+      if (ended && diag && s.kind !== 'Raw') {
+        warn(`This line can never run: the '${ended.kind.toLowerCase()}' above it always leaves first`, s);
+        ended = null;
+      }
+      out.push(...guard(() => genStmt(s, depth), [], () => {
+        // keep going as if the variable had been made, so one mistake doesn't cause ten more
+        if (s.kind === 'Let' && !s.topLevel && !lookupVar(s.name)) scopes[scopes.length - 1].set(s.name, 'any');
+      }));
+      if (['Return', 'Break', 'Stop', 'Continue'].includes(s.kind)) ended = s;
+    }
+    if (diag) {
+      const scope = scopes[scopes.length - 1];
+      for (const d of localDecls) {
+        if (d.scope === scope && !d.used && !d.reported && !inRaw(d.name)) {
+          d.reported = true;
+          warn(`'${d.name}' is made here but never used`, d.node);
+        }
+      }
+    }
     scopes.pop();
     if (py && out.length === 0) out.push(`${pad(depth)}pass`);
     return out;
@@ -2548,37 +2700,41 @@ function generate(ast, target = 'cpp', options = {}) {
         const code = bare(value.code);
         if (s.topLevel) {
           // already declared in pass 1
-          checkAssignType(s.name, scopes[0].get(s.name), value.type, s.line);
+          checkAssignType(s.name, scopes[0].get(s.name), value.type, s);
           return [`${p}${global(s.name)} = ${code}${END}`];
         }
-        checkName(s.name, s.line);
+        checkName(s.name, s);
         const type = value.type === 'bool' ? 'num' : value.type;
         scopes[scopes.length - 1].set(s.name, type);
+        // (a 'let' that calls something - let wall = block3d(...) - is often there just for what the call does)
+        if (diag && !/"kind":"(Call|Ask)"/.test(JSON.stringify(s.value))) {
+          localDecls.push({ name: s.name, node: s, scope: scopes[scopes.length - 1], used: false });
+        }
         if (cpp) return [`${p}${type === 'text' ? 'String' : 'long'} ${s.name} = ${code};`];
         if (js) return [`${p}let ${s.name} = ${code};`];
         return [`${p}${s.name} = ${code}`];
       }
 
       case 'Assign': {
-        if (pins.has(s.name)) throw new VoltError(`Can't change pin '${s.name}' with '='. Use set, on, off or toggle`, s.line);
-        if (funcs.has(s.name)) throw new VoltError(`Can't change function '${s.name}' with '='`, s.line);
+        if (pins.has(s.name)) throw new VoltError(`Can't change pin '${s.name}' with '='. Use set, on, off or toggle`, s);
+        if (funcs.has(s.name)) throw new VoltError(`Can't change function '${s.name}' with '='`, s);
         const v = lookupVar(s.name);
         if (!v) {
           const guess = closestName(s.name, allVarNames());
           throw new VoltError(guess
             ? `Unknown variable '${s.name}'. Did you mean '${guess}'?`
-            : `Unknown variable '${s.name}'. Did you mean 'let ${s.name} = ...'?`, s.line);
+            : `Unknown variable '${s.name}'. Did you mean 'let ${s.name} = ...'?`, s);
         }
         const value = genExpr(s.value);
-        checkAssignType(s.name, v.type, value.type, s.line);
+        checkAssignType(s.name, v.type, value.type, s);
         return [`${p}${v.top ? global(s.name) : s.name} = ${bare(value.code)}${END}`];
       }
 
       case 'Write': {
         if (s.action !== 'off' && pins.has(s.pin) && pins.get(s.pin).mode === 'stepper') {
-          throw new VoltError(`'${s.action}' doesn't work on a stepper. Use turn ${s.pin} 90, step ${s.pin} 100 or set ${s.pin} to 180`, s.line);
+          throw new VoltError(`'${s.action}' doesn't work on a stepper. Use turn ${s.pin} 90, step ${s.pin} 100 or set ${s.pin} to 180`, s);
         }
-        const pin = getPin(s.pin, s.line, s.action === 'off' ? ['output', 'pwm', 'stepper'] : ['output', 'pwm'], `'${s.action}'`);
+        const pin = getPin(s.pin, s, s.action === 'off' ? ['output', 'pwm', 'stepper'] : ['output', 'pwm'], `'${s.action}'`);
         if (pin.mode === 'stepper') {
           // Switch the coils off so the motor and driver don't get warm while resting
           return [micro ? `${p}_stepper_off(${s.pin})` : `${p}__stepper_off(${s.pin});`];
@@ -2599,7 +2755,7 @@ function generate(ast, target = 'cpp', options = {}) {
       }
 
       case 'Set': {
-        const pin = getPin(s.pin, s.line, ['output', 'pwm', 'servo', 'stepper'], "'set'");
+        const pin = getPin(s.pin, s, ['output', 'pwm', 'servo', 'stepper'], "'set'");
         if (pin.mode === 'stepper') {
           // Go to an exact angle, the short way round
           const target = bare(genNumber(s.value, "'set'"));
@@ -2611,7 +2767,7 @@ function generate(ast, target = 'cpp', options = {}) {
       }
 
       case 'SetSpeed': {
-        getPin(s.pin, s.line, ['stepper'], "'set … speed'");
+        getPin(s.pin, s, ['stepper'], "'set … speed'");
         const v = bare(genNumber(s.value, "'speed'"));
         // 28BYJ-48 motors stall above about 15 turns per minute
         return [`${p}${rpmVar(s.pin)} = ${clamp(v, 1, 15)}${END}`];
@@ -2619,7 +2775,7 @@ function generate(ast, target = 'cpp', options = {}) {
 
       case 'Step':
       case 'Turn': {
-        getPin(s.pin, s.line, ['stepper'], `'${s.kind.toLowerCase()}'`);
+        getPin(s.pin, s, ['stepper'], `'${s.kind.toLowerCase()}'`);
         const v = bare(genNumber(s.value, `'${s.kind.toLowerCase()}'`));
         const n = s.pin;
         // Volt steps: 2048 per turn. Moved as half-steps (4096 per turn) for smoothness.
@@ -2630,7 +2786,7 @@ function generate(ast, target = 'cpp', options = {}) {
 
       case 'Fade': {
         // Smoothly change brightness in 50 small steps
-        const pin = getPin(s.pin, s.line, ['pwm'], "'fade'");
+        const pin = getPin(s.pin, s, ['pwm'], "'fade'");
         const n = pin.name;
         const lv = levelVar(n);
         const k = uid++;
@@ -2669,14 +2825,14 @@ function generate(ast, target = 'cpp', options = {}) {
           if (!html) {
             throw new VoltError(T.board
               ? "On a board, 'tone' needs the buzzer's pin, like: tone buzzer 440 for 200ms"
-              : "A 'tone' without a pin only works in #html pages", s.line);
+              : "A 'tone' without a pin only works in #html pages", s);
           }
           usesGame = true;
           const f2 = s.toFreq ? bare(genNumber(s.toFreq, "'tone'")) : 'null';
           return [`${p}__beep(${bare(genNumber(s.freq, "'tone'"))}, ${f2}, ${bare(genNumber(s.time, "'tone'"))});`];
         }
-        if (s.toFreq) throw new VoltError("Sliding tones ('to') only work in #html pages", s.line);
-        getPin(s.pin, s.line, ['output'], "'tone'");
+        if (s.toFreq) throw new VoltError("Sliding tones ('to') only work in #html pages", s);
+        getPin(s.pin, s, ['output'], "'tone'");
         const freq = genNumber(s.freq, "'tone'");
         const ms = genNumber(s.time, "'tone'");
         const k = uid++;
@@ -2719,7 +2875,7 @@ function generate(ast, target = 'cpp', options = {}) {
       }
 
       case 'Clear': {
-        if (T.board) throw new VoltError("'clear' doesn't work on boards. It's for scripts and #html pages", s.line);
+        if (T.board) throw new VoltError("'clear' doesn't work on boards. It's for scripts and #html pages", s);
         if (html) return [`${p}__clear();`];
         if (py) return [`${p}print("\\x1b[2J\\x1b[H", end="", flush=True)`];
         if (rb) return [`${p}print("\\e[2J\\e[H")`];
@@ -2740,7 +2896,7 @@ function generate(ast, target = 'cpp', options = {}) {
         const b = bare(genNumber(s.end, "'for'"));
         const v = s.name;
         scopes.push(new Map());
-        checkName(v, s.line);
+        checkName(v, s);
         scopes.pop();
         loopDepth++;
         const bodyLines = genBlock(s.body, depth + 1, [v], 'num');
@@ -2784,7 +2940,7 @@ function generate(ast, target = 'cpp', options = {}) {
 
       case 'Title':
       case 'Html': {
-        htmlOnly(`'${s.kind.toLowerCase()}'`, s.line);
+        htmlOnly(`'${s.kind.toLowerCase()}'`, s);
         return [`${p}__${s.kind.toLowerCase()}(${bare(genExpr(s.value).code)});`];
       }
 
@@ -2792,9 +2948,9 @@ function generate(ast, target = 'cpp', options = {}) {
         if (!html) {
           throw new VoltError(T.board
             ? "'when key' is for #html pages. On a board, use a button: pin button = 2 input, then when button pressed { }"
-            : "'when key' only works in #html pages. Scripts read the keyboard one line at a time with ask", s.line);
+            : "'when key' only works in #html pages. Scripts read the keyboard one line at a time with ask", s);
         }
-        if (!s.key.trim()) throw new VoltError('Put a key name in the quotes, like "k", "space" or "up"', s.line);
+        if (!s.key.trim()) throw new VoltError('Put a key name in the quotes, like "k", "space" or "up"', s);
         const saved = loopDepth;
         loopDepth = 0;
         const body = genBlock(s.body, depth + 1);
@@ -2803,7 +2959,7 @@ function generate(ast, target = 'cpp', options = {}) {
       }
 
       case 'Button': {
-        htmlOnly("'button'", s.line);
+        htmlOnly("'button'", s);
         const label = bare(genExpr(s.label).code);
         const saved = loopDepth;
         loopDepth = 0;
@@ -2857,13 +3013,13 @@ function generate(ast, target = 'cpp', options = {}) {
       }
 
       case 'Break':
-        if (loopDepth === 0) throw new VoltError("'break' only works inside 'repeat' or 'while'", s.line);
+        if (loopDepth === 0) throw new VoltError("'break' only works inside 'repeat' or 'while'", s);
         return [`${p}break${END}`];
 
       case 'Return': {
-        if (!inFunction) throw new VoltError("'return' only works inside a function (fn)", s.line);
+        if (!inFunction) throw new VoltError("'return' only works inside a function (fn)", s);
         const value = s.value ? genExpr(s.value) : { code: '0', type: 'num' };
-        if (cpp && value.type === 'text') throw new VoltError('In #c++, functions can only return numbers, not text', s.line);
+        if (cpp && value.type === 'text') throw new VoltError('In #c++, functions can only return numbers, not text', s);
         return [`${p}return ${bare(value.code)}${END}`];
       }
 
@@ -2922,7 +3078,7 @@ function generate(ast, target = 'cpp', options = {}) {
 
       case 'When': {
         // Debounced button: the reading must stay the same for 30ms before we trust it
-        getPin(s.pin, s.line, ['input'], "'when ... pressed'");
+        getPin(s.pin, s, ['input'], "'when ... pressed'");
         const n = uid++;
         const lastRaw = hidden(`lastRaw${n}`);
         const stable = hidden(`stable${n}`);
@@ -2964,10 +3120,10 @@ function generate(ast, target = 'cpp', options = {}) {
 
       // ---------- lists ----------
       case 'IndexAssign': {
-        listsOk(s.line);
+        listsOk(s);
         const v = lookupVar(s.name);
-        if (!v) throw new VoltError(`Unknown list '${s.name}'. Make it first, like: let ${s.name} = []`, s.line);
-        if (v.type !== 'list' && v.type !== 'any') throw new VoltError(`'${s.name}' isn't a list, so it can't use [ ]`, s.line);
+        if (!v) throw new VoltError(`Unknown list '${s.name}'. Make it first, like: let ${s.name} = []`, s);
+        if (v.type !== 'list' && v.type !== 'any') throw new VoltError(`'${s.name}' isn't a list, so it can't use [ ]`, s);
         const name = v.top ? global(s.name) : s.name;
         const i = bare(genNumber(s.index, 'A list position'));
         return [`${p}${name}[${i}] = ${bare(genExpr(s.value).code)}${END}`];
@@ -2975,10 +3131,10 @@ function generate(ast, target = 'cpp', options = {}) {
 
       case 'ListAdd':
       case 'ListRemove': {
-        listsOk(s.line);
+        listsOk(s);
         const v = lookupVar(s.list);
-        if (!v) throw new VoltError(`Unknown list '${s.list}'. Make it first, like: let ${s.list} = []`, s.line);
-        if (v.type !== 'list' && v.type !== 'any') throw new VoltError(`'${s.list}' isn't a list`, s.line);
+        if (!v) throw new VoltError(`Unknown list '${s.list}'. Make it first, like: let ${s.list} = []`, s);
+        if (v.type !== 'list' && v.type !== 'any') throw new VoltError(`'${s.list}' isn't a list`, s);
         const name = v.top ? global(s.list) : s.list;
         if (s.kind === 'ListAdd') {
           const value = bare(genExpr(s.value).code);
@@ -2992,10 +3148,10 @@ function generate(ast, target = 'cpp', options = {}) {
       }
 
       case 'ForEach': {
-        listsOk(s.line);
+        listsOk(s);
         const list = bare(genExpr(s.list).code);
         scopes.push(new Map());
-        checkName(s.name, s.line);
+        checkName(s.name, s);
         scopes.pop();
         loopDepth++;
         const body = genBlock(s.body, depth + 1, [s.name], 'any');
@@ -3008,7 +3164,7 @@ function generate(ast, target = 'cpp', options = {}) {
 
       // ---------- games (#html) ----------
       case 'Canvas':
-        gameOnly("'canvas'", s.line);
+        gameOnly("'canvas'", s);
         return [`${p}__canvas(${bare(genNumber(s.w, "'canvas'"))}, ${bare(genNumber(s.h, "'canvas'"))});`];
 
       case 'Model3d':
@@ -3017,14 +3173,14 @@ function generate(ast, target = 'cpp', options = {}) {
         return [];  // loaded in pass 1
 
       case 'Sound': {
-        gameOnly("'sound'", s.line);
-        if (!audios.has(s.name)) throw new VoltError(`There is no sound called '${s.name}'. Load it first, like: audio ${s.name} = "${s.name}.mp3"`, s.line);
+        gameOnly("'sound'", s);
+        if (!audios.has(s.name)) throw new VoltError(`There is no sound called '${s.name}'. Load it first, like: audio ${s.name} = "${s.name}.mp3"`, s);
         const vol = s.volume ? `, ${bare(genNumber(s.volume, "'volume'"))}` : '';
         return [`${p}__sound(${s.name}${vol});`];
       }
 
       case 'Volume':
-        gameOnly("'volume'", s.line);
+        gameOnly("'volume'", s);
         return [`${p}__volume(${bare(genNumber(s.value, "'volume'"))});`];
 
       case 'Sprite': {
@@ -3033,10 +3189,10 @@ function generate(ast, target = 'cpp', options = {}) {
       }
 
       case 'Draw': {
-        gameOnly("'draw'", s.line);
+        gameOnly("'draw'", s);
         if (!sprites.has(s.sprite)) {
-          if (images.has(s.sprite)) throw new VoltError(`'${s.sprite}' is a whole image. Cut a sprite out of it first: sprite name = ${s.sprite} at x, y size w, h`, s.line);
-          throw new VoltError(`There is no sprite called '${s.sprite}'. Make it with: sprite ${s.sprite} = image at x, y size w, h`, s.line);
+          if (images.has(s.sprite)) throw new VoltError(`'${s.sprite}' is a whole image. Cut a sprite out of it first: sprite name = ${s.sprite} at x, y size w, h`, s);
+          throw new VoltError(`There is no sprite called '${s.sprite}'. Make it with: sprite ${s.sprite} = image at x, y size w, h`, s);
         }
         const o = s.opts;
         const num = (e, what) => (e ? bare(genNumber(e, what)) : 'null');
@@ -3051,18 +3207,18 @@ function generate(ast, target = 'cpp', options = {}) {
       }
 
       case 'Paint':
-        gameOnly("'paint'", s.line);
+        gameOnly("'paint'", s);
         return [`${p}__paint(${bare(genExpr(s.color).code)});`];
 
       case 'Box': {
-        gameOnly("'box'", s.line);
+        gameOnly("'box'", s);
         const n = (e) => bare(genNumber(e, "'box'"));
         const color = s.color ? bare(genExpr(s.color).code) : '"#fff"';
         return [`${p}__box(${n(s.x)}, ${n(s.y)}, ${n(s.w)}, ${n(s.h)}, ${color});`];
       }
 
       case 'WriteText': {
-        gameOnly("'write'", s.line);
+        gameOnly("'write'", s);
         const o = s.opts;
         const args = [
           bare(genExpr(s.value).code), bare(genNumber(s.x, "'write'")), bare(genNumber(s.y, "'write'")),
@@ -3075,7 +3231,7 @@ function generate(ast, target = 'cpp', options = {}) {
       }
 
       case 'Cmd3d': {
-        gameOnly(`'${s.cmd}'`, s.line);
+        gameOnly(`'${s.cmd}'`, s);
         uses3d = true;
         const n = (e) => bare(genNumber(e, `'${s.cmd}'`));
         const str = (e) => bare(genExpr(e).code);
@@ -3096,23 +3252,23 @@ function generate(ast, target = 'cpp', options = {}) {
       }
 
       case 'Camera':
-        gameOnly("'camera'", s.line);
+        gameOnly("'camera'", s);
         return [`${p}__camera(${bare(genNumber(s.x, "'camera'"))}, ${bare(genNumber(s.y, "'camera'"))});`];
 
       case 'Music': {
-        gameOnly("'music'", s.line);
+        gameOnly("'music'", s);
         if (!s.melody) return [`${p}__music(null);`];
         const bass = s.bass ? bare(genExpr(s.bass).code) : 'null';
         return [`${p}__music(${bare(genExpr(s.melody).code)}, ${bass}, ${bare(genNumber(s.tempo, "'tempo'"))});`];
       }
 
       case 'Save':
-        gameOnly("'save'", s.line);
+        gameOnly("'save'", s);
         return [`${p}__save(${bare(genExpr(s.key).code)}, ${bare(genExpr(s.value).code)});`];
 
       case 'Touchpad': {
-        gameOnly("'touchpad'", s.line);
-        const pic = (f) => strLit(embedFile(f, s.line, MIME, 'a picture', '.png, .jpg, .gif, .webp or .svg'));
+        gameOnly("'touchpad'", s);
+        const pic = (f) => strLit(embedFile(f, s, MIME, 'a picture', '.png, .jpg, .gif, .webp or .svg'));
         const parts = [];
         if (s.art.stick) {
           parts.push(`pad: ${pic(s.art.stick[0])}`);
@@ -3126,7 +3282,7 @@ function generate(ast, target = 'cpp', options = {}) {
 
       case 'EveryFrame': {
         if (!html) {
-          throw new VoltError("'every frame' is for #html games. Use a time instead, like: every 20ms { }", s.line);
+          throw new VoltError("'every frame' is for #html games. Use a time instead, like: every 20ms { }", s);
         }
         usesGame = true;
         const saved = loopDepth;
@@ -3151,7 +3307,7 @@ function generate(ast, target = 'cpp', options = {}) {
         if (s.target.kind === 'Var' && STYLE_TARGETS[s.target.name]) {
           return genStyleAssign(s, p);
         }
-        gameOnly("'.field = ...'", s.line);
+        gameOnly("'.field = ...'", s);
         const target = genExpr(s.target);
         const value = genExpr(s.value);
         return [`${p}${target.code}.${s.field} = ${bare(value.code)}${END}`];
@@ -3172,11 +3328,11 @@ function generate(ast, target = 'cpp', options = {}) {
   ];
 
   const prototypes = [];
-  for (const fn of funcs.values()) {
+  for (const fn of funcs.values()) guard(() => {
     for (const param of fn.params) {
-      checkName(param, fn.line, true);
+      checkName(param, fn, true);
       if (fn.params.filter((x) => x === param).length > 1) {
-        throw new VoltError(`'${fn.name}' has two parameters called '${param}'`, fn.line);
+        throw new VoltError(`'${fn.name}' has two parameters called '${param}'`, fn);
       }
     }
     inFunction = true;
@@ -3198,17 +3354,22 @@ function generate(ast, target = 'cpp', options = {}) {
       prototypes.push(`${sig};`);
       funcLines.push(`// fn ${fn.name} (line ${fn.line})`, `${sig} {`, ...body, '  return 0;', '}', '');
     }
-  }
+  });
 
   // ---------- pass 2: the main program in source order ----------
   const setupDepth = cpp || js ? 1 : 0;      // Python/Ruby "runs once" code sits at the top level
   const loopBodyDepth = js ? 2 : 1;
-  for (const node of ast) {
+  for (const node of ast) guard(() => {
     if (node.kind === 'Forever' || node.kind === 'Every' || node.kind === 'When') {
       loopLines.push(...genStmt(node, loopBodyDepth));
     } else {
       // Anything outside forever/every/when runs once at the start
       setupLines.push(...genStmt(node, setupDepth));
+    }
+  });
+  if (diag && options.isProgram !== false) {
+    for (const fn of funcs.values()) {
+      if (!usedFuncs.has(fn.name) && !inRaw(fn.name)) warn(`The function '${fn.name}' is never called`, fn);
     }
   }
 
@@ -3442,54 +3603,226 @@ function detectTarget(src) {
 // Splices `import "file.volt"` lines in place with that file's contents,
 // recursively, before anything is lexed - so a .volt file (or a library
 // plugin's snippet) can be reused from other .volt files instead of only
-// ever being copy-pasted in by hand. Must be its own unindented line,
-// written exactly as `import "name.volt"` (a literal path in quotes, no
-// expressions). The path resolves the same way 'image'/'audio' files do:
-// against options.baseDir, then options.extraDirs.
+// ever being copy-pasted in by hand. An import is its own line, written
+// as `import "name.volt"` (a literal path in quotes, no expressions).
+//
+// Where the file is looked for, in order:
+//   1. next to the importing file, then options.baseDir, then options.extraDirs
+//      (the same way 'image' / 'audio' files are found)
+//   2. as a package:  import "name"  or  import "name/file.volt"  looks in a
+//      volt_packages/name/ folder beside the program or in any folder above it,
+//      then in options.packageDirs. `volt add` puts packages there.
+//
 // Importing the same file twice (directly, or via two other imports) is
 // fine - the second one is silently skipped, so shared libraries don't
 // produce "already a function called ..." errors.
-// Known limitation: error line numbers after a spliced-in import point at
-// the merged text, not the original file - there's no source map (yet).
-function resolveImports(source, dirs, seen) {
+//
+// Returns the merged lines plus a map from each merged line back to the
+// file and line it came from, so errors can name the real place.
+const IMPORT_LINE = /^\s*import\s+"([^"]+)"\s*(?:\/\/.*)?$/;
+
+// The file a package gives you when you write just  import "name"
+function packageMain(pkgDir, pkgName) {
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.join(pkgDir, 'volt.json'), 'utf8'));
+    if (manifest.main) return path.join(pkgDir, manifest.main);
+  } catch (e) { /* no manifest: fall back to the usual names */ }
+  for (const f of [`${pkgName}.volt`, 'index.volt', 'main.volt', 'lib.volt']) {
+    if (fs.existsSync(path.join(pkgDir, f))) return path.join(pkgDir, f);
+  }
+  return null;
+}
+
+function findImport(name, dirs, packageDirs) {
+  const direct = dirs.map((d) => path.resolve(d, name)).find((x) => fs.existsSync(x) && fs.statSync(x).isFile());
+  if (direct) return direct;
+  // A package: the first part of the name is the package, the rest (if any) a file inside it
+  const parts = name.split('/');
+  const pkgName = parts[0];
+  if (!pkgName || pkgName === '.' || pkgName === '..') return null;
+  const roots = [];
+  for (const d of dirs) {
+    let dir = path.resolve(d);
+    for (;;) {
+      roots.push(path.join(dir, 'volt_packages'));
+      const up = path.dirname(dir);
+      if (up === dir) break;
+      dir = up;
+    }
+  }
+  roots.push(...(packageDirs || []));
+  for (const root of roots) {
+    const pkgDir = path.join(root, pkgName);
+    if (!fs.existsSync(pkgDir)) continue;
+    const file = parts.length > 1 ? path.join(pkgDir, ...parts.slice(1)) : packageMain(pkgDir, pkgName);
+    if (file && fs.existsSync(file)) return file;
+  }
+  return null;
+}
+
+function resolveImports(source, dirs, seen, ctx) {
   const lines = source.split('\n');
   const out = [];
+  const map = [];
+  const push = (text, line) => { out.push(text); map.push({ file: ctx.file, line, importedAt: ctx.importedAt }); };
   for (let i = 0; i < lines.length; i++) {
-    const m = /^import\s+"([^"]+)"\s*$/.exec(lines[i]);
-    if (!m) { out.push(lines[i]); continue; }
+    const m = IMPORT_LINE.exec(lines[i]);
+    if (!m) { push(lines[i], i + 1); continue; }
     const name = m[1];
+    const at = { line: i + 1, col: lines[i].indexOf('"') + 1, endCol: lines[i].lastIndexOf('"') + 2 };
+    const fail = (message, hint) => {
+      const e = new VoltError(message, at, hint);
+      e.file = ctx.file;
+      e.importedAt = ctx.importedAt;
+      e.mapped = true;
+      return e;
+    };
     if (!dirs.length) {
-      throw new VoltError(`Can't import '${name}' - this program has no folder to look in`, i + 1);
+      throw fail(`Can't import '${name}' - this program has no folder to look in`, 'Save the .volt file first, then imports are found next to it');
     }
-    const full = dirs.map((d) => path.resolve(d, name)).find((x) => fs.existsSync(x));
+    const full = findImport(name, dirs, ctx.packageDirs);
     if (!full) {
-      throw new VoltError(`Can't import '${name}'. Put it in the same folder as your .volt file`, i + 1);
+      const isPackage = !/\.volt$/i.test(name);
+      throw fail(isPackage
+        ? `Can't find the package '${name}'. Install it with: volt add ${name.split('/')[0]}`
+        : `Can't import '${name}'. Put it in the same folder as your .volt file`);
     }
-    if (seen.has(full)) { out.push(`// (already imported '${name}')`); continue; }
+    if (seen.has(full)) { push(`// (already imported '${name}')`, i + 1); continue; }
     seen.add(full);
     const imported = fs.readFileSync(full, 'utf8').replace(/\r\n?/g, '\n');
-    out.push(`// ---- imported from '${name}' ----`);
-    out.push(resolveImports(imported, [path.dirname(full), ...dirs.slice(1)], seen));
-    out.push(`// ---- end '${name}' ----`);
+    push(`// ---- imported from '${name}' ----`, i + 1);
+    const inner = resolveImports(imported, [path.dirname(full), ...dirs.slice(1)], seen, {
+      file: full, importedAt: ctx.importedAt || (i + 1), packageDirs: ctx.packageDirs,
+    });
+    // (the imported file's lines are kept as ONE entry in 'out', exactly as before)
+    out.push(inner.lines.join('\n'));
+    map.push(...inner.map);
+    push(`// ---- end '${name}' ----`, i + 1);
   }
-  return out.join('\n');
+  return { lines: out, map };
+}
+
+// Turns the text of a .volt file into what the lexer reads: imports spliced in and the first
+// line (#c++, #html ...) taken off. 'map' says where each line of that text really came from.
+function prepare(source, options = {}) {
+  let normalized = source.replace(/\r\n?/g, '\n');
+  let map = null;
+  if (/^\s*import\s+"/m.test(normalized)) {
+    const dirs = [options.baseDir, ...(options.extraDirs || [])].filter(Boolean);
+    const merged = resolveImports(normalized, dirs, new Set(), { file: null, importedAt: null, packageDirs: options.packageDirs });
+    normalized = merged.lines.join('\n');
+    map = merged.map;
+  }
+  let detected;
+  try {
+    detected = detectTarget(normalized);
+  } catch (e) {
+    throw remap(e, map);
+  }
+  return { src: detected.src, target: detected.target, map };
+}
+
+// Points an error at the file and line it really came from (after imports were spliced in)
+function remap(e, map) {
+  if (!(e instanceof VoltError) || e.mapped) return e;
+  e.mapped = true;
+  const origin = map && map[e.line - 1];
+  if (origin) {
+    e.line = origin.line;
+    e.file = origin.file;                 // null = the program itself
+    e.importedAt = origin.importedAt;     // the line of the program's own import that led here
+  }
+  return e;
 }
 
 // options.baseDir: the .volt file's folder, so 'image' can pack pictures into the page
 function compile(source, options = {}) {
-  let normalized = source.replace(/\r\n?/g, '\n');
-  if (/^import\s+"/m.test(normalized)) {
-    const dirs = [options.baseDir, ...(options.extraDirs || [])].filter(Boolean);
-    normalized = resolveImports(normalized, dirs, new Set());
+  let prepared = null;
+  try {
+    prepared = prepare(source, options);
+    const tokens = lex(prepared.src);
+    const ast = parse(tokens);
+    // #python means a board (MicroPython) when the program uses pins, otherwise a normal script
+    let target = prepared.target;
+    if (target === 'python?') target = ast.some((n) => n.kind === 'Pin') ? 'micropython' : 'python';
+    if (EXTRA_GENERATORS[target]) return { target, code: EXTRA_GENERATORS[target](ast) };
+    return { target, code: generate(ast, target, options) };
+  } catch (e) {
+    throw remap(e, prepared && prepared.map);
   }
-  const detected = detectTarget(normalized);
-  const tokens = lex(detected.src);
-  const ast = parse(tokens);
-  // #python means a board (MicroPython) when the program uses pins, otherwise a normal script
-  let target = detected.target;
-  if (target === 'python?') target = ast.some((n) => n.kind === 'Pin') ? 'micropython' : 'python';
-  if (EXTRA_GENERATORS[target]) return { target, code: EXTRA_GENERATORS[target](ast) };
-  return { target, code: generate(ast, target, options) };
+}
+
+// Like compile(), but never throws for mistakes in the program: it returns every problem it
+// can find (errors and warnings), each with a line, column range and optional hint. Editors
+// and the language server use this.
+//   const { ok, target, code, diagnostics } = volt.check(source, { baseDir });
+//   diagnostics: [{ severity: 'error' | 'warning', message, hint, line, col, endCol, file }]
+function check(source, options = {}) {
+  const found = [];
+  const result = { ok: false, target: null, code: null, diagnostics: [], ast: null, tokens: null };
+  let prepared = null;
+  try {
+    prepared = prepare(source, options);
+    const tokens = lex(prepared.src);
+    result.tokens = tokens;
+    const ast = parse(tokens, { errors: found });
+    result.ast = ast;
+    let target = prepared.target;
+    if (target === 'python?') target = ast.some((n) => n.kind === 'Pin') ? 'micropython' : 'python';
+    result.target = target;
+    if (EXTRA_GENERATORS[target]) {
+      if (!found.length) result.code = EXTRA_GENERATORS[target](ast);
+    } else {
+      const code = generate(ast, target, { ...options, diagnostics: found });
+      if (!found.some((d) => d.severity === 'error')) result.code = code;
+    }
+  } catch (e) {
+    if (!(e instanceof VoltError)) throw e;
+    found.push(e);
+  }
+  const seen = new Set();
+  for (const e of found) {
+    remap(e, prepared && prepared.map);
+    const d = {
+      severity: e.severity || 'error', message: e.message, hint: e.hint || null,
+      line: e.line || 1, col: e.col || null, endCol: e.endCol || null,
+      file: e.file || null, importedAt: e.importedAt || null,
+    };
+    const key = `${d.file}|${d.line}|${d.col}|${d.message}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.diagnostics.push(d);
+  }
+  result.diagnostics.sort((a, b) => (a.file || '').localeCompare(b.file || '') || a.line - b.line || (a.col || 0) - (b.col || 0));
+  result.ok = !result.diagnostics.some((d) => d.severity === 'error');
+  if (!result.ok) result.code = null;
+  return result;
+}
+
+// A problem written out the way the command line shows it:
+//   game.volt:12:8  error: Unknown variable 'scroe'. Did you mean 'score'?
+//     12 |   show scroe + 1
+//        |        ^^^^^
+// 'd' is a VoltError or one entry of check().diagnostics; sourceOf(file) returns that file's text.
+function formatProblem(d, mainFile, sourceOf) {
+  const file = d.file || mainFile || 'program.volt';
+  const where = `${file}:${d.line}${d.col ? `:${d.col}` : ''}`;
+  const out = [`${where}  ${d.severity || 'error'}: ${d.message}`];
+  let text = null;
+  try { text = sourceOf ? sourceOf(d.file || null) : null; } catch (e) { text = null; }
+  const srcLine = text == null ? undefined : text.replace(/\r\n?/g, '\n').split('\n')[d.line - 1];
+  if (srcLine !== undefined && srcLine.trim() !== '') {
+    const gutter = String(d.line);
+    const shown = srcLine.replace(/\t/g, ' ');
+    out.push(`  ${gutter} | ${shown}`);
+    if (d.col) {
+      const end = Math.max(d.col + 1, Math.min(d.endCol || d.col + 1, shown.length + 1));
+      out.push(`  ${' '.repeat(gutter.length)} | ${' '.repeat(d.col - 1)}${'^'.repeat(end - d.col)}`);
+    }
+  }
+  if (d.hint) out.push(`  hint: ${d.hint}`);
+  if (d.file && d.importedAt) out.push(`  (imported at ${mainFile || 'the program'}, line ${d.importedAt})`);
+  return out.join('\n');
 }
 
 // Where the compiled file goes for a given .volt file
@@ -3537,16 +3870,12 @@ function main() {
     console.log(`Compiled ${file} -> ${outFile}  (${HINTS[target] || 'see the addon that provides this target'})`);
   } catch (e) {
     if (e instanceof VoltError) {
-      console.error(`${file}, line ${e.line}: ${e.message}`);
-      const srcLine = src.split('\n')[e.line - 1];
-      if (srcLine !== undefined && srcLine.trim() !== '') {
-        console.error(`  ${e.line} | ${srcLine}`);
-      }
+      console.error(formatProblem(e, file, (f) => (f ? fs.readFileSync(f, 'utf8') : src)));
       process.exit(1);
     }
     throw e;
   }
 }
 
-module.exports = { VERSION, lex, parse, generate, compile, outputPath, VoltError, KEYWORDS, BUILTINS, TARGETS, registerTarget };
+module.exports = { VERSION, lex, parse, generate, compile, check, prepare, formatProblem, findImport, outputPath, VoltError, KEYWORDS, BUILTINS, TARGETS, TARGET_NAMES, registerTarget };
 if (require.main === module) main();

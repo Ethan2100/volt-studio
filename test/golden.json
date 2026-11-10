@@ -195,7 +195,9 @@
   "bytes": 90061
  },
  "examples/roguelike/yokai-descent.volt": {
-  "error": "line 1340: 'dist' is a reserved name (Volt or one of its languages already uses it), please pick another"
+  "target": "html",
+  "sha1": "17d0ea9d80aebad04efeee0c077a2a75e9bfff40",
+  "bytes": 1701352
  },
  "plugins/combat-vfx/engine.volt": {
   "target": "html",
