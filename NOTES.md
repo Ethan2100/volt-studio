@@ -379,3 +379,35 @@ were photographed rather than reasoned about.
   They are cheap and gated on focus; worth tidying, not worth risking here.
 - Tools > Upload Setup Check still blocks for a few seconds behind its probes with no spinner.
   Caching misses took most of the sting out of it; the spinner is a separate change.
+
+---
+
+## apps/volt-fm.volt - a music app in one file
+
+The app, after the Studio pass. It is shaped like the music apps people actually use: a sidebar
+with Home, Search and Library, a list of songs, mood filters, likes, a playlist, and a now-playing
+bar with a visualiser.
+
+What makes it worth having in this repo rather than being a mockup of one:
+
+- **The songs are real.** Eight original chiptunes, each a `music` line of notes and a bassline at
+  its own tempo. The page synthesizes them; there are no audio files.
+- **The covers are real too.** Each one is drawn from the song's own name - the name becomes a
+  number, the number becomes the bars and the colours. No images anywhere, so the whole app is a
+  single `.volt` file with no folder of assets beside it.
+- **Likes and the playlist persist** through `save` / `saved`, so they survive a reload.
+
+### What it cost to get right
+
+The layout was wrong in ways that only showed up in a screenshot: the toast box overlapped the
+subtitle, the mood chips were drawn over it, the scroll hint sat half-under the player bar, and
+the "liked" marker in the player bar was an orphaned letter. Each was found by looking at a
+rendering, not by reading the code.
+
+Worse, two of them were bugs I introduced by fixing the first ones: moving the mood chips down
+left their *clickable* area 10px above where they were drawn, so the top sliver of a chip worked
+and the rest did nothing; and moving the like marker left a hit area with nothing drawn under it.
+Both were caught by driving the page in a real browser - clicking where a person would click and
+checking what changed - rather than by looking at it again.
+
+`test/golden.json` has it, so its output is pinned like everything else.

@@ -60,6 +60,7 @@ let liked = []            // one 0/1 per track
 let queue = []            // the playlist you build
 let note = ""
 let noteUntil = 0
+let fits = 6              // rows of the list that fit on screen
 let scroll = 0
 
 // the clock on whoever's computer is showing this, which Volt has no word for yet
@@ -259,7 +260,6 @@ fn drawRow(i, slot, top) {
 
 fn drawList(top) {
   let rows = shownCount()
-  let fits = 6
   if rows == 0 {
     write "Nothing here yet." at 102, top + 10 color "#6b7389"
     if screen == 2 {
@@ -272,9 +272,6 @@ fn drawList(top) {
     if at < rows {
       drawRow(trackAtRow(at), slot, top)
     }
-  }
-  if rows > fits {
-    write "{scroll + 1}-{min(scroll + fits, rows)} of {rows}   up and down arrows to scroll" at 102, top + fits * 26 + 4 color "#5d6579"
   }
   return 0
 }
@@ -305,8 +302,13 @@ fn drawPlayer() {
   } else {
     write "playing" at 420, 240 color one.tint
   }
+  // a like control that is always there, so there is something to aim at
   if liked[playing] == 1 {
+    box 368, 234, 38, 16 color "#2a1119"
     write "liked" at 372, 240 color "#ff4d6d"
+  } else {
+    box 368, 234, 38, 16 color "#1a1e27"
+    write "like" at 375, 240 color "#6b7389"
   }
   return 0
 }
@@ -375,7 +377,7 @@ every frame {
         }
       }
     } else {
-      if screen == 1 and my >= 34 and my < 50 {
+      if screen == 1 and my >= 44 and my < 60 {
         for each name, i in moods {
           let x = 100 + i * 62
           if mx >= x and mx < x + 56 {
@@ -396,7 +398,7 @@ every frame {
         }
       }
       if my >= 226 and playing >= 0 {
-        if mx >= 400 and mx < 416 {
+        if mx >= 368 and mx < 406 and my >= 234 and my < 250 {
           toggleLike()
         } else {
           paused = not paused
@@ -418,7 +420,13 @@ every frame {
     title = "Your Library"
   }
   write title at 100, 14 color "#ffffff"
-  write "{length(tracks)} songs, played by this page" at 100, 30 color "#5d6579"
+  // the list is six rows tall; when there are more, this line says where you are
+  let rows = shownCount()
+  let subtitle = "{length(tracks)} songs, played by this page"
+  if rows > fits {
+    subtitle = "{scroll + 1}-{min(scroll + fits, rows)} of {rows} - up and down arrows to scroll"
+  }
+  write subtitle at 100, 30 color "#5d6579"
 
   if screen == 1 {
     for each name, i in moods {
