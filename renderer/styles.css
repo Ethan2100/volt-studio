@@ -210,7 +210,35 @@ select option { background: var(--panel-2); color: var(--text); }
 #output .cm-s-volt .cm-meta { background: none; color: #c792ea; padding: 0; font-weight: 400; }
 
 .line-error { background: rgba(255, 107, 107, 0.1); }
+.line-warning { background: rgba(255, 210, 63, 0.07); }
+/* the exact letters that are wrong, underlined where they are */
+.squiggle-error { border-bottom: 2px wavy var(--err); text-decoration: underline wavy var(--err); text-decoration-skip-ink: none; }
+.squiggle-warning { text-decoration: underline wavy #ffd23f; text-decoration-skip-ink: none; }
+.warning-marker { color: #ffd23f; font-weight: 900; padding-left: 4px; }
+.jump-flash { background: rgba(255, 210, 63, 0.35); border-radius: 3px; }
+/* what a name means, when the pointer rests on it */
+.hover-box {
+  position: fixed; z-index: 60; max-width: 420px; padding: 9px 12px;
+  background: var(--panel); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.45); pointer-events: none;
+  font-size: 13px; line-height: 1.5;
+}
+.hover-sig { font-family: Consolas, "Courier New", monospace; color: #7cc4ff; margin-bottom: 3px; }
+.hover-problem { color: var(--err); margin-bottom: 3px; }
+.hover-doc { color: var(--faint); }
+/* autocomplete rows: a little tag, the name, then what it is */
+.CodeMirror-hints { z-index: 70; }
+.hint-tag {
+  display: inline-block; min-width: 30px; margin-right: 8px; padding: 0 4px;
+  border-radius: 4px; background: rgba(255, 255, 255, 0.07); color: var(--faint);
+  font-size: 10px; text-align: center; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.hint-label { font-weight: 600; }
+.hint-detail { margin-left: 10px; color: var(--faint); font-size: 11px; }
+.CodeMirror-hint-active .hint-detail, .CodeMirror-hint-active .hint-tag { color: inherit; opacity: 0.8; }
 .error-marker { color: var(--err); font-weight: 900; padding-left: 4px; }
+.warning-widget { background: rgba(255, 210, 63, 0.12) !important; color: #ffd98a !important; }
 .error-widget {
   margin: 2px 0 6px 6px; padding: 5px 10px;
   border-left: 3px solid var(--err); border-radius: 0 6px 6px 0;

@@ -4312,5 +4312,5 @@ function main() {
   }
 }
 
-module.exports = { VERSION, lex, parse, generate, compile, check, prepare, formatProblem, findImport, outputPath, VoltError, KEYWORDS, BUILTINS, TARGETS, TARGET_NAMES, registerTarget };
+module.exports = { VERSION, lex, parse, generate, compile, check, prepare, formatProblem, findImport, outputPath, VoltError, KEYWORDS, BUILTINS, TARGETS, TARGET_NAMES, GAME_WORDS, PAGE_WORDS, LIST_WORDS, PIN_MODES, registerTarget };
 if (require.main === module) main();

@@ -91,7 +91,9 @@ const state = {
   dirty: false,
   target: 'cpp',
   lastResult: null,
-  errorMark: null,       // { line, widget }
+  problems: [],          // every error and warning in the file, from the language service
+  outputTarget: null,    // the language the output pane is currently showing
+  marks: [],             // what is drawn in the editor for them
   monitorOpen: false,
   uploading: false,
   running: false,        // a script is running
@@ -119,11 +121,21 @@ const editor = CodeMirror($('editor'), {
       else cm.replaceSelection('  ');
     },
     'Shift-Tab': (cm) => cm.indentSelection('subtract'),
-    'Ctrl-Space': (cm) => cm.showHint({ hint: CodeMirror.hint.volt, completeSingle: false }),
+    'Ctrl-Space': (cm) => cm.showHint({ hint: voltHint, completeSingle: false, closeOnUnfocus: true }),
+    F12: () => goToDefinition(),
+    'Ctrl-B': () => goToDefinition(),
     'Ctrl-/': (cm) => cm.toggleComment(),
     'Cmd-/': (cm) => cm.toggleComment(),
   },
 });
+
+// Colour the editor with the compiler's own word lists, so a new built-in or command is
+// highlighted without this file or volt-mode.js being touched.
+api.langWords().then((words) => {
+  if (!words || !window.VoltMode) return;
+  window.VoltMode.define(words);
+  editor.setOption('mode', 'volt');
+}).catch(() => { /* keep the built-in word lists */ });
 
 // Faded suggestions after the cursor (see ghost.js); Tab accepts
 const ghost = window.VoltGhost.attach(editor, () => state.target);
@@ -280,27 +292,180 @@ async function saveFile(saveAs = false) {
 //  Compiling
 // ---------------------------------------------------------------------
 function clearError() {
-  if (!state.errorMark) return;
-  const { line, widget } = state.errorMark;
-  editor.removeLineClass(line, 'background', 'line-error');
-  editor.setGutterMarker(line, 'error-gutter', null);
-  widget.clear();
-  state.errorMark = null;
+  for (const m of state.marks) {
+    try { m.clear ? m.clear() : null; } catch (e) { /* already gone */ }
+  }
+  state.marks = [];
+  for (let i = 0; i < editor.lineCount(); i++) {
+    editor.removeLineClass(i, 'background', 'line-error');
+    editor.removeLineClass(i, 'background', 'line-warning');
+    editor.setGutterMarker(i, 'error-gutter', null);
+  }
+  state.problems = [];
 }
 
-function showError(line, message) {
+// Shows every problem at once: the exact letters underlined, a mark in the gutter, and the
+// message on the line it belongs to. Errors are red, warnings yellow.
+function showProblems(list) {
   clearError();
-  const ln = Math.max(0, Math.min(editor.lineCount() - 1, (line || 1) - 1));
-  editor.addLineClass(ln, 'background', 'line-error');
-  const marker = document.createElement('span');
-  marker.className = 'error-marker';
-  marker.textContent = '!';
-  editor.setGutterMarker(ln, 'error-gutter', marker);
-  const box = document.createElement('div');
-  box.className = 'error-widget';
-  box.textContent = message;
-  const widget = editor.addLineWidget(ln, box, { coverGutter: false, noHScroll: true });
-  state.errorMark = { line: ln, widget };
+  state.problems = list;
+  const byLine = new Map();
+  for (const p of list) {
+    if (p.file) continue;                       // a problem inside an imported file, not this one
+    const ln = Math.max(0, Math.min(editor.lineCount() - 1, (p.line || 1) - 1));
+    const warn = p.severity === 'warning';
+    editor.addLineClass(ln, 'background', warn ? 'line-warning' : 'line-error');
+    if (p.col) {
+      const text = editor.getLine(ln) || '';
+      const from = { line: ln, ch: Math.max(0, p.col - 1) };
+      const to = { line: ln, ch: Math.min(text.length, Math.max(p.col, (p.endCol || p.col + 1) - 1)) };
+      if (to.ch > from.ch) state.marks.push(editor.markText(from, to, { className: warn ? 'squiggle-warning' : 'squiggle-error', title: p.message }));
+    }
+    if (!byLine.has(ln)) byLine.set(ln, []);
+    byLine.get(ln).push(p);
+  }
+  for (const [ln, here] of byLine) {
+    const worst = here.find((p) => p.severity !== 'warning') || here[0];
+    const marker = document.createElement('span');
+    marker.className = worst.severity === 'warning' ? 'warning-marker' : 'error-marker';
+    marker.textContent = worst.severity === 'warning' ? '!' : '!';
+    marker.title = here.map((p) => p.message).join('\n');
+    editor.setGutterMarker(ln, 'error-gutter', marker);
+
+    const box = document.createElement('div');
+    box.className = worst.severity === 'warning' ? 'error-widget warning-widget' : 'error-widget';
+    box.textContent = here.map((p) => p.message + (p.hint ? ` - ${p.hint}` : '')).join('\n');
+    state.marks.push(editor.addLineWidget(ln, box, { coverGutter: false, noHScroll: true }));
+  }
+  // problems inside imported files have nowhere to point in this editor, so they go to the console
+  for (const p of list.filter((x) => x.file)) {
+    logLine(`${p.severity === 'warning' ? '!' : '✗'} ${baseName(p.file)}, line ${p.line}: ${p.message}\n`, p.severity === 'warning' ? 'warn' : 'error');
+  }
+}
+
+// ---------------------------------------------------------------------
+//  Autocomplete, hover and go to definition - all from lib/language-service.js,
+//  so the editor always knows exactly what the compiler knows.
+// ---------------------------------------------------------------------
+const HINT_ICON = {
+  variable: 'var', function: 'fn', parameter: 'arg', pin: 'pin', type: 'type',
+  sprite: 'img', image: 'img', audio: 'snd', model3d: '3d',
+  builtin: 'fn', statement: 'cmd', keyword: 'key', target: '#', snippet: '…',
+};
+
+function voltHint(cm, callback) {
+  const cur = cm.getCursor();
+  api.langCompletions({ source: cm.getValue(), line: cur.line + 1, col: cur.ch + 1 }).then((r) => {
+    const items = (r && r.items) || [];
+    const replace = (r && r.replace) || { startCol: cur.ch + 1, endCol: cur.ch + 1 };
+    callback({
+      from: CodeMirror.Pos(cur.line, Math.max(0, replace.startCol - 1)),
+      to: CodeMirror.Pos(cur.line, Math.max(0, replace.endCol - 1)),
+      list: items.slice(0, 200).map((c) => ({
+        text: c.insert,
+        displayText: c.label,
+        className: `hint-${c.kind}`,
+        render(el) {
+          const tag = document.createElement('span');
+          tag.className = 'hint-tag';
+          tag.textContent = HINT_ICON[c.kind] || '';
+          const name = document.createElement('span');
+          name.className = 'hint-label';
+          name.textContent = c.label;
+          el.append(tag, name);
+          if (c.detail && c.detail !== c.label) {
+            const detail = document.createElement('span');
+            detail.className = 'hint-detail';
+            detail.textContent = c.detail;
+            el.append(detail);
+          }
+        },
+        // a snippet is written with $1 where the cursor should land
+        hint(editorRef, data, item) {
+          const text = String(item.text).replace(/\$\d/g, '');
+          const caret = String(item.text).indexOf('$1');
+          editorRef.replaceRange(text, data.from, data.to);
+          if (caret >= 0) {
+            const before = String(item.text).slice(0, caret).split('\n');
+            editorRef.setCursor({
+              line: data.from.line + before.length - 1,
+              ch: before.length === 1 ? data.from.ch + before[0].length : before[before.length - 1].length,
+            });
+          }
+        },
+      })),
+    });
+  }).catch(() => callback({ from: cur, to: cur, list: [] }));
+}
+voltHint.async = true;
+
+// Suggest as you type, without getting in the way of typing a number or a string
+let hintTimer = null;
+editor.on('inputRead', (cm, change) => {
+  if (!state.settings.autoComplete && state.settings.autoComplete !== undefined) return;
+  clearTimeout(hintTimer);
+  if (change.origin !== '+input' || !/[A-Za-z_]/.test(change.text[0] || '')) return;
+  const token = cm.getTokenAt(cm.getCursor());
+  if (token.type === 'string' || token.type === 'comment' || token.type === 'raw') return;
+  hintTimer = setTimeout(() => {
+    if (!cm.state.completionActive) cm.showHint({ hint: voltHint, completeSingle: false, closeOnUnfocus: true });
+  }, 160);
+});
+
+async function goToDefinition() {
+  const cur = editor.getCursor();
+  const at = await api.langDefinition({ source: editor.getValue(), line: cur.line + 1, col: cur.ch + 1 });
+  if (!at) { toast('No definition found for that name'); return; }
+  editor.setCursor({ line: at.line - 1, ch: at.col - 1 });
+  editor.scrollIntoView(null, 140);
+  editor.focus();
+  const mark = editor.markText({ line: at.line - 1, ch: at.col - 1 }, { line: at.line - 1, ch: at.endCol - 1 }, { className: 'jump-flash' });
+  setTimeout(() => mark.clear(), 900);
+}
+// Ctrl+click jumps too
+editor.getWrapperElement().addEventListener('mousedown', (e) => {
+  if (!e.ctrlKey && !e.metaKey) return;
+  const pos = editor.coordsChar({ left: e.clientX, top: e.clientY });
+  editor.setCursor(pos);
+  goToDefinition();
+});
+
+// Hovering a name explains it
+let hoverTimer = null;
+let hoverBox = null;
+function hideHover() { if (hoverBox) { hoverBox.remove(); hoverBox = null; } }
+editor.getWrapperElement().addEventListener('mousemove', (e) => {
+  clearTimeout(hoverTimer);
+  if (hoverBox && !hoverBox.contains(e.target)) hideHover();
+  const { clientX, clientY } = e;
+  hoverTimer = setTimeout(async () => {
+    const pos = editor.coordsChar({ left: clientX, top: clientY });
+    if (!pos || pos.outside) return;
+    // a problem on this spot is more useful than what the name means
+    const here = state.problems.find((p) => !p.file && p.line === pos.line + 1 && p.col && pos.ch + 1 >= p.col && pos.ch + 1 < (p.endCol || p.col + 1));
+    const info = here ? null : await api.langHover({ source: editor.getValue(), line: pos.line + 1, col: pos.ch + 1 });
+    if (!here && !info) return;
+    hideHover();
+    hoverBox = document.createElement('div');
+    hoverBox.className = 'hover-box';
+    if (here) {
+      hoverBox.innerHTML = `<div class="hover-problem">${escapeHtml(here.message)}</div>${here.hint ? `<div class="hover-doc">${escapeHtml(here.hint)}</div>` : ''}`;
+    } else {
+      hoverBox.innerHTML = `<div class="hover-sig">${escapeHtml(info.signature)}</div><div class="hover-doc">${escapeHtml(info.doc)}</div>`;
+    }
+    document.body.appendChild(hoverBox);
+    const box = hoverBox.getBoundingClientRect();
+    hoverBox.style.left = `${Math.max(8, Math.min(window.innerWidth - box.width - 8, clientX - 20))}px`;
+    hoverBox.style.top = `${clientY - box.height - 12 < 8 ? clientY + 20 : clientY - box.height - 12}px`;
+  }, 420);
+});
+editor.getWrapperElement().addEventListener('mouseleave', () => { clearTimeout(hoverTimer); hideHover(); });
+editor.on('cursorActivity', hideHover);
+editor.on('change', hideHover);
+
+// The first error, for jumping to and for the status bar
+function firstError() {
+  return state.problems.find((p) => p.severity !== 'warning' && !p.file) || state.problems.find((p) => p.severity !== 'warning') || null;
 }
 
 function setTarget(target) {
@@ -351,22 +516,41 @@ function scheduleCompile() {
 }
 
 async function compileNow() {
-  const r = await api.compile(editor.getValue());
+  const source = editor.getValue();
+  const lang = (await api.langDiagnostics({ source, filePath: state.filePath })) || {};
+  const problems = lang.diagnostics || [];
+  const r = await api.compile(source);
   state.lastResult = r;
   updateAiErrorButton();
+  showProblems(problems);
+  // Say what the file compiles to even when it doesn't compile yet, so the language shown in the
+  // toolbar always matches the first line rather than lagging behind the last program that worked.
+  if (lang.target && lang.target !== state.target && LANGS[lang.target]) setTarget(lang.target);
+  const errors = problems.filter((p) => p.severity !== 'warning');
+  const warnings = problems.filter((p) => p.severity === 'warning');
   if (r.ok) {
-    clearError();
     if (r.target !== state.target) setTarget(r.target);
     const scroll = output.getScrollInfo();
     output.setValue(r.code);
     output.scrollTo(scroll.left, scroll.top);
-    const lines = r.code.split('\n').length;
-    $('output-info').textContent = `${lines} lines · updates as you type`;
-    setStatus(`✓ No errors · compiles to ${LANGS[r.target].label}`, 'ok');
+    state.outputTarget = r.target;
+    const count = r.code.split('\n').length;
+    $('output-info').textContent = `${count} lines · updates as you type`;
+    const note = warnings.length ? ` · ${warnings.length} thing${warnings.length === 1 ? '' : 's'} to look at` : '';
+    setStatus(`✓ No errors · compiles to ${LANGS[r.target].label}${note}`, warnings.length ? '' : 'ok');
   } else {
-    showError(r.line, r.message);
-    $('output-info').textContent = 'Fix the error to update';
-    setStatus(`✗ Line ${r.line}: ${r.message}`, 'error');
+    // the language service found every problem; the compiler agrees about the first one
+    const first = errors[0] || { line: r.line, col: null, message: r.message };
+    if (!problems.length) showProblems([{ severity: 'error', line: r.line, col: null, endCol: null, message: r.message, hint: null, file: null }]);
+    // The last working output is kept while you fix a mistake - but once the first line picks a
+    // different language, that old output is for a different language and would just mislead.
+    if (state.outputTarget && lang.target && state.outputTarget !== lang.target) {
+      output.setValue('');
+      state.outputTarget = null;
+    }
+    $('output-info').textContent = state.outputTarget ? 'Fix the error to update' : `Fix the error to see the ${LANGS[lang.target] ? LANGS[lang.target].label : 'output'}`;
+    const more = errors.length > 1 ? ` (and ${errors.length - 1} more)` : '';
+    setStatus(`✗ Line ${first.line}: ${first.message}${more}`, 'error');
   }
   return r;
 }
@@ -390,8 +574,9 @@ async function compileAndSave() {
 }
 
 function jumpToError() {
-  if (!state.errorMark) return;
-  editor.setCursor(state.errorMark.line, 0);
+  const p = firstError() || state.problems[0];
+  if (!p || p.file) return;
+  editor.setCursor((p.line || 1) - 1, Math.max(0, (p.col || 1) - 1));
   editor.scrollIntoView(null, 120);
   editor.focus();
 }

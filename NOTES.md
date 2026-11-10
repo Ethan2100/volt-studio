@@ -131,3 +131,47 @@ These behave the same before and after the upgrade, and are worth a decision lat
 - Decimals print differently per target: `1.5 + 2.5` is `4` in `#js`, `4.0` in `#python`/`#ruby`.
 - A list shown as text differs: `1,2` in `#js`, `[1, 2]` in `#python`/`#ruby`.
 - An unescaped `"` inside text ends the text, so `"a { font: "Arial" } b"` is an error. Write `\"`.
+
+## Step 6 - Volt Studio
+
+The editor now asks a shared language service (`lib/language-service.js`) instead of guessing.
+The same file serves the VS Code extension later, so the two can't drift apart.
+
+**Every problem at once.** The editor used to show one error, highlighting the whole line.
+It now shows every error *and* warning the compiler found, with the exact letters underlined,
+a mark in the gutter, and the message on the line it belongs to. Warnings are yellow, errors red.
+
+**Autocomplete that knows the file.** It offers the variables, functions, parameters, pins, types
+and sprites the file itself makes, ranked above built-ins, and it only offers what the current
+target can do - no `mousex()` in a `#python` script, no `sort()` on a board. Built-ins come with
+their signature and a line of explanation. Suggestions appear as you type a name.
+
+**Hover** explains whatever is under the pointer: a built-in's signature and what it does, or
+where one of your own names was made. Resting on a mistake shows the message and its hint.
+
+**Go to definition** with F12, Ctrl+B or Ctrl+click, and a flash to show where it landed.
+
+**Highlighting comes from the compiler now.** `renderer/volt-mode.js` used to keep its own copy of
+the keyword and built-in lists, and had already fallen behind by nine built-ins. It now builds its
+rules from `highlightWords()`, so a new built-in is coloured without anyone editing the editor.
+The old hand-written lists are kept only as a fallback for when the service can't be reached.
+
+**Two things the screenshots caught**, both pre-existing and both fixed:
+
+- The language in the toolbar only updated when the file compiled, so a `#html` file with a typo
+  still said "Arduino C++". It now follows the first line whatever the state of the file.
+- While an error was being fixed, the output pane kept showing the last working output - which,
+  after the first line changed language, meant Arduino C++ code sitting under an "HTML page"
+  label. Output from a different language is now cleared instead.
+
+### How this is tested
+
+`test/suite/08-language-service.js` covers the service itself, including that it never throws on
+half-written code (it is asked at every keystroke) and that the built-in docs cover exactly the
+compiler's built-ins with the same number of values.
+
+`test/suite/09-studio.js` opens the real Volt Studio window with Electron and checks what a person
+would actually see: three problems from one file with the right severities, `scroe` underlined
+rather than the whole line, warnings styled differently, autocomplete putting the file's own
+variable first and offering 3D names in `#html`, hover, go to definition, and `shuffle` being
+coloured as a built-in. It skips when Electron isn't installed.

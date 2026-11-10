@@ -12,6 +12,7 @@ const { spawn, spawnSync } = require('child_process');
 const volt = require('./compiler/volt.js');
 const { MicroPythonUploader } = require('./lib/micropython.js');
 const pluginsLib = require('./lib/plugins.js');
+const languageService = require('./lib/language-service.js');
 const ai = require('./lib/ai.js');
 
 let SerialPort = null;
@@ -418,6 +419,37 @@ function compileSource(source, filePath, assetDir) {
 
 // Live compile while typing (nothing is written to disk)
 ipcMain.handle('volt:compile', (e, source) => compileSource(source));
+
+// ---------------------------------------------------------------------
+//  Language service: everything the editor knows about the file being typed
+//  (all the problems at once, autocomplete, hover, go to definition, outline)
+// ---------------------------------------------------------------------
+const languageOptions = (filePath) => ({ baseDir: filePath ? path.dirname(filePath) : null });
+
+ipcMain.handle('lang:diagnostics', (e, { source, filePath }) => {
+  // the target comes back too, so the editor can say what the file compiles to even while it
+  // still has mistakes in it
+  try {
+    return { diagnostics: languageService.diagnostics(source, languageOptions(filePath)), target: languageService.targetOf(source) };
+  } catch (err) {
+    return { diagnostics: [], target: null };
+  }
+});
+ipcMain.handle('lang:completions', (e, { source, line, col }) => {
+  try { return languageService.completions(source, line, col); } catch (err) { return { items: [], replace: null }; }
+});
+ipcMain.handle('lang:hover', (e, { source, line, col }) => {
+  try { return languageService.hover(source, line, col); } catch (err) { return null; }
+});
+ipcMain.handle('lang:definition', (e, { source, line, col }) => {
+  try { return languageService.definition(source, line, col); } catch (err) { return null; }
+});
+ipcMain.handle('lang:symbols', (e, source) => {
+  try { return languageService.symbols(source); } catch (err) { return []; }
+});
+ipcMain.handle('lang:words', () => {
+  try { return languageService.highlightWords(); } catch (err) { return null; }
+});
 
 // Compile and save the output next to the .volt file
 ipcMain.handle('volt:build', (e, { filePath, source, assetDir }) => {

@@ -46,6 +46,14 @@ contextBridge.exposeInMainWorld('volt', {
   monitorClose: () => ipcRenderer.invoke('monitor:close'),
   monitorSend: (text) => ipcRenderer.invoke('monitor:send', text),
 
+  // language service (problems, autocomplete, hover, go to definition, outline)
+  langDiagnostics: (opts) => ipcRenderer.invoke('lang:diagnostics', opts),
+  langCompletions: (opts) => ipcRenderer.invoke('lang:completions', opts),
+  langHover: (opts) => ipcRenderer.invoke('lang:hover', opts),
+  langDefinition: (opts) => ipcRenderer.invoke('lang:definition', opts),
+  langSymbols: (source) => ipcRenderer.invoke('lang:symbols', source),
+  langWords: () => ipcRenderer.invoke('lang:words'),
+
   // plugins / addons
   pluginsList: () => ipcRenderer.invoke('plugins:list'),
   pluginsRescan: () => ipcRenderer.invoke('plugins:rescan'),

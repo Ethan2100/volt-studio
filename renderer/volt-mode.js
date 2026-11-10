@@ -1,23 +1,43 @@
-// Volt syntax colours and autocomplete for the CodeMirror editor
+// Volt syntax colours and autocomplete for the CodeMirror editor.
+//
+// The word lists come from the compiler itself (lib/language-service.js -> highlightWords),
+// so a new built-in or command is coloured without anyone editing this file. The lists below
+// are only a fallback for the moment before the real ones have been fetched.
 /* global CodeMirror */
 
 (function () {
-  const KEYWORDS = ['pin', 'let', 'fn', 'return', 'if', 'else', 'repeat', 'while', 'break',
-    'forever', 'every', 'when', 'wait', 'print', 'show', 'clear', 'stop', 'import'];
-  const QUALIFIERS = ['input', 'output', 'analog', 'pwm', 'servo', 'stepper', 'pressed', 'to', 'over', 'for'];
+  const FALLBACK = {
+    keywords: ['pin', 'let', 'fn', 'return', 'if', 'else', 'repeat', 'while', 'break', 'continue', 'match',
+      'forever', 'every', 'when', 'wait', 'print', 'show', 'clear', 'stop', 'import'],
+    qualifiers: ['input', 'output', 'analog', 'pwm', 'servo', 'stepper', 'pressed', 'to', 'over', 'for'],
+    builtins: ['random', 'abs', 'min', 'max', 'constrain', 'map', 'number', 'text', 'length', 'upper', 'lower', 'contains', 'part', 'sign'],
+    commands: ['canvas', 'image', 'sprite', 'draw', 'paint', 'box', 'write', 'camera', 'world3d', 'render3d'],
+    pageWords: ['button', 'title', 'html'],
+    targets: ['c++', 'cpp', 'arduino', 'python', 'py', 'micropython', 'ruby', 'rb', 'js', 'javascript', 'node', 'html', 'web'],
+  };
   const ACTIONS = ['on', 'off', 'toggle', 'set', 'fade', 'tone', 'read', 'step', 'turn'];
   const ATOMS = ['true', 'false', 'uptime'];
   const INPUTS = ['ask'];
   const LOGIC = ['and', 'or', 'not'];
-  const BUILTINS = ['random', 'abs', 'min', 'max', 'constrain', 'map', 'number', 'text', 'length', 'upper', 'lower', 'contains', 'part', 'sign', 'held', 'saved', 'touchscreen', 'dist', 'lerp', 'overlaps'];
   const word = (list) => new RegExp(`\\b(?:${list.join('|')})\\b`);
+  const escape = (list) => list.map((w) => w.replace(/[+*?.^$()[\]{}|\\]/g, '\\$&'));
 
-  CodeMirror.defineSimpleMode('volt', {
+  let WORDS = FALLBACK;
+  const KEYWORDS = () => WORDS.keywords;
+  const QUALIFIERS = () => WORDS.qualifiers;
+  const BUILTINS = () => WORDS.builtins;
+
+  // Builds the mode from a set of word lists. Called once with the fallback, and again with the
+  // real lists once the editor has them; CodeMirror picks the new one up on setOption('mode').
+  function define(words) {
+    WORDS = Object.assign({}, FALLBACK, words || {});
+    const keywordsOnly = WORDS.keywords.filter((k) => !ACTIONS.includes(k) && !ATOMS.includes(k) && !LOGIC.includes(k) && !INPUTS.includes(k) && !WORDS.qualifiers.includes(k));
+    CodeMirror.defineSimpleMode('volt', {
     start: [
       { regex: /\/\/.*/, token: 'comment' },
-      { regex: /#(?:c\+\+|cpp|arduino|python|py|micropython|ruby|rb|js|javascript|node|html|web)\s*$/i, token: 'meta', sol: true },
-      { regex: /(\s*)(button|title|html)(?=\s+[^=\s(])/, token: [null, 'keyword'], sol: true },
-      { regex: /(\s*)(canvas|image|sprite|draw|paint|box|write|camera|touchpad|music|save|audio|sound|volume|add|remove|world3d|clear3d|camera3d|render3d|move3d|turn3d|show3d|glow3d|torch3d|model3d|anim3d|fx3d|shine3d|burst3d|look3d)(?=\s+[^=\s(\[+\-*\/])/, token: [null, 'keyword'], sol: true },
+      { regex: new RegExp(`#(?:${escape(WORDS.targets).join('|')})\\s*$`, 'i'), token: 'meta', sol: true },
+      { regex: new RegExp(`(\\s*)(${WORDS.pageWords.join('|')})(?=\\s+[^=\\s(])`), token: [null, 'keyword'], sol: true },
+      { regex: new RegExp(`(\\s*)(${WORDS.commands.join('|')})(?=\\s+[^=\\s([+\\-*/])`), token: [null, 'keyword'], sol: true },
       { regex: /(every)(\s+)(frame)\b/, token: ['keyword', null, 'qualifier'] },
       { regex: /(for)(\s+)(each)(\s+)([A-Za-z_]\w*)(\s+)(in)\b/, token: ['keyword', null, 'qualifier', null, 'variable', null, 'qualifier'] },
       { regex: /\b(?:at|size|frames|frame|flip|flipped|angle|alpha|flash|color|centered|shadow|tempo|volume|tint|glow|scale|stick|icons)\b(?=\s)/, token: 'qualifier' },
@@ -34,13 +54,13 @@
       { regex: /(pin)(\s+)([A-Za-z_]\w*)/, token: ['keyword', null, 'pinname'] },
       { regex: /([A-Za-z_]\w*)(\s*)(=)(\s*)(type)\b/, token: ['def', null, 'operator', null, 'keyword'] },
       { regex: /([A-Za-z_]\w*)(\.)([A-Za-z_]\w*)/, token: ['variable', 'punctuation', 'property'] },
-      { regex: word(KEYWORDS), token: 'keyword' },
-      { regex: word(QUALIFIERS), token: 'qualifier' },
+      { regex: word(keywordsOnly), token: 'keyword' },
+      { regex: word(WORDS.qualifiers), token: 'qualifier' },
       { regex: word(ACTIONS), token: 'builtin' },
       { regex: word(INPUTS), token: 'builtin' },
       { regex: word(ATOMS), token: 'atom' },
       { regex: word(LOGIC), token: 'operator' },
-      { regex: new RegExp(`\\b(?:${BUILTINS.join('|')})(?=\\s*\\()`), token: 'variable-2' },
+      { regex: new RegExp(`\\b(?:${WORDS.builtins.join('|')})(?=\\s*\\()`), token: 'variable-2' },
       { regex: /\b[A-Z]\d+\b/, token: 'number' },
       { regex: /[A-Za-z_]\w*(?=\s*\()/, token: 'variable-3' },
       { regex: /[A-Za-z_]\w*/, token: 'variable' },
@@ -50,8 +70,13 @@
       { regex: /\}/, dedent: true },
     ],
     meta: { lineComment: '//', electricChars: '}' },
-  });
+    });
+  }
+  define(FALLBACK);
+  window.VoltMode = { define };
 
+  // The simple word-list autocomplete below is only a fallback: the editor normally asks
+  // lib/language-service.js, which also knows the file's own names and the current target.
   // Snippets that appear in autocomplete (Ctrl+Space)
   const SNIPPETS = [
     { text: 'pin led = 13', label: 'pin … output' },
@@ -97,8 +122,8 @@
 
     const words = [
       ...[...names].map((n) => ({ text: n, displayText: n, className: 'hint-name' })),
-      ...[...KEYWORDS, ...ACTIONS, ...QUALIFIERS, ...ATOMS, ...LOGIC, ...INPUTS].map((k) => ({ text: k, displayText: k, className: 'hint-keyword' })),
-      ...BUILTINS.map((b) => ({ text: `${b}(`, displayText: `${b}(…)`, className: 'hint-builtin' })),
+      ...[...KEYWORDS(), ...ACTIONS, ...QUALIFIERS(), ...ATOMS, ...LOGIC, ...INPUTS].map((k) => ({ text: k, displayText: k, className: 'hint-keyword' })),
+      ...BUILTINS().map((b) => ({ text: `${b}(`, displayText: `${b}(…)`, className: 'hint-builtin' })),
       ...SNIPPETS.map((s) => ({ text: s.text, displayText: s.label, className: 'hint-snippet' })),
     ];
     const seen = new Set();
