@@ -9,5 +9,8 @@
       "label": "VFX engine (particles, shake, flash, glow)",
       "description": "Drop-in canvas particle engine + CSS, with burst()/confetti()/shake()/flash()/glow() Volt functions ready to call from your own game logic."
     }
+  ],
+  "targets": [
+    "html"
   ]
 }

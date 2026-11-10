@@ -79,6 +79,25 @@ app.on('browser-window-created', (e, win) => {
         return t ? t.type : 'none';
       })()`), 'variable-2');
 
+      // 7. panel targets: an addon only shows up for the first lines it is any use for
+      const visibleTabs = () => js(`Array.from(document.querySelectorAll('.tabs[data-group="side"] button')).filter(b => !b.classList.contains('hidden')).map(b => b.textContent.trim())`);
+      await setCode('#html\ncanvas 320, 180\nevery frame {\n  paint "#000"\n}');
+      await sleep(1000);
+      const web = await visibleTabs();
+      check('panel targets: web page shows the UI and world editors', web.includes('UI Studio') && web.includes('World Studio') && !web.includes('Pin Diagram'), true);
+      // open one, then change the first line under it
+      await js("showTab('side', 'panel-world-studio'); true");
+      await setCode('#c++\npin led = 13\nevery 500ms {\n  toggle led\n}');
+      await sleep(1000);
+      const board = await visibleTabs();
+      check('panel targets: a board shows the pinout instead', board.includes('Pin Diagram') && !board.includes('World Studio') && !board.includes('UI Studio'), true);
+      check('panel targets: a tab that stops fitting does not stay open', await js(`document.querySelector('[data-panel="panel-world-studio"]').classList.contains('active')`), false);
+      check('panel targets: the library says when snippets are hidden', /other kinds of program/.test(await js("(document.getElementById('library-hidden')||{}).textContent || ''")), true);
+      await setCode('#python\nprint 1');
+      await sleep(900);
+      const script = await visibleTabs();
+      check('panel targets: a plain script shows neither', !script.includes('Pin Diagram') && !script.includes('World Studio'), true);
+
       check('no console errors', errors.filter((m) => !/Autofill|devtools/i.test(m)), []);
     } catch (err) {
       results.push({ name: 'threw', got: String(err && err.message), want: '', ok: false });

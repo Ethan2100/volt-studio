@@ -32,6 +32,6 @@ module.exports = (t) => {
       // a machine with no graphics card can't make a WebGL context; that isn't an editor problem
       && !(x.name === 'no console errors' && x.got.every((m) => /WebGL/i.test(m))));
     t.assert.deepStrictEqual(failed.map((f) => `${f.name}: got ${JSON.stringify(f.got)}, wanted ${JSON.stringify(f.want)}`), []);
-    t.assert.ok(results.length >= 12, `expected the full set of checks, got ${results.length}`);
+    t.assert.ok(results.length >= 17, `expected the full set of checks, got ${results.length}`);
   });
 };

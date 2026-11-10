@@ -479,6 +479,7 @@ function setTarget(target) {
   $('port-wrap').classList.toggle('hidden', !L.board);
   $('btn-refresh').classList.toggle('hidden', !L.board);
   output.setOption('mode', L.mode);
+  updatePanelsForTarget(target);
   updatePrimaryButton();
 }
 
@@ -958,7 +959,51 @@ function addPanelTab(plugin) {
   $('side-pane').appendChild(body);
 
   api.pluginsPanelUrl({ id: plugin.id }).then((url) => { if (url) frame.src = url; });
-  panelTabEls.push({ button, body, frame });
+  panelTabEls.push({ button, body, frame, targets: plugin.manifest.targets || null, title: button.textContent });
+}
+
+// An addon says in its plugin.json which first lines it is any use for. A 3D world editor has
+// nothing to offer an Arduino sketch, and a pinout chart has nothing to offer a web page, so
+// those tabs step out of the way instead of sitting there doing nothing.
+function suitsTarget(targets, target) {
+  return !targets || !targets.length || targets.includes(target);
+}
+
+function updatePanelsForTarget(target) {
+  let hidActive = false;
+  for (const entry of panelTabEls) {
+    const ok = suitsTarget(entry.targets, target);
+    entry.button.classList.toggle('hidden', !ok);
+    if (!ok && entry.body.classList.contains('active')) hidActive = true;
+    if (!ok) { entry.body.classList.remove('active'); entry.button.classList.remove('active'); }
+  }
+  // if the tab you were looking at just became irrelevant, fall back to the output
+  if (hidActive) showTab('side', 'output');
+  // the Library only offers snippets that fit this target
+  updateLibraryForTarget(target);
+}
+
+// Library cards for addons that don't suit this target are put away, with a line saying so -
+// otherwise they look missing rather than hidden.
+function updateLibraryForTarget(target) {
+  const box = $('library');
+  if (!box) return;
+  let hidden = 0;
+  let shown = 0;
+  box.querySelectorAll('.example').forEach((card) => {
+    const targets = card.dataset.targets ? card.dataset.targets.split(',') : null;
+    const ok = suitsTarget(targets, target);
+    card.classList.toggle('hidden', !ok);
+    if (ok) shown++; else hidden++;
+  });
+  const note = $('library-hidden');
+  if (note) {
+    const first = `#${target === 'cpp' ? 'c++' : target}`;
+    note.textContent = !hidden ? ''
+      : shown ? `${hidden} more ${hidden === 1 ? 'snippet is' : 'snippets are'} for other kinds of program, hidden while this file starts with ${first}.`
+        : `All ${hidden} ${hidden === 1 ? 'snippet is' : 'snippets are'} for other kinds of program. None of them fit a ${first} file.`;
+    note.classList.toggle('hidden', !hidden);
+  }
 }
 
 async function loadPlugins() {
@@ -976,6 +1021,9 @@ async function loadPlugins() {
       const b = document.createElement('button');
       b.className = 'example';
       b.innerHTML = `<h4>${escapeHtml(snip.label || snip.file)} <span class="lang-pill">${escapeHtml(p.manifest.name)}</span></h4><p>${escapeHtml(snip.description || '')}</p>`;
+      // a snippet's own targets win over its addon's, so one addon can hold code for several
+      const targets = snip.targets || p.manifest.targets;
+      if (targets && targets.length) b.dataset.targets = targets.join(',');
       b.onclick = async () => {
         const code = await api.pluginsReadFile({ id: p.id, file: snip.file });
         if (code == null) { toast(`Could not read ${snip.file}`, true); return; }
@@ -990,6 +1038,7 @@ async function loadPlugins() {
   // Panel tabs: one new side tab per "panel" plugin
   clearPanelTabs();
   plugins.filter((p) => !p.broken && p.manifest.type === 'panel').forEach(addPanelTab);
+  updatePanelsForTarget(state.target);
 }
 $('btn-plugins-folder').addEventListener('click', () => api.pluginsOpenFolder());
 $('btn-plugins-rescan').addEventListener('click', async () => { await api.pluginsRescan(); await loadPlugins(); toast('Rescanned plugins'); });

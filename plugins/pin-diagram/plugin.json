@@ -6,5 +6,9 @@
   "panel": {
     "entry": "index.html",
     "title": "Pin Diagram"
-  }
+  },
+  "targets": [
+    "c++",
+    "micropython"
+  ]
 }

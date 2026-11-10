@@ -9,5 +9,8 @@
       "label": "Combat VFX (aura, slash, impact, crit, beam, orb, domain)",
       "description": "Drop-in effects engine for games that use `canvas`, plus fx* functions: fxAura, fxSlash, fxImpact, fxCrit, fxBeam, fxOrb, fxGhost, fxDomain, fxHitstop and more."
     }
+  ],
+  "targets": [
+    "html"
   ]
 }

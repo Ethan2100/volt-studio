@@ -9,5 +9,8 @@
       "label": "UI kit (cards, badges, alerts, toasts, modal)",
       "description": "Drop-in CSS + Volt functions for common page pieces. Everything is opt-in via ui-* classes, so it won't restyle anything else already on your page."
     }
+  ],
+  "targets": [
+    "html"
   ]
 }

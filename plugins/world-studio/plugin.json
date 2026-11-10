@@ -6,5 +6,8 @@
   "panel": {
     "entry": "index.html",
     "title": "World Studio"
-  }
+  },
+  "targets": [
+    "html"
+  ]
 }

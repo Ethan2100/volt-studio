@@ -9,5 +9,8 @@
       "label": "Top-down kit (entities, camera, chase AI, damage)",
       "description": "Entity/Camera struct types plus cameraFollow(), chaseStep(), hit()/tickHurt() and nearestIndex() functions. Paste near the top of a #html game, after your sprites, and adapt the Entity fields to your own game."
     }
+  ],
+  "targets": [
+    "html"
   ]
 }

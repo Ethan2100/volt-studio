@@ -6,5 +6,8 @@
   "panel": {
     "entry": "index.html",
     "title": "UI Studio"
-  }
+  },
+  "targets": [
+    "html"
+  ]
 }
