@@ -1,5 +1,8 @@
 # Volt Reference
 
+New to Volt? **[Volt in 10 minutes](GETTING_STARTED.md)** is a quicker way in.
+Writing a 3D game? **[VOLT3D.md](VOLT3D.md)** covers that side in full.
+
 Volt is a small language that turns into other languages. You write a `.volt` file, and the first line decides what it becomes: **Arduino C++** or **MicroPython** for boards, **Python**, **Ruby** or **JavaScript** scripts that run on your PC, or an **HTML web page**.
 
 ```volt
@@ -17,7 +20,7 @@ every 500ms {
 1. [Scripts and web pages](#scripts-and-web-pages)
 1. [Lists](#lists)
 1. [Games: canvas, sprites and keys](#games-canvas-sprites-and-keys)
-1. [Game types (structs)](#game-types-structs)
+1. [Types (structs)](#types-structs)
 2. [How a Volt program runs](#how-a-volt-program-runs)
 3. [Comments](#comments)
 4. [Pins](#pins)
@@ -343,6 +346,12 @@ every frame {                         // 60 times a second
 | `camera x, y` | Moves the view, for worlds bigger than the screen. Use `camera 0, 0` before drawing the score and hearts |
 | `every frame { }` | Runs 60 times a second, at the same speed on every screen |
 | `held("left")` | `true` while a key is down (`when key "x" pressed` still runs once per press) |
+| `mousex()` `mousey()` | Where the pointer is, in game pixels (it follows `camera`, like drawing does) |
+| `mousedown()` | `true` while the button (or a finger) is held |
+| `clicked()` | `true` once for each press, so one click does one thing |
+| `pad("a")` | `true` while a gamepad button is held: `a b x y lb rb lt rt select start up down left right` |
+| `padx()` `pady()` | The left stick, -100 to 100 |
+| `padx2()` `pady2()` | The right stick, -100 to 100 |
 | `touchscreen()` | `true` on phones and tablets, so a game can move its HUD away from the on-screen buttons |
 | `tone 440 for 80ms` | A retro beep. `tone 880 to 220 for 150ms` slides the pitch. On pages it doesn't wait |
 | `touchpad "x", "z"` | On phones and tablets: an arrow pad plus a button for each key |
@@ -365,6 +374,29 @@ Things to know:
 ## 3D games: world3d, blocks and lights
 
 An `#html` program can also be a **first-person 3D game**. Volt bundles Three.js (WebGL) into the finished `index.html`, so it still works by double-click or on a website host. The 2D `canvas` stays on top as your HUD: `box` and `write` draw over the 3D world, and `render3d` clears them each frame, so draw your HUD *after* `render3d`.
+
+> This section is an introduction. **[VOLT3D.md](VOLT3D.md)** is the full 3D reference: the player
+> controller, bumping into things, ray casts, models, lighting, 3D sound and making big levels fast.
+
+The shortest 3D program worth running is this - `player3d` puts you in the world and `walk3d` does
+the walking, looking, jumping, gravity and walls for you:
+
+```volt
+#html
+canvas 320, 180
+world3d "#0a0d14" fog 2600 ambient 9 shadows
+
+block3d(0, -10, 0, 2000, 20, 2000, "#5c6470")
+block3d(0, 150, -600, 1600, 300, 20, "#737a86")
+freeze3d
+
+player3d 0, 0, 400
+
+every frame {
+  walk3d
+  render3d
+}
+```
 
 ```volt
 #html
@@ -430,9 +462,32 @@ In your program **1 unit = 1 cm** (a 2 m corridor is 200) and **y is up**. **Ang
 
 `move3d`, `turn3d`, `show3d` and `glow3d` work on models too.
 
-## Game types (structs)
+## Types (structs)
 
-`#html` games can declare a named shape for the things in a game - a player, an enemy, a pickup - instead of juggling a separate list for every field (`ex`, `ey`, `ehp`, `emaxhp`, ...).
+You can declare a named shape for the things in a program - a player, an enemy, a pickup, a row of
+data - instead of juggling a separate list for every field (`ex`, `ey`, `ehp`, `emaxhp`, ...).
+
+This works in `#html`, `#js`, `#python` and `#ruby`. Boards (`#c++`, `#micropython`) don't support
+it yet.
+
+```volt
+#python
+Player = type { name: string, health: int, alive: bool }
+
+let hero = Player { name: "Finn", health: 10 }
+hero.health -= 4
+
+let party = []
+add hero to party
+add Player { name: "Jake", health: 3 } to party
+
+for each who in party {
+  print "{who.name}: {who.health} HP"
+}
+```
+
+A field you leave out gets a sensible empty value: `0` for a number, `""` for text, `false` for
+`bool`. In `#ruby` a type's name must start with a capital letter.
 
 ```volt
 #html
@@ -635,7 +690,24 @@ let score = 0
 score = score + 10
 ```
 
-### Shortcuts: += -= *= /=
+### Shortcuts: += -= *= /= %=  and  ++ --
+
+```volt
+#python
+let score = 0
+score += 10      // add 10
+score -= 2       // take 2 away
+score *= 3       // three times as much
+score /= 2       // half
+score %= 7       // the remainder when divided by 7
+
+let lives = 3
+lives++          // one more
+lives--          // one less
+print "{score} {lives}"
+```
+
+The old form
 
 These change a variable using its own value:
 
@@ -692,6 +764,41 @@ print "Pressed " + count + " times"
 
 Join text and numbers with `+`. Text goes in double quotes and must fit on one line. Variables can hold numbers or text (see [Text variables](#text-variables)).
 
+### Putting values inside text
+
+Anything in `{curly braces}` inside text is worked out and dropped in, which is usually tidier
+than joining pieces with `+`:
+
+```volt
+#python
+let name = "Ethan"
+let hp = 7
+let maxHp = 10
+
+print "{name}: {hp}/{maxHp} HP"
+print "Half health is {maxHp / 2}, and {hp > 5} is whether you are above 5"
+```
+
+Whatever is between the braces is ordinary Volt: a name, some maths, a call like `{round(x)}`,
+even text in quotes like `{trim(name)}`.
+
+Braces with something that isn't Volt between them are left exactly as they are, so CSS, JSON and
+ordinary writing still work:
+
+```volt
+#html
+print "a { b } c"
+print "{not volt: just text}"
+```
+
+To show a real brace next to a value, escape it with `\{` and `\}`:
+
+```volt
+#python
+let x = 5
+print "\{x\} is {x}"
+```
+
 Where `print` goes depends on the language: the Serial monitor for boards, the **Console** for scripts, and the page itself for `#html`.
 
 In C++, Volt adds `Serial.begin(9600)` for you, so set the Serial monitor to **9600**. MicroPython boards use **115200**.
@@ -734,6 +841,32 @@ if temp > 30 {
 ```
 
 `else if` and `else` are optional. The condition can use comparisons, `and`, `or`, `not`, and `read`.
+
+### match: checking one value against several
+
+When a long `if / else if` chain keeps comparing the same thing, `match` says it once:
+
+```volt
+#python
+let state = "walk"
+
+match state {
+  "idle" {
+    print "standing still"
+  }
+  "run", "walk" {
+    print "moving"
+  }
+  else {
+    print "no idea what that is"
+  }
+}
+```
+
+- A part can list several values, separated by commas.
+- `else` runs when nothing matched. It is optional, and must come last.
+- The value is worked out **once**, so `match nextCard() { ... }` draws only one card.
+- It works with numbers and text, on every target.
 
 ## Loops: repeat, while, break
 
@@ -778,6 +911,22 @@ for i from 1 to 5 {
 ```
 
 If the first number is bigger, it counts down: `for i from 10 to 1 { }`. The ends can be variables or sums: `for i from 1 to count * 2 { }`. The counter only exists inside the braces.
+
+### continue
+
+`continue` skips the rest of this turn and goes straight on to the next one:
+
+```volt
+#python
+for i from 1 to 6 {
+  if i == 3 {
+    continue
+  }
+  print i
+}
+```
+
+That prints 1, 2, 4, 5, 6. It works in `repeat`, `while`, `for` and `for each`.
 
 ### break
 
@@ -861,6 +1010,20 @@ print "Average: " + average(10, 20)
 ```
 
 - Values in the brackets are **parameters**. Pass values in when calling: `blink(3)`.
+- A parameter can have a **default**, and then it can be left out:
+
+  ```volt
+  #python
+  fn hit(power, bonus = 5) {
+    return power + bonus
+  }
+
+  print hit(10)       // 15
+  print hit(10, 1)    // 11
+  ```
+
+  The default has to be a plain value - a number, some text, `true` or `false` - and once one
+  parameter has a default, every parameter after it needs one too.
 - In scripts and pages, parameters can be numbers or text. In `#c++`, functions only take and return numbers.
 - `return` sends a value back and ends the function. A function without `return` gives 0.
 - Functions can use top-level variables and pins, and can call other functions (even ones written further down).
@@ -915,7 +1078,54 @@ print "5 squared is " + square(5)
 | `sin(degrees)` | Sine of an angle given in degrees (a decimal from -1 to 1) | `sin(90)` → 1 |
 | `cos(degrees)` | Cosine of an angle given in degrees (a decimal from -1 to 1) | `cos(0)` → 1 |
 
-`join` and `split` work in `#python`, `#ruby`, `#js` and `#html` (lists aren't supported on boards yet).
+### Rounding and numbers
+
+| Function | What it does | Example |
+|---|---|---|
+| `floor(x)` | Rounds down | `floor(2.7)` -> 2 |
+| `ceil(x)` | Rounds up | `ceil(2.1)` -> 3 |
+| `round(x)` | To the nearest whole number; a half rounds up | `round(2.5)` -> 3 |
+| `clamp(x, low, high)` | Keeps a number in a range (same as `constrain`) | `clamp(hp, 0, 100)` |
+| `sign(x)` | -1, 0 or 1 | `sign(-9)` -> -1 |
+| `chance(percent)` | True about `percent` times in a hundred | `if chance(25) { }` |
+| `now()` | The clock, in milliseconds since 1970 | `let t = now()` |
+
+`round` means the same thing on every target, including negative numbers: `round(-2.5)` is `-2`.
+
+### More text
+
+| Function | What it does | Example |
+|---|---|---|
+| `trim(text)` | Without spaces at the start and end | `trim("  hi  ")` -> "hi" |
+| `replace(text, find, with)` | Swaps every `find` for `with` | `replace("a-b", "-", "+")` -> "a+b" |
+| `startsWith(text, piece)` | Does it begin with that? | `startsWith("hello", "he")` -> true |
+| `endsWith(text, piece)` | Does it end with that? | `endsWith("hello", "lo")` -> true |
+| `indexOf(textOrList, item)` | Where it is, from 0, or -1 | `indexOf("hello", "ll")` -> 2 |
+| `repeatText(text, times)` | The text over and over | `repeatText("ab", 3)` -> "ababab" |
+
+### More lists
+
+| Function | What it does | Example |
+|---|---|---|
+| `first(list)` / `last(list)` | The first or last item | `last(scores)` |
+| `sort(list)` | A new list, smallest first | `sort([3, 1, 2])` -> `[1, 2, 3]` |
+| `reverse(list)` | A new list, back to front | `reverse([1, 2])` -> `[2, 1]` |
+| `slice(list, from, count)` | A new list, `count` items starting at `from` | `slice([1,2,3,4], 1, 2)` -> `[2, 3]` |
+| `sum(list)` | Every number added up | `sum([1, 2, 3])` -> 6 |
+| `pick(list)` | One item at random | `pick(["a", "b"])` |
+| `shuffle(list)` | A new list in a random order | `shuffle(deck)` |
+
+`sort`, `reverse`, `slice` and `shuffle` all give back a **new** list and leave the original alone.
+
+```volt
+#python
+let scores = [30, 10, 20]
+print "{first(sort(scores))} is lowest, {sum(scores)} altogether"
+print join(reverse(sort(scores)), " > ")
+print "the original is untouched: {join(scores, ",")}"
+```
+
+`join`, `split` and the list functions above work in `#python`, `#ruby`, `#js` and `#html` (lists aren't supported on boards yet).
 
 `sin` and `cos` always return a decimal, so they need decimal support and don't work on boards (`#c++`, `#micropython`) yet. They're handy for turning an angle (like a character's facing direction) into a movement vector: `moveX = cos(angle)`, `moveY = sin(angle)`.
 
@@ -929,6 +1139,7 @@ These four are for backend/data work rather than games or boards:
 | `writeFile(path, text)` | Saves text to a file, `true` if it worked (`#js` run with Node) | `writeFile("out.txt", report)` |
 | `envVar(name)` | An environment variable's value, or `""` if it isn't set (`#js` run with Node) | `envVar("API_KEY")` |
 | `fetchText(url)` | Downloads a URL and returns its text (`#js` and `#html`) | `fetchText("https://example.com/data.json")` |
+| `fetchJson(url)` | Downloads JSON and gives it back ready to use (`#js` and `#html`) | `fetchJson(url).items[0].name` |
 
 `readFile`, `writeFile` and `envVar` only work when a `#js` program is actually run with Node (`node program.js`) - a web browser has no filesystem or environment variables, so they don't work in `#html` pages. `fetchText` works in both, since both Node and browsers can fetch a URL.
 
@@ -1041,6 +1252,46 @@ node volt.js myprogram.volt
 It writes the output file (`myprogram/myprogram.ino`, `.py`, `.rb`, `.js`, or `myprogram/index.html`) and prints any errors with their line number.
 
 ## Cheat sheet
+
+New in Volt 4:
+
+```volt
+#python
+let hp = 7
+print "HP: {hp}/{10}"              // values inside text
+
+let n = 0
+n++                                 // and n-- and n %= 3
+
+match hp {                          // instead of a long if/else if chain
+  10 { print "full" }
+  else { print "hurt" }
+}
+
+for i from 1 to 5 {
+  if i == 2 { continue }            // skip this turn
+}
+
+for each item, i in ["a", "b"] {    // the position, counting from 0
+  print "{i} {item}"
+}
+
+fn hit(power, bonus = 5) {          // a value that can be left out
+  return power + bonus
+}
+print hit(10)
+
+Thing = type { name: string }       // types work in scripts now too
+print Thing { name: "x" }.name
+
+print round(2.5) + sum([1, 2])      // floor ceil round clamp chance now
+print trim(" hi ") + replace("a", "a", "b")
+print join(sort([3, 1]), ",")       // sort reverse slice first last pick shuffle
+```
+
+And in `#html` games: `mousex()` `mousey()` `mousedown()` `clicked()` `pad("a")` `padx()`,
+plus the 3D words in [VOLT3D.md](VOLT3D.md) - `player3d` `walk3d` `aim3d` `freeze3d` `ao3d`.
+
 
 ```volt
 #c++     // or #micropython #python #ruby #js #html

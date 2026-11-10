@@ -13,6 +13,13 @@ A desktop editor for the **Volt** language. Write Volt once, and the first line 
 
 It also drives servos, stepper motors (28BYJ-48), buttons, LEDs, buzzers and sensors on Arduino boards.
 
+## Learning Volt
+
+- **[Volt in 10 minutes](docs/GETTING_STARTED.md)** - start here.
+- **[Reference](docs/REFERENCE.md)** - every word in the language.
+- **[Volt 3D](docs/VOLT3D.md)** - worlds, a ready-made player, lighting, models and effects.
+- **[Plugins](docs/PLUGINS.md)** - your own libraries, panels and compile targets.
+
 ## Install
 
 1. Run **Volt Studio Setup 1.4.0.exe**.
