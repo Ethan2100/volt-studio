@@ -111,6 +111,19 @@ could never be reached. It now reports the intended message, with a hint.
 While fixing these, one more thing was improved: text in quotes now works inside an interpolation
 hole, so `"[{trim("  hi  ")}]"` compiles. It used to end the string at the inner quote.
 
+### The Lua targets also missed the new language features
+
+Running the new tests with a Lua VM actually present (rather than letting them skip) turned up a
+second gap: `#lua` and `#luau` rejected `continue` and `match` outright, ignored the position in
+`for each item, i in list`, and passed nothing for a left-out default argument. All four now work:
+
+- `continue` compiles to Luau's own keyword, and on plain Lua to a `goto` with a label at the end
+  of the loop body (`goto` is Lua 5.2+ and LuaJIT). Tested with variables declared between the
+  jump and the label, which is the case Lua is fussy about.
+- `match` is built out of plain `if`/`elseif` with the value worked out once, as elsewhere.
+- Statements after `return`, `break` or `continue` are dropped. They could never run, and Luau
+  requires `continue` to be the last statement in its block, so leaving them in made invalid Luau.
+
 ### Known, pre-existing, not introduced here
 
 These behave the same before and after the upgrade, and are worth a decision later:

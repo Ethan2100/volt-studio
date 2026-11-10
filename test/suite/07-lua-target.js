@@ -50,16 +50,16 @@ function luaRunner() {
 
 module.exports = (t) => {
   const volt = t.volt();
-  // Checks that one program prints the same thing as #js, as #lua and as #luau
-  const agrees = (body, { targets = ['lua', 'luau'] } = {}) => {
+  // Checks a program prints the same thing as #lua as it does as #js, and that #luau compiles.
+  // Only #lua is run: the two targets share all their codegen, but #luau may emit Luau-only
+  // syntax (its own 'continue') that a plain Lua VM cannot parse.
+  const agrees = (body) => {
+    volt.compile(`#luau\n${body}`);              // throws if the target can't handle something
     const want = t.run(volt, `#js\n${body}`);
     if (want === null) return 'skip';
     const runner = luaRunner();
     if (!runner) return 'skip';
-    for (const target of targets) {
-      const got = runner(volt.compile(`#${target}\n${body}`).code);
-      t.assert.strictEqual(got, want, `#${target} printed something different from #js`);
-    }
+    t.assert.strictEqual(runner(volt.compile(`#lua\n${body}`).code), want, '#lua printed something different from #js');
     return undefined;
   };
 
@@ -77,6 +77,15 @@ module.exports = (t) => {
 
   t.test('a program may use a built-in name for its own function or variable', () => agrees(
     'fn dist(a, b) {\n  return a - b\n}\nlet lerp = 4\nlet round = 2\nprint "{dist(10, lerp)} {round}"'));
+
+  t.test("'continue' skips the rest of the turn, even with variables made after it", () => agrees(
+    'let total = 0\nfor i from 1 to 6 {\n  if i == 2 { continue }\n  let doubled = i * 2\n  total += doubled\n}\nlet seen = ""\nfor each w, at in ["a", "b", "c"] {\n  if w == "b" { continue }\n  let tag = "{w}{at}"\n  seen = seen + tag\n}\nlet n = 0\nwhile n < 5 {\n  n++\n  if n == 3 { continue }\n  let bump = 10\n  total += bump\n}\nrepeat 3 {\n  if total > 0 { continue }\n  total = 0 - 1\n}\nprint "{total} {seen}"'));
+
+  t.test('nested loops: continue applies to the loop it is in', () => agrees(
+    'let s = 0\nfor each a in [1, 2, 3] {\n  for each b in [1, 2] {\n    if b == 1 { continue }\n    s += a * b\n  }\n  if a == 3 { continue }\n  s += 100\n}\nprint s'));
+
+  t.test('two matches in one block do not clash', () => agrees(
+    'let a = 1\nlet b = 2\nmatch a { 1 { print "a1" } else { print "a?" } }\nmatch b { 1 { print "b1" } 2 { print "b2" } }'));
 
   // Compile-only checks: no Lua interpreter needed
   t.test('a built-in the Lua targets cannot do is refused at compile time, not at run time', () => {

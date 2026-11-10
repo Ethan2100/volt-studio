@@ -73,9 +73,10 @@ function generate(ast, opts) {
   // of the same name, exactly as it does in the built-in targets - so adding a built-in to
   // Volt can never break a program that already used the word.
   const ownFuncs = new Set();
+  const ownFns = new Map();          // name -> the Fn node, for its parameters and their defaults
   (function findFuncs(list) {
     for (const n of list || []) {
-      if (n.kind === 'Fn') ownFuncs.add(n.name);
+      if (n.kind === 'Fn') { ownFuncs.add(n.name); ownFns.set(n.name, n); }
       for (const k of ['body', 'then', 'otherwise']) if (Array.isArray(n[k])) findFuncs(n[k]);
       if (Array.isArray(n.cases)) for (const c of n.cases) findFuncs(c.body);
     }
@@ -97,6 +98,25 @@ function generate(ast, opts) {
   }
 
   function pad(depth) { return '  '.repeat(depth); }
+
+  // Loop bodies, so that 'continue' can be compiled. Luau has the keyword; plain Lua jumps to a
+  // label put at the end of the body (goto is Lua 5.2+ and LuaJIT). The label is only written
+  // when the body really uses 'continue', so ordinary loops are unchanged.
+  const loopStack = [];
+  function loopBody(stmts, depth) {
+    loopStack.push({ label: null });
+    const out = block(stmts, depth);
+    const frame = loopStack.pop();
+    if (frame.label) out.push(`${pad(depth)}::${frame.label}::`);
+    return out;
+  }
+  function continueHere(line) {
+    const frame = loopStack[loopStack.length - 1];
+    if (!frame) throw new VoltError("'continue' only works inside a loop (repeat, while, for)", line);
+    if (luau) return 'continue';
+    frame.label = frame.label || hidden('cont');
+    return `goto ${frame.label}`;
+  }
 
   // ----------------------------- expressions ------------------------------
   function luaStringLit(s) {
@@ -161,7 +181,15 @@ function generate(ast, opts) {
   }
 
   function call(e) {
-    const name = e.name;
+    let name = e.name;
+    // Values left out of a call come from the function's defaults: fn spawn(x, y, speed = 2)
+    const callee = ownFns.get(name);
+    if (callee && callee.defaults && e.args.length < callee.params.length) {
+      const filled = [...e.args];
+      for (let k = e.args.length; k < callee.params.length && callee.defaults[k]; k++) filled.push(callee.defaults[k]);
+      e = { ...e, args: filled };
+      name = e.name;
+    }
     if (BUILTINS[name] !== undefined && !ownFuncs.has(name)) {
       const want = BUILTINS[name];
       if (e.args.length !== want) {
@@ -235,7 +263,12 @@ function generate(ast, opts) {
   function block(stmts, depth) {
     if (!stmts || stmts.length === 0) return [];
     const out = [];
-    for (const s of stmts) out.push(...stmt(s, depth));
+    for (const s of stmts) {
+      out.push(...stmt(s, depth));
+      // Anything after return/break/continue can never run. Dropping it keeps the meaning and
+      // keeps the output valid Luau, where 'continue' has to be the last statement in its block.
+      if (['Return', 'Break', 'Continue'].includes(s.kind)) break;
+    }
     return out;
   }
 
@@ -266,8 +299,9 @@ function generate(ast, opts) {
         need('copylist');
         return [
           `${p}local ${listVar} = __copylist(${expr(s.list)})`,   // iterate a snapshot, like the built-in targets
-          `${p}for _, ${v} in ipairs(${listVar}) do`,
-          ...block(s.body, depth + 1),
+          `${p}for ${s.index ? safeName(s.index) + '0, ' : '_, '}${v} in ipairs(${listVar}) do`,
+          ...(s.index ? [`${p}  local ${safeName(s.index)} = ${safeName(s.index)}0 - 1`] : []),   // Volt counts from 0, Lua from 1
+          ...loopBody(s.body, depth + 1),
           `${p}end`,
         ];
       }
@@ -287,13 +321,13 @@ function generate(ast, opts) {
         return [
           `${p}local ${n} = ${expr(s.count)}`,
           `${p}for __i = 1, ${n} do`,
-          ...block(s.body, depth + 1),
+          ...loopBody(s.body, depth + 1),
           `${p}end`,
         ];
       }
 
       case 'While':
-        return [`${p}while ${expr(s.cond)} do`, ...block(s.body, depth + 1), `${p}end`];
+        return [`${p}while ${expr(s.cond)} do`, ...loopBody(s.body, depth + 1), `${p}end`];
 
       case 'For': {
         const a = hidden('a');
@@ -304,9 +338,28 @@ function generate(ast, opts) {
           `${p}local ${a}, ${b} = ${expr(s.start)}, ${expr(s.end)}`,
           `${p}local ${st} = (${a} <= ${b}) and 1 or -1`,
           `${p}for ${v} = ${a}, ${b}, ${st} do`,
-          ...block(s.body, depth + 1),
+          ...loopBody(s.body, depth + 1),
           `${p}end`,
         ];
+      }
+
+      case 'Continue':
+        return [`${p}${continueHere(s.line)}`];
+
+      // match value { a { } b, c { } else { } }: the value is worked out once, then compared in
+      // order - the same shape the built-in targets use, built here out of plain if/elseif.
+      case 'Match': {
+        const tmp = hidden('m');
+        const ref = { kind: 'Var', name: tmp, line: s.line };
+        const test = (c) => c.values
+          .map((v) => ({ kind: 'Binary', op: '==', left: ref, right: v, line: v.line }))
+          .reduce((l, r) => ({ kind: 'Binary', op: 'or', left: l, right: r, line: r.line }));
+        let chain = s.otherwise;
+        for (let k = s.cases.length - 1; k >= 0; k--) {
+          chain = [{ kind: 'If', cond: test(s.cases[k]), then: s.cases[k].body, otherwise: chain, line: s.line }];
+        }
+        // (the temporary is a plain local, so two matches in one block never clash: hidden() counts up)
+        return [`${p}local ${tmp} = ${expr(s.subject)}`, ...stmt(chain[0], depth)];
       }
 
       case 'Break':
