@@ -144,6 +144,11 @@
   "sha1": "af7c2a6927023dbe75e733fe9ad518cd1839e2eb",
   "bytes": 864517
  },
+ "examples/29_first_person_3d.volt": {
+  "target": "html",
+  "sha1": "2256747c4b43553875e37ff7f4da28501acae2f1",
+  "bytes": 880007
+ },
  "examples/3d-test/room.volt": {
   "target": "html",
   "sha1": "cd5e6cecb63790689e021cc9599ec4b9a5a2a745",

@@ -72,6 +72,48 @@ const t = {
       assert.strictEqual(got, expected, `#${target} printed something different`);
     }
   },
+  // Opens a compiled #html program in headless Chrome and hands the page to fn(page).
+  // Needs the 'playwright' package and a Chrome/Chromium; returns 'skip' when they aren't here.
+  //   await t.page(volt, '#html\n...', async (page) => { ... })
+  async page(volt, src, fn, options = {}) {
+    const b = await t.browser();
+    if (!b) return 'skip';
+    const { code } = volt.compile(src, options.dir ? { baseDir: options.dir } : {});
+    const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'volt-page-'));
+    fs.writeFileSync(path.join(tmp, 'index.html'), code);
+    const page = await b.newPage({ viewport: { width: 640, height: 360 } });
+    const problems = [];
+    page.on('console', (m) => { if (m.type() === 'error') problems.push(m.text()); });
+    page.on('pageerror', (e) => problems.push(e.message));
+    try {
+      await page.goto('file://' + path.join(tmp, 'index.html'));
+      await page.waitForTimeout(options.wait || 400);
+      const result = await fn(page);
+      const shown = await page.evaluate(() => Array.from(document.querySelectorAll('.volt-error')).map((e) => e.textContent));
+      if (!options.allowErrors && (problems.length || shown.length)) throw new Error(`the page reported problems:\n${[...problems, ...shown].join('\n').slice(0, 1500)}`);
+      return result;
+    } finally {
+      await page.close();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  },
+  async browser() {
+    if (t._browser !== undefined) return t._browser;
+    t._browser = null;
+    let pw = null;
+    const { execSync } = require('child_process');
+    const places = ['playwright', process.env.VOLT_PLAYWRIGHT, '/opt/npm-tools/node_modules/playwright'];
+    try { places.push(path.join(execSync('npm root -g', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(), 'playwright')); } catch (e) { /* no npm */ }
+    for (const place of places.filter(Boolean)) { try { pw = require(place); break; } catch (e) { /* try the next */ } }
+    if (!pw) return null;
+    const args = ['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
+    const exes = [undefined, '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
+    for (const executablePath of exes) {
+      if (executablePath && !fs.existsSync(executablePath)) continue;
+      try { t._browser = await pw.chromium.launch({ args, executablePath }); break; } catch (e) { /* try the next */ }
+    }
+    return t._browser;
+  },
   // Compile and return the error (or null) instead of throwing
   errorOf(volt, src, options) {
     try { volt.compile(src, options); return null; } catch (e) { if (e instanceof volt.VoltError) return e; throw e; }
@@ -100,6 +142,7 @@ for (const file of fs.readdirSync(path.join(__dirname, 'suite')).sort()) {
       console.log(`  FAIL ${full}\n       ${String(e && e.message ? e.message : e).split('\n').join('\n       ')}`);
     }
   }
+  if (t._browser) await t._browser.close();
   console.log(`\n${pass} passed, ${fail} failed${skipped ? `, ${skipped} skipped` : ''}  (${Date.now() - started} ms)`);
   process.exit(fail ? 1 : 0);
 })();

@@ -241,7 +241,11 @@ const PAGE_WORDS = ['button', 'title', 'html'];
 // Game commands (#html canvas games) and list commands. Like the page words they
 // aren't keywords, so 'let box = 3' or 'fn draw()' in older programs still work.
 const GAME_WORDS = ['canvas', 'image', 'sprite', 'draw', 'paint', 'box', 'write', 'camera', 'touchpad', 'music', 'save', 'audio', 'sound', 'volume',
-  'world3d', 'clear3d', 'camera3d', 'render3d', 'move3d', 'turn3d', 'show3d', 'glow3d', 'torch3d', 'model3d', 'anim3d', 'fx3d', 'shine3d', 'burst3d', 'look3d'];
+  'world3d', 'clear3d', 'camera3d', 'render3d', 'move3d', 'turn3d', 'show3d', 'glow3d', 'torch3d', 'model3d', 'anim3d', 'fx3d', 'shine3d', 'burst3d', 'look3d',
+  // Volt 3D part 2 (lib/volt3d-plus.js)
+  'scale3d', 'tilt3d', 'color3d', 'remove3d', 'attach3d', 'solid3d', 'far3d', 'ao3d', 'player3d', 'walk3d', 'freeze3d'];
+// How many values each of the newer 3D commands takes
+const PLUS_3D = { scale3d: 4, tilt3d: 3, color3d: 2, remove3d: 1, attach3d: 2, solid3d: 2, far3d: 1, ao3d: 1, walk3d: 0, freeze3d: 0, player3d: 3 };
 const LIST_WORDS = ['add', 'remove'];
 const NOT_A_COMMAND = ['=', '(', '[', '+=', '-=', '*=', '/=', '%=', 'eof'];
 
@@ -892,7 +896,33 @@ function parse(tokens, options = {}) {
       }
       case 'clear3d':
       case 'render3d':
+      case 'walk3d':
+      case 'freeze3d':
         return { kind: 'Cmd3d', cmd: t.value, args: [], opts: {}, line };
+      // player3d x, y, z speed 450 jump 420 height 170      (the options can be left out)
+      case 'player3d': {
+        const args = [expression()];
+        while (match(',')) args.push(expression());
+        if (args.length !== 3) throw new VoltError(`'player3d' needs where the player stands: x, y, z (got ${args.length} value${args.length === 1 ? '' : 's'})`, t, 'Like this: player3d 0, 0, 400');
+        const opts = {};
+        for (;;) {
+          const o = ['speed', 'jump', 'height'].find(isWord);
+          if (!o) break;
+          next();
+          opts[o] = expression();
+        }
+        return { kind: 'Cmd3d', cmd: 'player3d', args, opts, line };
+      }
+      case 'scale3d': case 'tilt3d': case 'color3d': case 'remove3d': case 'attach3d': case 'solid3d': case 'far3d': case 'ao3d': {
+        const need = PLUS_3D[t.value];
+        const args = [expression()];
+        while (match(',')) args.push(expression());
+        if (args.length !== need) {
+          const like = { scale3d: 'scale3d crate, 100, 200, 100', tilt3d: 'tilt3d door, 0, 150', color3d: 'color3d crate, "#ff4d6d"', remove3d: 'remove3d crate', attach3d: 'attach3d hat, head', solid3d: 'solid3d ghost, false', far3d: 'far3d 12000', ao3d: 'ao3d 60' }[t.value];
+          throw new VoltError(`'${t.value}' needs ${need} value${need === 1 ? '' : 's'} separated by commas, got ${args.length}`, t, `Like this: ${like}`);
+        }
+        return { kind: 'Cmd3d', cmd: t.value, args, opts: {}, line };
+      }
       // camera3d x, y, z, yaw, pitch      move3d id, x, y, z      turn3d id, yaw      show3d id, flag
       // glow3d id, "#4de1ff"      torch3d power, range
       case 'camera3d': case 'move3d': case 'turn3d': case 'show3d': case 'glow3d': case 'torch3d': case 'anim3d': case 'fx3d': case 'shine3d': case 'burst3d': case 'look3d': {
@@ -917,8 +947,22 @@ function parse(tokens, options = {}) {
       case 'sound': {
         const name = expect('ident', 'the name of a sound (made with audio)').value;
         let volume = null;
-        if (isWord('volume')) { next(); volume = expression(); }
-        return { kind: 'Sound', name, volume, line };
+        let at = null;
+        // sound hit at x, y, z      (3D: quieter when far from the camera, panned left or right)
+        for (;;) {
+          if (isWord('volume') && !volume) { next(); volume = expression(); continue; }
+          if (isWord('at') && !at) {
+            next();
+            at = [expression()];
+            while (match(',')) at.push(expression());
+            if (at.length !== 3) throw new VoltError("A 3D sound needs a place with three numbers, like: sound hit at x, y, z", t);
+            continue;
+          }
+          break;
+        }
+        const soundNode = { kind: 'Sound', name, volume, line };
+        if (at) soundNode.at = at;
+        return soundNode;
       }
       // volume 50      (how loud everything is, 0 to 100)
       case 'volume':
@@ -1233,6 +1277,15 @@ const BUILTINS = {
   shuffle: 1,    // shuffle(list) -> a new list in a random order
   chance: 1,     // chance(25) -> true about 25% of the time
   now: 0,        // now() -> the clock, in milliseconds since 1970 (for timing and dates)
+  // ---- games: mouse and gamepad (#html) ----
+  mousex: 0, mousey: 0, mousedown: 0, clicked: 0, pad: 1, padx: 0, pady: 0, padx2: 0, pady2: 0,
+  // ---- Volt 3D part 2 (#html) ----
+  playerx: 0, playery: 0, playerz: 0, playeryaw: 0, playerpitch: 0, onground: 0,
+  aim3d: 1,      // aim3d(range) -> the id of what the middle of the screen points at, or -1
+  ray3d: 6,      // ray3d(x, y, z, yaw, pitch, range) -> the id of the first thing in the way, or -1
+  hitdist: 0, hitx: 0, hity: 0, hitz: 0,
+  touching3d: 2, // touching3d(a, b) -> true when two 3D objects overlap
+  dist3d: 6,     // dist3d(x1, y1, z1, x2, y2, z2) -> straight-line distance in 3D
 };
 
 // Names that would clash with Volt, C++, Python, Ruby or JavaScript.
@@ -1398,6 +1451,8 @@ function cachedFile(file, encoding, transform) {
 const SAFE_DATA = new Set();     // data: URLs made here - pure base64, so they need no escaping
 const THREE_SRC = () => cachedFile(path.join(__dirname, '..', 'lib', 'three.min.js'), 'utf8', (t) => t.replace(/<\/script/gi, '<\\/script'));
 const VOLT3D_SRC = () => cachedFile(path.join(__dirname, '..', 'lib', 'volt3d.js'), 'utf8');
+const VOLT3D_PLUS_SRC = () => cachedFile(path.join(__dirname, '..', 'lib', 'volt3d-plus.js'), 'utf8');
+const GAME_PLUS_SRC = () => cachedFile(path.join(__dirname, '..', 'lib', 'game-plus.js'), 'utf8');
 
 // Helpers for #html games, added to the page only when it uses canvas
 const GAME_RUNTIME = [
@@ -1929,6 +1984,8 @@ function generate(ast, target = 'cpp', options = {}) {
   let usesTypes = false;        // struct types in #python (needs types.SimpleNamespace)
   let usesGame = false;         // canvas, sprites, held keys ... (#html)
   let uses3d = false;           // world3d, block3d ... (#html): adds Three.js
+  let uses3dPlus = false;       // player3d, freeze3d, ao3d ... : adds lib/volt3d-plus.js
+  let usesInput = false;        // mousex(), pad("a") ... : adds lib/game-plus.js
   const models = new Map();     // name -> Model3d node (.glb files)
   const images = new Map();     // name -> Image node
   const sprites = new Map();    // name -> Sprite node
@@ -2861,6 +2918,31 @@ function generate(ast, target = 'cpp', options = {}) {
           if (rb) return { code: `(rand * 100 < (${a}))`, type: 'bool' };
           if (js) return { code: `(Math.random() * 100 < (${a}))`, type: 'bool' };
           return { code: `(random(0, 100) < (${a}))`, type: 'bool' };
+        // ---- games: mouse and gamepad ----
+        case 'mousex': case 'mousey': case 'mousedown': case 'clicked': case 'pad': case 'padx': case 'pady': case 'padx2': case 'pady2':
+          gameOnly(`'${e.name}'`, e);
+          usesInput = true;
+          return { code: `__${e.name}(${c.join(', ')})`, type: ['mousedown', 'clicked', 'pad'].includes(e.name) ? 'bool' : 'num' };
+        // ---- Volt 3D part 2 ----
+        case 'playerx': case 'playery': case 'playerz': case 'playeryaw': case 'playerpitch': case 'hitdist': case 'hitx': case 'hity': case 'hitz':
+          gameOnly(`'${e.name}'`, e);
+          uses3d = true; uses3dPlus = true;
+          return { code: `__${e.name}()`, type: 'float' };
+        case 'onground': case 'touching3d':
+          gameOnly(`'${e.name}'`, e);
+          uses3d = true; uses3dPlus = true;
+          return { code: `__${e.name}(${c.join(', ')})`, type: 'bool' };
+        case 'aim3d': case 'ray3d':
+          gameOnly(`'${e.name}'`, e);
+          numbersOnly(e, args);
+          uses3d = true; uses3dPlus = true;
+          return { code: `__${e.name}(${c.join(', ')})`, type: 'num' };
+        case 'dist3d': {
+          numbersOnly(e, args);
+          if (!js) throw new VoltError("'dist3d' only works in #html and #js programs", e);
+          const [x1, y1, z1, x2, y2, z2] = c;
+          return { code: `Math.hypot((${x1}) - (${x2}), (${y1}) - (${y2}), (${z1}) - (${z2}))`, type: 'float' };
+        }
         case 'now':
           if (cpp) throw new VoltError("Boards don't have a clock for now(). Use 'uptime' (milliseconds since the board started)", e);
           if (micro) return { code: 'time.ticks_ms()', type: 'num' };
@@ -3501,6 +3583,10 @@ function generate(ast, target = 'cpp', options = {}) {
         gameOnly("'sound'", s);
         if (!audios.has(s.name)) throw new VoltError(`There is no sound called '${s.name}'. Load it first, like: audio ${s.name} = "${s.name}.mp3"`, s);
         const vol = s.volume ? `, ${bare(genNumber(s.volume, "'volume'"))}` : '';
+        if (s.at) {
+          uses3d = true; uses3dPlus = true;
+          return [`${p}__sound3d(${s.name}, ${s.at.map((x) => bare(genNumber(x, "'sound ... at'"))).join(', ')}${vol});`];
+        }
         return [`${p}__sound(${s.name}${vol});`];
       }
 
@@ -3563,7 +3649,15 @@ function generate(ast, target = 'cpp', options = {}) {
         const a = s.args;
         const o = s.opts;
         const opt = (e) => (e ? n(e) : 'null');
+        if (PLUS_3D[s.cmd] !== undefined) uses3dPlus = true;
         switch (s.cmd) {
+          case 'color3d': return [`${p}__color3d(${n(a[0])}, ${str(a[1])});`];
+          case 'solid3d': return [`${p}__solid3d(${n(a[0])}, ${genCond(a[1])});`];
+          case 'player3d': {
+            const extra = [opt(o.speed), opt(o.jump), opt(o.height)];
+            while (extra.length && extra[extra.length - 1] === 'null') extra.pop();
+            return [`${p}__player3d(${[...a.map(n), ...extra].join(', ')});`];
+          }
           case 'world3d': return [`${p}__world3d(${str(a[0])}, ${opt(o.fog)}, ${opt(o.ambient)}, ${opt(o.fov)}, ${!!o.shadows});`];
           case 'clear3d': return [`${p}__clear3d();`];
           case 'render3d': return [`${p}__render3d();`];
@@ -3888,6 +3982,8 @@ function generate(ast, target = 'cpp', options = {}) {
     '}',
     ...(usesGame ? GAME_RUNTIME : []),
     ...(uses3d ? [THREE_SRC(), VOLT3D_SRC()] : []),
+    ...(uses3d && uses3dPlus ? [VOLT3D_PLUS_SRC()] : []),
+    ...(usesInput ? [GAME_PLUS_SRC()] : []),
     ...block(topLines),
     ...program,
     '',
