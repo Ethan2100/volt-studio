@@ -68,3 +68,53 @@ and embedded assets are read once and reused; embedded base64 skips escaping.
 so the installed app had no bundled plugins at all (no `#lua`, no World Studio, no Flipbook).
 
 **Suggestion quality.** "Did you mean" no longer guesses for very short names (`foo` -> `cos`).
+
+## Review pass (after step 5)
+
+The work so far was reviewed by independently recompiling every `.volt` file with the original
+compiler and the new one, rather than trusting `test/golden.json`: 48 of 49 produce byte-identical
+output and the 49th is Yokai Descent, which now compiles instead of failing. That claim holds.
+
+Four defects came out of the review, all now fixed.
+
+**1. The `#lua` and `#luau` addon targets had fallen behind the core compiler.** Two separate
+problems, both in `plugins/lua-target/lua-common.js`:
+
+- A program's own function did not win over a built-in of the same name, so `fn dist(a, b)`
+  compiled as `#js` but failed as `#luau` with `'dist' needs 4 values, got 2`. That is the exact
+  bug class step 1 set out to kill; it was only fixed in the core.
+- Built-ins the target did not handle fell through to a bare call, so `round(2.5)` compiled
+  quietly and then crashed in Lua with `attempt to call a nil value`. This was already true
+  before the upgrade for `sqrt`, `pow`, `sin`, `cos`, `dist`, `lerp`, `overlaps`, `join` and
+  `split`; adding ~25 built-ins in step 2 made it much worse.
+
+Fixed by: user functions now win on these targets too; the new standard library is implemented in
+Lua (25 helpers); and **anything not handled is now a compile error instead of a silent
+fall-through**, so this cannot happen again. `HELPER_ORDER` gating was a second silent trap - a
+helper missing from that list was simply never written out - and now raises a compiler error too.
+
+Verified by running the generated Lua in a real Lua VM and checking it prints exactly what the
+same program prints as `#js`: 25 cases, all matching. `test/suite/07-lua-target.js` keeps it that
+way, and CI now installs Lua so those tests really run.
+
+**2. `compiler/volt.js` had been converted from CRLF to LF**, while the rest of the repo is still
+CRLF. It made the diff read as 4,303 added / 3,552 removed when the real change is 983 / 226.
+Line endings restored; the file matches the rest of the repo again.
+
+**3. `round()` was inconsistent across targets.** Ruby's own `.round` rounds half away from zero,
+so `round(-2.5)` gave `-3` in `#ruby` and `-2` everywhere else. Pinned to half-up on every target.
+
+**4. A default argument that was an expression gave a parser error.** `fn f(a, b = 2 + 3)` said
+`Expected ')' but found '+'` instead of the "must be a plain value" message written for it, which
+could never be reached. It now reports the intended message, with a hint.
+
+While fixing these, one more thing was improved: text in quotes now works inside an interpolation
+hole, so `"[{trim("  hi  ")}]"` compiles. It used to end the string at the inner quote.
+
+### Known, pre-existing, not introduced here
+
+These behave the same before and after the upgrade, and are worth a decision later:
+
+- Decimals print differently per target: `1.5 + 2.5` is `4` in `#js`, `4.0` in `#python`/`#ruby`.
+- A list shown as text differs: `1,2` in `#js`, `[1, 2]` in `#python`/`#ruby`.
+- An unescaped `"` inside text ends the text, so `"a { font: "Arial" } b"` is an error. Write `\"`.

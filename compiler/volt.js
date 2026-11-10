@@ -189,10 +189,17 @@ function lex(src) {
       i++; // skip opening quote
       while (i < src.length && src[i] !== '"') {
         if (src[i] === '{') {
-          const close = src.indexOf('}', i);
+          // Find the matching '}', stepping over any text in quotes so that
+          // "{trim("  hi  ")}" works and the quotes inside don't end the string early.
+          let close = -1;
+          for (let k = i + 1, q = false; k < src.length && src[k] !== '\n'; k++) {
+            if (q) { if (src[k] === '\\') k++; else if (src[k] === '"') q = false; continue; }
+            if (src[k] === '"') { q = true; continue; }
+            if (src[k] === '}') { close = k; break; }
+          }
           const inner = close < 0 ? null : src.slice(i + 1, close);
           // (no space after { or before }: "{hp}" is a hole, "a { b }" and CSS-like text are not)
-          if (inner !== null && /^[A-Za-z_(]/.test(inner) && !/\s$/.test(inner) && !/["\n{\\]/.test(inner)) {
+          if (inner !== null && /^[A-Za-z_(]/.test(inner) && !/\s$/.test(inner) && !/[\n{]/.test(inner)) {
             holes.push({ at: str.length, src: inner, col: i - lineStart + 2 });
             str += src.slice(i, close + 1);
             i = close + 1;
@@ -419,7 +426,12 @@ function parse(tokens, options = {}) {
             if (match('=')) {
               const d = unary();
               const plain = d.kind === 'Number' || d.kind === 'String' || d.kind === 'Bool' || (d.kind === 'Unary' && d.op === '-' && d.operand.kind === 'Number');
-              if (!plain) throw new VoltError(`The default for '${pTok.value}' must be a plain value: a number, text, true or false`, d);
+              // (anything else - '2 + 3', a name, a call - stops here rather than at the ')' further on,
+              //  so the message is about the default and not about a stray '+')
+              if (!plain || !check(',') && !check(')')) {
+                throw new VoltError(`The default for '${pTok.value}' must be a plain value: a number, text, true or false`, plain ? peek() : d,
+                  `Work it out inside the function instead, like: fn ${name}(${[...params.slice(0, -1), pTok.value].join(', ')}) { let ${pTok.value}2 = ... }`);
+              }
               defaults.push(d);
             } else {
               if (defaults.some((x) => x)) {
@@ -2835,7 +2847,8 @@ function generate(ast, target = 'cpp', options = {}) {
           numbersOnly(e, args);
           if (T.board) return { code: `(${a})`, type: 'num' };
           if (py) { usesMath = true; return { code: `int(math.floor((${a}) + 0.5))`, type: 'num' }; }
-          if (rb) return { code: `(${a}).round`, type: 'num' };
+          // (Ruby's own .round rounds half away from zero, so -2.5 would give -3 instead of -2)
+          if (rb) return { code: `((${a}) + 0.5).floor`, type: 'num' };
           return { code: `Math.round(${a})`, type: 'num' };
         case 'clamp':
           numbersOnly(e, args);

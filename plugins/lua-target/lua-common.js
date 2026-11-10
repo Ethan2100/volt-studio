@@ -69,14 +69,26 @@ function generate(ast, opts) {
 
   let uid = 0;
   const usedHelpers = new Set();
+  // Names the program defines itself. A program's own 'fn dist(a, b)' wins over the built-in
+  // of the same name, exactly as it does in the built-in targets - so adding a built-in to
+  // Volt can never break a program that already used the word.
+  const ownFuncs = new Set();
+  (function findFuncs(list) {
+    for (const n of list || []) {
+      if (n.kind === 'Fn') ownFuncs.add(n.name);
+      for (const k of ['body', 'then', 'otherwise']) if (Array.isArray(n[k])) findFuncs(n[k]);
+      if (Array.isArray(n.cases)) for (const c of n.cases) findFuncs(c.body);
+    }
+  }(ast));
   const extraGlobals = [];   // hoisted 'local __everyN = ...' lines for Every/timers
   let usesRandom = false;
 
   function need(name) {
     if (usedHelpers.has(name)) return;
     usedHelpers.add(name);
-    if (name === 'add' || name === 'contains' || name === 'len' || name === 'part' || name === 'ask') need('tostr');
+    if (['add', 'contains', 'len', 'part', 'ask', 'trim', 'replace', 'startsWith', 'endsWith', 'indexOf', 'join', 'split'].includes(name)) need('tostr');
     if (name === 'map') need('idiv');
+    if (name === 'sort' || name === 'shuffle') need('copy');
   }
   function hidden(base) { return `__${base}${uid++}`; }
   function safeName(name) { return LUA_RESERVED.has(name) ? name + '_' : name; }
@@ -150,7 +162,7 @@ function generate(ast, opts) {
 
   function call(e) {
     const name = e.name;
-    if (BUILTINS[name] !== undefined) {
+    if (BUILTINS[name] !== undefined && !ownFuncs.has(name)) {
       const want = BUILTINS[name];
       if (e.args.length !== want) {
         throw new VoltError(`'${name}' needs ${want} value${want === 1 ? '' : 's'}, got ${e.args.length}`, e.line);
@@ -172,6 +184,47 @@ function generate(ast, opts) {
         case 'length': need('len'); return `__len(${a[0]})`;
         case 'part': need('part'); return `__part(${a[0]}, ${a[1]}, ${a[2]})`;
         case 'sign': need('sign'); return `__sign(${a[0]})`;
+
+        // ---- maths ----
+        case 'sqrt': return `math.floor(math.sqrt(${a[0]}))`;
+        case 'pow': return `math.floor((${a[0]}) ^ (${a[1]}))`;
+        case 'sin': return `math.sin((${a[0]}) * math.pi / 180)`;
+        case 'cos': return `math.cos((${a[0]}) * math.pi / 180)`;
+        case 'floor': return `math.floor(${a[0]})`;
+        case 'ceil': return `math.ceil(${a[0]})`;
+        case 'round': return `math.floor((${a[0]}) + 0.5)`;
+        case 'clamp': need('constrain'); return `__constrain(${a[0]}, ${a[1]}, ${a[2]})`;
+        case 'dist': return `math.floor(math.sqrt(((${a[0]}) - (${a[2]})) ^ 2 + ((${a[1]}) - (${a[3]})) ^ 2))`;
+        case 'lerp': need('idiv'); return `((${a[0]}) + __idiv(((${a[1]}) - (${a[0]})) * (${a[2]}), 100))`;
+        case 'overlaps':
+          return `((${a[0]}) < (${a[4]}) + (${a[6]}) and (${a[0]}) + (${a[2]}) > (${a[4]}) and (${a[1]}) < (${a[5]}) + (${a[7]}) and (${a[1]}) + (${a[3]}) > (${a[5]}))`;
+        case 'chance': usesRandom = true; return `(math.random() * 100 < (${a[0]}))`;
+        case 'now': return `math.floor(os.time() * 1000)`;
+
+        // ---- text ----
+        case 'trim': need('trim'); return `__trim(${a[0]})`;
+        case 'replace': need('replace'); return `__replace(${a[0]}, ${a[1]}, ${a[2]})`;
+        case 'startsWith': need('startsWith'); return `__startsWith(${a[0]}, ${a[1]})`;
+        case 'endsWith': need('endsWith'); return `__endsWith(${a[0]}, ${a[1]})`;
+        case 'repeatText': need('tostr'); return `string.rep(__tostr(${a[0]}), math.max(0, ${a[1]}))`;
+        case 'indexOf': need('indexOf'); return `__indexOf(${a[0]}, ${a[1]})`;
+        case 'join': need('join'); return `__join(${a[0]}, ${a[1]})`;
+        case 'split': need('split'); return `__split(${a[0]}, ${a[1]})`;
+
+        // ---- lists ----
+        case 'first': return `(${a[0]})[1]`;
+        case 'last': need('last'); return `__last(${a[0]})`;
+        case 'sort': need('sort'); return `__sort(${a[0]})`;
+        case 'reverse': need('reverse'); return `__reverse(${a[0]})`;
+        case 'slice': need('slice'); return `__slice(${a[0]}, ${a[1]}, ${a[2]})`;
+        case 'sum': need('sum'); return `__sum(${a[0]})`;
+        case 'pick': usesRandom = true; need('pick'); return `__pick(${a[0]})`;
+        case 'shuffle': usesRandom = true; need('shuffle'); return `__shuffle(${a[0]})`;
+
+        default:
+          // Every built-in must be handled above or rejected here. Falling through would emit a
+          // bare call to a function that doesn't exist in Lua, which only fails when it runs.
+          unsupported(`${name}()`, e.line);
       }
     }
     const args = e.args.map(expr).join(', ');
@@ -374,6 +427,126 @@ function generate(ast, opts) {
       '  return tonumber(v) or 0',
       'end',
     ],
+    trim: [
+      'local function __trim(s)',
+      '  return (string.gsub(__tostr(s), "^%s*(.-)%s*$", "%1"))',
+      'end',
+    ],
+    // a literal find-and-replace: Lua's gsub takes patterns, so both sides are escaped first
+    replace: [
+      'local function __replace(s, find, repl)',
+      '  s = __tostr(s)',
+      '  find = string.gsub(__tostr(find), "([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")',
+      '  repl = string.gsub(__tostr(repl), "%%", "%%%%")',
+      '  if find == "" then return s end',
+      '  return (string.gsub(s, find, repl))',
+      'end',
+    ],
+    startsWith: [
+      'local function __startsWith(s, p)',
+      '  s = __tostr(s); p = __tostr(p)',
+      '  return string.sub(s, 1, string.len(p)) == p',
+      'end',
+    ],
+    endsWith: [
+      'local function __endsWith(s, p)',
+      '  s = __tostr(s); p = __tostr(p)',
+      '  if p == "" then return true end',
+      '  return string.sub(s, -string.len(p)) == p',
+      'end',
+    ],
+    indexOf: [
+      'local function __indexOf(a, x)',
+      '  if type(a) == "table" then',
+      '    for i, v in ipairs(a) do if v == x then return i - 1 end end',
+      '    return -1',
+      '  end',
+      '  local at = string.find(__tostr(a), __tostr(x), 1, true)',
+      '  if at == nil then return -1 end',
+      '  return at - 1',
+      'end',
+    ],
+    join: [
+      'local function __join(t, sep)',
+      '  local out = {}',
+      '  for i, v in ipairs(t) do out[i] = __tostr(v) end',
+      '  return table.concat(out, __tostr(sep))',
+      'end',
+    ],
+    split: [
+      'local function __split(s, sep)',
+      '  s = __tostr(s); sep = __tostr(sep)',
+      '  local out = {}',
+      '  if sep == "" then',
+      '    for i = 1, string.len(s) do out[i] = string.sub(s, i, i) end',
+      '    return out',
+      '  end',
+      '  local from = 1',
+      '  while true do',
+      '    local a, b = string.find(s, sep, from, true)',
+      '    if a == nil then break end',
+      '    out[#out + 1] = string.sub(s, from, a - 1)',
+      '    from = b + 1',
+      '  end',
+      '  out[#out + 1] = string.sub(s, from)',
+      '  return out',
+      'end',
+    ],
+    last: [
+      'local function __last(t)',
+      '  return t[#t]',
+      'end',
+    ],
+    copy: [
+      'local function __copy(t)',
+      '  local out = {}',
+      '  for i, v in ipairs(t) do out[i] = v end',
+      '  return out',
+      'end',
+    ],
+    sort: [
+      'local function __sort(t)',
+      '  local out = __copy(t)',
+      '  table.sort(out)',
+      '  return out',
+      'end',
+    ],
+    reverse: [
+      'local function __reverse(t)',
+      '  local out = {}',
+      '  for i = #t, 1, -1 do out[#out + 1] = t[i] end',
+      '  return out',
+      'end',
+    ],
+    slice: [
+      'local function __slice(t, from, count)',
+      '  local out = {}',
+      '  for i = from + 1, math.min(#t, from + count) do out[#out + 1] = t[i] end',
+      '  return out',
+      'end',
+    ],
+    sum: [
+      'local function __sum(t)',
+      '  local total = 0',
+      '  for _, v in ipairs(t) do total = total + v end',
+      '  return total',
+      'end',
+    ],
+    pick: [
+      'local function __pick(t)',
+      '  return t[math.random(1, #t)]',
+      'end',
+    ],
+    shuffle: [
+      'local function __shuffle(t)',
+      '  local out = __copy(t)',
+      '  for i = #out, 2, -1 do',
+      '    local j = math.random(1, i)',
+      '    out[i], out[j] = out[j], out[i]',
+      '  end',
+      '  return out',
+      'end',
+    ],
     sign: [
       'local function __sign(n)',
       '  if n > 0 then return 1 elseif n < 0 then return -1 else return 0 end',
@@ -413,7 +586,10 @@ function generate(ast, opts) {
     ],
   };
   // Emit in an order where every helper's own dependencies come first.
-  const HELPER_ORDER = ['tostr', 'add', 'idiv', 'mod', 'index', 'contains', 'len', 'part', 'tonum', 'sign', 'constrain', 'map', 'sleep', 'ask', 'copylist'];
+  const HELPER_ORDER = ['tostr', 'add', 'idiv', 'mod', 'index', 'contains', 'len', 'part', 'tonum', 'sign', 'constrain', 'map',
+    'trim', 'replace', 'startsWith', 'endsWith', 'indexOf', 'join', 'split',
+    'copy', 'last', 'sort', 'reverse', 'slice', 'sum', 'pick', 'shuffle',
+    'sleep', 'ask', 'copylist'];
 
   // --------------------------------- top level ------------------------------
   function topLevelName(n) {
@@ -456,6 +632,14 @@ function generate(ast, opts) {
       }
     }
 
+    // A helper that is used but missing from HELPER_ORDER (or HELPER_SRC) would simply not be
+    // written out, and the program would fail at runtime with 'attempt to call a nil value'.
+    // Catch that here instead, while there is still a compiler to report it.
+    for (const h of usedHelpers) {
+      if (!HELPER_ORDER.includes(h) || !HELPER_SRC[h]) {
+        throw new Error(`Compiler bug in the ${self} target: the helper '${h}' is used but not listed in HELPER_ORDER/HELPER_SRC`);
+      }
+    }
     const helperLines = HELPER_ORDER.filter((h) => usedHelpers.has(h)).flatMap((h) => HELPER_SRC[h]);
     const preamble = [];
     if (usesRandom) preamble.push('math.randomseed(math.floor(os.clock() * 1000000))');
