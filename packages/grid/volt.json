@@ -1,0 +1,6 @@
+{
+  "name": "grid",
+  "version": "1.0.0",
+  "description": "A flat list used as a 2D grid: tile maps, boards and levels.",
+  "main": "grid.volt"
+}

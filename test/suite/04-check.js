@@ -46,7 +46,9 @@ module.exports = (t) => {
     const golden = JSON.parse(fs.readFileSync(path.join(t.ROOT, 'test', 'golden.json'), 'utf8'));
     let n = 0;
     for (const [rel, want] of Object.entries(golden)) {
-      if (want.error || rel.startsWith('plugins/')) continue;
+      // plugins/ and packages/ hold libraries with no first line of their own; the golden suite
+      // gives them one, so they are not whole programs to compare here
+      if (want.error || rel.startsWith('plugins/') || rel.startsWith('packages/')) continue;
       const file = path.join(t.ROOT, rel);
       const src = fs.readFileSync(file, 'utf8');
       const r = volt.check(src, { baseDir: path.dirname(file) });

@@ -1,0 +1,6 @@
+{
+  "name": "tween",
+  "version": "1.0.0",
+  "description": "Smooth movement: easing curves, springs and a shake, for games.",
+  "main": "tween.volt"
+}

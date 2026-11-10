@@ -27,7 +27,12 @@ module.exports = (t) => {
   const volt = t.volt();
   const docsDir = path.join(t.ROOT, 'docs');
   // the odd example refers to a picture or a library file; test/doc-fixtures holds stand-ins
-  const where = { baseDir: docsDir, extraDirs: [path.join(t.ROOT, 'test', 'doc-fixtures')] };
+  const where = {
+    baseDir: docsDir,
+    extraDirs: [path.join(t.ROOT, 'test', 'doc-fixtures')],
+    // so an example can  import "tween"  without the packages being installed first
+    packageDirs: [path.join(t.ROOT, 'packages')],
+  };
   const files = [path.join(t.ROOT, 'README.md'), ...fs.readdirSync(docsDir).filter((f) => f.endsWith('.md')).map((f) => path.join(docsDir, f))];
   const all = [];
   for (const file of files) {

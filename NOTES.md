@@ -175,3 +175,68 @@ would actually see: three problems from one file with the right severities, `scr
 rather than the whole line, warnings styled differently, autocomplete putting the file's own
 variable first and offering 3D names in `#html`, hover, go to definition, and `shuffle` being
 coloured as a built-in. It skips when Electron isn't installed.
+
+## Steps 4 and 7 - sharing code, other editors, and the docs
+
+### A command line
+
+`bin/volt.js`, also installed as `volt`:
+
+```
+volt build | run | check | new        one .volt file
+volt add | remove | list | install    packages
+volt docs <name>                      what a built-in does
+```
+
+`volt check` prints every problem with a caret under the exact spot and exits 1 if any of them
+are errors, so it can go in a git hook or CI.
+
+### Packages
+
+A package is a folder of `.volt` files with a `volt.json`. `volt add` takes a folder, a GitHub
+repository (`owner/repo`) or any git address, copies it into `volt_packages/` and records it in
+the project's `volt.json`; `volt install` rebuilds that folder from the manifest. The compiler
+already knew how to find `volt_packages` (step 1), including from a program several folders
+down, so `import "name"` needed no further work.
+
+Two packages ship in `packages/`: **tween** (easing curves, `progress`, `shake`) and **grid**
+(a flat list used as a 2D grid). Both are covered by `test/suite/14-packages.js`, which installs
+them the way a person would and checks their answers - writing those tests caught a bounce curve
+that overshot 100 and another that was out by a factor of ten.
+
+### Volt in other editors
+
+`lsp/server.js` is a Language Server over stdio, written out by hand so there is nothing to
+install. It is a shell around the same `lib/language-service.js` the Studio uses, so every editor
+gets the same errors, warnings, autocomplete, hover, definitions and outline.
+
+`vscode-volt/` is a VS Code extension with no dependencies of its own. Its TextMate grammar is
+**generated** from the compiler's word lists by `vscode-volt/build-grammar.js`, and
+`test/suite/13-vscode.js` fails when the committed grammar has fallen behind - which is exactly
+how the old hand-copied editor lists went stale in the first place.
+
+`test/suite/12-lsp.js` drives the server with real LSP messages, including malformed input, to
+be sure one bad request can't take it down.
+
+### Docs
+
+- `docs/GETTING_STARTED.md` - Volt in 10 minutes, ending in a working 3D game.
+- `docs/VOLT3D.md` - the whole 3D side.
+- `docs/EXTENSIONS.md` - packages, plugins, and using Volt from another editor.
+- `docs/REFERENCE.md` - updated for everything new.
+
+**Every Volt example in the docs is compiled by the test suite** (`test/suite/10-docs.js`), so an
+example cannot quietly stop working. It found two that were already broken, and one of mine that
+used `{10}` as if it were a value.
+
+### Deliberately not done: a v2 plugin manifest
+
+The plan had plugins growing a `contributes` section for themes, snippets, commands and file
+types. It isn't here, on purpose. Each of those needs matching work inside Volt Studio's UI to
+honour it, and none of it is needed by anything that exists: the three plugin kinds already in
+`lib/plugins.js` (a library of snippets, a tab, a new output language) cover what the bundled
+plugins do, and packages now cover sharing Volt code, which was the real gap. Adding a wider
+manifest without anything using it would be surface to maintain for no one's benefit.
+
+The bundled plugins were left on their existing manifests for the same reason: they work, and
+porting them would have been churn.

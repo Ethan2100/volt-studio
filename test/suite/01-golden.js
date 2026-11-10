@@ -29,9 +29,14 @@ module.exports = (t) => {
     let got;
     try {
       let src = fs.readFileSync(file, 'utf8');
-      // Library snippets have no first line of their own (they get pasted into #html programs)
+      // A library has no first line of its own: a plugin snippet gets pasted into an #html
+      // program, and a package is imported by whatever program wants it. Give each one a first
+      // line here so it can be compiled at all.
       const first = src.split('\n').map((l) => l.trim()).find((l) => l && !l.startsWith('//')) || '';
-      if (rel.startsWith('plugins/') && !/^#[a-z+]+$/i.test(first)) src = '#html\n' + src;
+      if (!/^#[a-z+]+$/i.test(first)) {
+        if (rel.startsWith('plugins/')) src = '#html\n' + src;
+        else if (rel.startsWith('packages/')) src = '#js\n' + src;
+      }
       const r = volt.compile(src, { baseDir: path.dirname(file) });
       got = { target: r.target, sha1: crypto.createHash('sha1').update(r.code).digest('hex'), bytes: r.code.length };
     } catch (e) {
