@@ -277,3 +277,105 @@ One test plays the part of Volt Studio itself - answering `hello` and `getSource
 Two honest limits are shown in the panel rather than hidden: anything reaching past the edge of
 the screen is outlined in red and counted, and text holding `{values}` is previewed at the width
 you typed, which is not the width it will be once Volt fills the numbers in.
+
+---
+
+## A pass over Volt Studio itself (the app, not the language)
+
+Everything up to here was about the language and the tests. This pass was about the editor: an
+audit by a reader who had not written any of it, then fixing what it found, worst first. Nothing
+in this section changes what any `.volt` program compiles to - the golden test still says 48 of
+the 49 existing programs are byte-identical, and the one that isn't is `apps/tonefield.volt`,
+which I edited on purpose.
+
+### The three that made the app look broken
+
+**A file that used `import` could not be run at all.** The live compile the editor does while you
+type was called without the file's own folder, so `import "thing.volt"` reported *"this program
+has no folder to look in"* - on a correct line, in a file the language service said was fine.
+Because Run and Upload both refuse to start while the last compile failed, both buttons were dead
+for any such file, including the bundled "import library" example. The same gap quietly dropped
+pictures from the Output code pane, so what the pane showed was not what Run produced (267 KB
+against 613 KB for the dungeon example). Compile and Run passed the folder; the live compile and
+Upload did not. Now all four do.
+
+**A file in an addon language (`#lua`, `#luau`, `#pseudo`, all three bundled) broke the editor's
+status line.** The status line looked its language up in a table of the six built-in ones and
+found nothing, so it threw. The throw happened inside the function Run and Upload await, so
+pressing either did nothing at all, with no message anywhere - and the language menu went blank
+because it had no entry to select. Addon languages now join that table at startup and appear in
+the menu under *Addons*, which also fixes a second bug: picking a language while such a file was
+open used to insert a *second* first line (`#python` above `#lua`) and break the program.
+
+**A failed write vanished.** Four handlers wrote files with nothing around them, and the editor
+had two `.catch()` calls in 1400 lines. A read-only folder, a file open in another program, a
+full disk or a pulled-out USB stick made Save, Compile and Run do nothing at all and say nothing
+- Save even kept the unsaved-changes dot, so the app then asked about unsaved changes for a file
+the user believed they had saved. Each write now reports what went wrong in words ("the disk is
+full", "the file is in use by another program"), and there is a catch-all in the editor so that
+anything that gets through in future at least surfaces as a message.
+
+### Then
+
+- **Rescan printed three red errors for addons that were fine.** Registering a target twice threw
+  *"already registered"*, which is exactly what a rescan does. Registering the same addon again is
+  now a replace - which is also what makes editing an addon and pressing Rescan work at all -
+  while taking the name of one of Volt's own languages is still refused.
+- **A broken `plugin.json` was invisible.** The exact reason was worked out at scan time and then
+  filtered out of the list. A trailing comma looked identical to having installed nothing. Those
+  addons are now shown in the Library tab with the parse error and its position.
+- **A panel addon whose entry file was missing showed a blank white rectangle** in a dark app,
+  for ever. It now says which file it could not find and where to fix it.
+- **Typing in the large examples was laggy.** Every keystroke compiled the file twice - once for
+  the problems, once for the output code - synchronously in the main process. On the 6,815-line
+  dungeon example that was 159 ms a keystroke. One pass now does both: **56 ms**, byte-identical
+  output.
+- **Startup read about a megabyte it did not need** - every example's full source, to show
+  titles. It now reads the first 2 KB of each for the title, description and language pill, and
+  the source when a card is clicked.
+- **An upload could not be cancelled.** Compiling for the wrong board takes minutes; Stop only
+  knew about scripts, and the only button was greyed out and labelled "Uploading…". Stop now
+  stops whichever is running.
+- **Closing the editor with the preview window open left the app running** with no window to get
+  back to it from, and any running script still going with its output going nowhere.
+- **Run looked frozen on a computer without Python** - a miss was never remembered, so every Run
+  re-ran three 8-second probes before printing anything. Misses are cached now, and Tools >
+  Upload Setup Check clears the cache, which is the way to look again after installing something.
+- **Dialogs had no way out but the mouse**, and a second dialog rewrote the first in place and
+  left its promise pending for ever. Escape now closes one, taking the Cancel/Close action rather
+  than the one that changes something, and only one dialog opens at a time.
+- **The AI tab took a second question while the first was in flight** (Enter bypasses a disabled
+  submit button), which interleaved the replies and corrupted the history that gets sent next.
+- **A cut-off AI answer still offered "Replace file".** Answers are capped, and a long one stops
+  mid-code-block. The reply now says it ran out of room, and the last, incomplete block offers
+  Copy and Insert but not the one action that overwrites the whole file.
+- **Your own chat messages were white on yellow** - about 1.3:1, unreadable. Every other accent
+  surface in the app uses the dark ink colour; this one now does too. Assistant answers also had
+  a blank line between every paragraph (`pre-wrap` on top of rendered markdown).
+- **The API key reached the editor process.** The code said twice in comments that it never did.
+  It does not now: `app:info` and `settings:set` strip it, the key dialog starts empty and shows
+  the last four characters of the saved key, and there is a "Remove saved key" button, since a
+  blank box now means "leave it alone".
+- **Save As could overwrite a file without asking.** The dialog asked about `notes.txt`; the code
+  then wrote `notes.txt.volt`, clobbering any existing one silently. It asks now.
+- **At the window's own minimum width, Upload was off-screen.** The toolbar is one row that does
+  not wrap; at 900 px it wanted 1080 px, so Compile was cut in half and Upload was 180 px past
+  the edge with no way to scroll to it - which happens on a 1366x768 laptop as soon as the window
+  is not maximized. It now fits at every width from 900 px up, shedding the app's own name first,
+  then the file name, then the width of the board and port menus. The buttons never shrink.
+
+### How this was checked
+
+`test/studio-driver.js` - which opens the real Electron window - gained checks for the ones that
+could be: a file that imports compiling cleanly, an addon language naming itself in the toolbar
+and on the status line and being in the menu, switching away from one replacing line 1 rather
+than adding a second, Escape cancelling a dialog, and a save that cannot be written being
+reported. The toolbar was measured at 900, 1000, 1100 and 1240 px, and the AI and Library tabs
+were photographed rather than reasoned about.
+
+### Left alone on purpose
+
+- The serial-port poll every 3 s and the 500 ms baud-sync interval run for the life of the app.
+  They are cheap and gated on focus; worth tidying, not worth risking here.
+- Tools > Upload Setup Check still blocks for a few seconds behind its probes with no spinner.
+  Caching misses took most of the sting out of it; the spinner is a separate change.

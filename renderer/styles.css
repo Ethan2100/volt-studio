@@ -290,8 +290,12 @@ li.CodeMirror-hint-active { background: var(--accent-dim); color: var(--accent);
 /* ---------- AI chat ---------- */
 .ai-chat { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .ai-messages { flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
-.ai-msg { max-width: 92%; padding: 8px 12px; border-radius: 10px; line-height: 1.45; font-size: 13.5px; white-space: pre-wrap; }
-.ai-msg.user { align-self: flex-end; background: var(--accent); color: #fff; }
+.ai-msg { max-width: 92%; padding: 8px 12px; border-radius: 10px; line-height: 1.45; font-size: 13.5px; }
+.ai-msg.user { white-space: pre-wrap; }
+.ai-msg > :first-child { margin-top: 0; }
+.ai-msg > :last-child { margin-bottom: 0; }
+.ai-msg p { margin: 0 0 8px; }
+.ai-msg.user { align-self: flex-end; background: var(--accent); color: var(--accent-ink); }
 .ai-msg.assistant { align-self: flex-start; background: var(--panel-2); border: 1px solid var(--border); }
 .ai-msg.assistant pre { margin: 6px 0; border-radius: 8px; overflow: auto; }
 .ai-msg.assistant code { font-family: var(--mono, monospace); }
@@ -367,3 +371,39 @@ li.CodeMirror-hint-active { background: var(--accent-dim); color: var(--accent);
 .new-card b { display: block; font-size: 14px; margin-bottom: 3px; }
 .new-card span { color: var(--muted); font-size: 12px; }
 .new-card .group { color: var(--accent); font-size: 10.5px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; display: block; margin-bottom: 6px; }
+
+/* An addon whose plugin.json could not be read - shown in the Library tab so a
+   typo in a manifest doesn't look like having installed nothing. */
+.example.broken { border-color: #4a2731; background: #1b1016; cursor: default; }
+.example.broken .lang-pill { background: #3b1b24; color: #ff8fa3; }
+.example.broken p { color: #c98b98; }
+
+/* An AI answer that ran out of room before it finished. */
+.ai-cut { margin: 8px 0 0; padding-top: 7px; border-top: 1px dashed var(--border);
+  color: #c9a227; font-size: 12.5px; }
+
+/* ---------- A narrow window ----------
+   The toolbar is one row that does not wrap, and at the window's own minimum
+   width (900px) it wanted about 1080px - so Compile was cut in half and Upload
+   sat entirely off-screen, with no way to scroll to it. On a 1366x768 laptop
+   that happens as soon as the window isn't maximized. These give the row its
+   width back, least useful thing first: the app's own name, then the file name,
+   then the width of the board and port menus. The buttons never shrink. */
+@media (max-width: 1240px) {
+  .brand span { display: none; }
+  .file-name { max-width: 150px; }
+  .select-wrap select { max-width: 150px; }
+}
+@media (max-width: 1080px) {
+  .file-name { max-width: 110px; }
+  .select-wrap { padding-left: 7px; }
+  .select-wrap select { max-width: 112px; }
+  .topbar { gap: 6px; padding: 0 8px; }
+}
+@media (max-width: 980px) {
+  /* the file name is also in the window title and the Save tooltip */
+  .file-name { display: none; }
+  .select-wrap select { max-width: 96px; }
+}
+.topbar .btn { flex: none; }
+.file-actions { flex: none; }

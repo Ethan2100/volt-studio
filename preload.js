@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('volt', {
   save: (opts) => ipcRenderer.invoke('file:save', opts),
   setDirty: (v) => ipcRenderer.send('app:dirty', v),
   examples: () => ipcRenderer.invoke('examples:list'),
+  exampleSource: (file) => ipcRenderer.invoke('examples:read', file),
   reference: () => ipcRenderer.invoke('docs:reference'),
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
   openOutput: (p) => ipcRenderer.invoke('shell:openOutput', p),
@@ -25,7 +26,9 @@ contextBridge.exposeInMainWorld('volt', {
   setSettings: (patch) => ipcRenderer.invoke('settings:set', patch),
 
   // compiler
-  compile: (source) => ipcRenderer.invoke('volt:compile', source),
+  compile: (opts) => ipcRenderer.invoke('volt:compile', opts),
+  voltTargets: () => ipcRenderer.invoke('volt:targets'),
+  langReview: (opts) => ipcRenderer.invoke('lang:review', opts),
   build: (opts) => ipcRenderer.invoke('volt:build', opts),
   upload: (opts) => ipcRenderer.invoke('volt:upload', opts),
   run: (opts) => ipcRenderer.invoke('volt:run', opts),

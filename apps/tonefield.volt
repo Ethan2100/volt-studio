@@ -238,6 +238,12 @@ when key "," pressed {
 when key "." pressed {
   leadOct = clamp(leadOct + 1, 2, 6)
 }
+when key "<" pressed {
+  bassOct = clamp(bassOct - 1, 1, 4)
+}
+when key ">" pressed {
+  bassOct = clamp(bassOct + 1, 1, 4)
+}
 
 every frame {
   // ---- the clock ----
@@ -311,7 +317,8 @@ every frame {
   } else {
     write "stopped" at 168, 6 color "#8b93a7"
   }
-  write "space play   C clear   E export   [ ] tempo   , . octave   S save  L load" at 236, 6 color "#5d6579"
+  write "lead octave {leadOct}" at 236, 6 color "#4de1ff"
+  write "bass octave {bassOct}" at 350, 6 color "#ffb347"
 
   // the beat numbers along the top
   for c from 0 to steps - 1 {
@@ -333,15 +340,21 @@ every frame {
     box x, bassY - 4, cellW, 3 color "#ffffff"
   }
 
+  // the keys you can press, along the bottom where there is room for them
+  box 0, 236, 480, 34 color "#11141b"
+  write "SPACE play    C clear    E export    S save    L load" at 8, 244 color "#6b7389"
+  write "[ ] tempo    , . lead octave    < > bass octave" at 8, 256 color "#6b7389"
   if uptime < noteUntil {
-    write note at 240, 248 centered color "#ffd23f"
+    write note at 400, 250 centered color "#ffd23f"
   }
 
   if showLine {
-    box 10, 60, 460, 150 color "#10131c"
-    write "Paste this into a game:" at 20, 70 color "#ffd23f"
-    write "music \"{lineFor(0)}\"," at 20, 90 color "#4de1ff"
-    write "      \"{lineFor(1)}\" tempo {tempo}" at 20, 104 color "#ffb347"
-    write "Press E to put it away." at 20, 184 color "#8b93a7"
+    // covers the full width, so the note names down the left don't show through
+    box 0, 64, 480, 86 color "#10131c"
+    box 0, 64, 480, 2 color "#ffd23f"
+    write "Paste this into a game:" at 12, 74 color "#ffd23f"
+    write "music \"{lineFor(0)}\"," at 12, 94 color "#4de1ff"
+    write "      \"{lineFor(1)}\" tempo {tempo}" at 12, 108 color "#ffb347"
+    write "Press E to put it away." at 12, 132 color "#8b93a7"
   }
 }

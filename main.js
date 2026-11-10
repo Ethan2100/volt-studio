@@ -57,10 +57,12 @@ const bundledPluginsDir = path.join(__dirname, 'plugins');
 const userPluginsDir = path.join(app.getPath('userData'), 'plugins');
 let plugins = [];
 
-function rescanPlugins() {
+// quiet: scan without writing to the app's console, for the pass that happens
+// before the window exists to write to.
+function rescanPlugins({ quiet = false } = {}) {
   fs.mkdirSync(userPluginsDir, { recursive: true });
   plugins = pluginsLib.scanPlugins(bundledPluginsDir, userPluginsDir);
-  pluginsLib.loadTargetPlugins(plugins, volt, log);
+  pluginsLib.loadTargetPlugins(plugins, volt, quiet ? null : log);
   return plugins;
 }
 
@@ -83,9 +85,14 @@ function createWindow() {
       sandbox: true,
     },
   });
-  // Wait until the page has its console listener attached, so any
+  // The languages addons add have to be registered before the page asks what
+  // they are, or the toolbar's language menu is built without them - so scan
+  // once here, silently...
+  rescanPlugins({ quiet: true });
+  // ...and again once the page has its console listener attached, so any
   // "loaded addon" / "addon failed" messages actually reach it instead of
-  // being sent into a page that isn't listening yet.
+  // being sent into a page that isn't listening yet. Registering an addon
+  // twice is a no-op, which is also what makes Rescan work.
   win.webContents.once('did-finish-load', () => rescanPlugins());
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
@@ -113,6 +120,15 @@ function createWindow() {
       message: 'Your Volt file has unsaved changes. Close anyway?',
     });
     if (choice === 1) e.preventDefault();
+  });
+
+  // The preview is a second window, so closing the editor used to leave the app
+  // running with no way back to it - and any script started from Run kept going
+  // with its output going nowhere.
+  win.on('closed', () => {
+    if (previewWin && !previewWin.isDestroyed()) previewWin.close();
+    previewWin = null;
+    if (runChild) { try { runChild.kill(); } catch (err) { /* already gone */ } runChild = null; }
   });
 
   buildMenu();
@@ -233,7 +249,13 @@ app.on('window-all-closed', () => {
 const VOLT_FILTER = [{ name: 'Volt programs', extensions: ['volt'] }, { name: 'All files', extensions: ['*'] }];
 
 function readVolt(filePath) {
-  const content = fs.readFileSync(filePath, 'utf8');
+  let content;
+  try {
+    content = fs.readFileSync(filePath, 'utf8');
+  } catch (err) {
+    // The file moved, was deleted, or is unreadable since we last looked
+    return { error: `Could not open ${path.basename(filePath)}: ${friendlyFsError(err)}` };
+  }
   settings.lastFile = filePath;
   saveSettings();
   return { path: filePath, content };
@@ -265,10 +287,32 @@ ipcMain.handle('file:save', async (e, { filePath, content, saveAs, suggestedName
     });
     if (r.canceled || !r.filePath) return null;
     target = r.filePath;
-    // Make sure it ends in .volt (no more myled.volt.txt!)
-    if (!target.toLowerCase().endsWith('.volt')) target += '.volt';
+    // Make sure it ends in .volt (no more myled.volt.txt!). The save dialog asked
+    // about the name as typed, so if adding .volt lands on a file that already
+    // exists, that one was never offered for overwriting - ask before replacing it.
+    if (!target.toLowerCase().endsWith('.volt')) {
+      target += '.volt';
+      if (fs.existsSync(target)) {
+        const ask = await dialog.showMessageBox(win, {
+          type: 'warning',
+          buttons: ['Replace', 'Cancel'],
+          defaultId: 1,
+          cancelId: 1,
+          message: `${path.basename(target)} already exists.`,
+          detail: 'Volt programs end in .volt, so that is the name this will be saved under. Replace the existing file?',
+        });
+        if (ask.response !== 0) return null;
+      }
+    }
   }
-  fs.writeFileSync(target, content, 'utf8');
+  try {
+    fs.writeFileSync(target, content, 'utf8');
+  } catch (err) {
+    // A read-only folder, a file open elsewhere, a full disk, a pulled-out USB
+    // stick. This used to reject the invoke and vanish, so Save looked like it
+    // had worked while nothing had been written.
+    return { error: `Could not save ${path.basename(target)}: ${friendlyFsError(err)}` };
+  }
   settings.lastFile = target;
   saveSettings();
   return { path: target };
@@ -280,31 +324,62 @@ ipcMain.handle('app:info', () => ({
   version: app.getVersion(),
   voltVersion: volt.VERSION,
   platform: process.platform,
-  settings,
+  // The API key stays in this process. ai:keyInfo gives the editor the last
+  // four characters, which is all it needs to say which key is in use.
+  settings: { ...settings, anthropicApiKey: '' },
 }));
 
 ipcMain.handle('settings:set', (e, patch) => {
   Object.assign(settings, patch);
   saveSettings();
-  return settings;
+  return { ...settings, anthropicApiKey: '' };
 });
 
+const examplesDir = () => path.join(__dirname, 'examples');
+
+// The cards only need a name, a one-line description and which language the
+// example is in. Sending every example's full source as well meant reading
+// about a megabyte off disk and over IPC before the window could open, for
+// text that is only wanted when a card is clicked (see examples:read).
 ipcMain.handle('examples:list', () => {
-  const dir = path.join(__dirname, 'examples');
-  // single-file examples, plus folders (like dungeon/) whose .volt uses pictures kept beside it
+  const dir = examplesDir();
   const files = [];
-  for (const f of fs.readdirSync(dir).sort()) {
+  // single-file examples, plus folders (like dungeon/) whose .volt uses pictures kept beside it
+  let entries = [];
+  try { entries = fs.readdirSync(dir).sort(); } catch (err) { return []; }
+  for (const f of entries) {
     const full = path.join(dir, f);
-    if (f.endsWith('.volt')) files.push({ file: full, assetDir: null });
-    else if (fs.statSync(full).isDirectory()) {
-      for (const g of fs.readdirSync(full).filter((x) => x.endsWith('.volt')).sort()) files.push({ file: path.join(full, g), assetDir: full });
-    }
+    try {
+      if (f.endsWith('.volt')) files.push({ file: full, assetDir: null });
+      else if (fs.statSync(full).isDirectory()) {
+        for (const g of fs.readdirSync(full).filter((x) => x.endsWith('.volt')).sort()) {
+          files.push({ file: path.join(full, g), assetDir: full });
+        }
+      }
+    } catch (err) { /* a dangling link or an unreadable folder shouldn't empty the whole list */ }
   }
-  return files.map(({ file, assetDir }) => {
-    const content = fs.readFileSync(file, 'utf8');
-    const firstComment = (content.match(/^\s*\/\/\s*(.+)$/m) || [])[1] || '';
-    return { name: path.basename(file, '.volt'), description: firstComment, content, assetDir };
-  });
+  const out = [];
+  for (const { file, assetDir } of files) {
+    try {
+      // the opening lines are enough for the description and the language pill
+      const head = fs.readFileSync(file, 'utf8').slice(0, 2048);
+      const firstComment = (head.match(/^\s*\/\/\s*(.+)$/m) || [])[1] || '';
+      const firstLine = (head.split('\n').map((l) => l.trim()).find((l) => l && !l.startsWith('//'))) || '';
+      // the head goes along so the language pill can still tell #python from
+      // MicroPython (which depends on whether the program uses pins)
+      out.push({ name: path.basename(file, '.volt'), description: firstComment, firstLine, head, file, assetDir });
+    } catch (err) { /* skip the one we can't read, keep the rest */ }
+  }
+  return out;
+});
+
+// The source of one example, read when its card is clicked. The path has to be
+// inside the examples folder - the renderer is not trusted with arbitrary reads.
+ipcMain.handle('examples:read', (e, file) => {
+  const dir = path.resolve(examplesDir()) + path.sep;
+  const full = path.resolve(String(file || ''));
+  if (!full.startsWith(dir)) return null;
+  try { return fs.readFileSync(full, 'utf8'); } catch (err) { return null; }
 });
 
 ipcMain.handle('docs:reference', () => fs.readFileSync(path.join(__dirname, 'docs', 'REFERENCE.md'), 'utf8'));
@@ -412,6 +487,18 @@ ipcMain.handle('shell:openOutput', (e, filePath) => {
 // ---------------------------------------------------------------------
 // filePath (when known) lets 'image' pack pictures from the .volt file's folder into the page;
 // assetDir is an example's own folder, so examples with pictures run before they're saved
+// Node's own messages ("EACCES: permission denied, open '...'") are not for the
+// people Volt is for. These are.
+function friendlyFsError(err) {
+  const code = err && err.code;
+  if (code === 'EACCES' || code === 'EPERM') return 'the file or folder is read-only, or something else has it open.';
+  if (code === 'ENOSPC') return 'the disk is full.';
+  if (code === 'ENOENT') return 'that folder no longer exists.';
+  if (code === 'EBUSY') return 'the file is in use by another program.';
+  if (code === 'EROFS') return 'the drive is read-only.';
+  return (err && err.message) || 'unknown problem.';
+}
+
 function compileSource(source, filePath, assetDir) {
   try {
     const opts = { baseDir: filePath ? path.dirname(filePath) : null, extraDirs: assetDir ? [assetDir] : [] };
@@ -423,8 +510,18 @@ function compileSource(source, filePath, assetDir) {
   }
 }
 
-// Live compile while typing (nothing is written to disk)
-ipcMain.handle('volt:compile', (e, source) => compileSource(source));
+// Live compile while typing (nothing is written to disk). The file's own folder
+// comes along, or every program that uses `import` or `image` would look broken
+// in the editor while Run and Compile - which do pass it - worked fine.
+ipcMain.handle('volt:compile', (e, opts) => {
+  const o = typeof opts === 'string' ? { source: opts } : (opts || {});
+  return compileSource(o.source, o.filePath, o.assetDir);
+});
+
+// The languages that addons have added, for the toolbar's language menu
+ipcMain.handle('volt:targets', () => {
+  try { return volt.addonTargets(); } catch (err) { return []; }
+});
 
 // ---------------------------------------------------------------------
 //  Language service: everything the editor knows about the file being typed
@@ -441,6 +538,18 @@ ipcMain.handle('lang:diagnostics', (e, { source, filePath }) => {
     return { diagnostics: [], target: null };
   }
 });
+// One pass for the editor's live update: problems, target and output code
+ipcMain.handle('lang:review', (e, { source, filePath, assetDir }) => {
+  try {
+    return languageService.review(source, {
+      baseDir: filePath ? path.dirname(filePath) : null,
+      extraDirs: assetDir ? [assetDir] : [],
+    });
+  } catch (err) {
+    return { ok: false, target: null, code: null, diagnostics: [], line: 0, message: `Compiler problem: ${err.message}` };
+  }
+});
+
 ipcMain.handle('lang:completions', (e, { source, line, col }) => {
   try { return languageService.completions(source, line, col); } catch (err) { return { items: [], replace: null }; }
 });
@@ -462,8 +571,12 @@ ipcMain.handle('volt:build', (e, { filePath, source, assetDir }) => {
   const r = compileSource(source, filePath, assetDir);
   if (!r.ok || !filePath) return r;
   const { outDir, outFile } = volt.outputPath(filePath, r.target);
-  fs.mkdirSync(outDir, { recursive: true });
-  fs.writeFileSync(outFile, r.code);
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(outFile, r.code);
+  } catch (err) {
+    return { ok: false, line: 0, message: `Compiled fine, but could not write ${path.basename(outFile)}: ${friendlyFsError(err)}` };
+  }
   return { ...r, outFile };
 });
 
@@ -616,6 +729,11 @@ ipcMain.handle('monitor:send', (e, text) => {
 // ---------------------------------------------------------------------
 //  Uploading
 // ---------------------------------------------------------------------
+// The tool process an upload is currently waiting on (arduino-cli, esptool...),
+// so Stop can actually stop it. Compiling for the wrong board can take minutes,
+// and without this the only way out was killing Volt Studio.
+let toolChild = null;
+
 function run(command, args, { cwd } = {}) {
   return new Promise((resolve) => {
     log(`> ${path.basename(command)} ${args.join(' ')}\n`, 'cmd');
@@ -627,11 +745,12 @@ function run(command, args, { cwd } = {}) {
       log(`${e.message}\n`, 'error');
       return resolve({ code: -1, output: e.message });
     }
+    toolChild = child;
     const onData = (kind) => (d) => { const t = d.toString(); output += t; stream(t, kind); };
     child.stdout.on('data', onData('info'));
     child.stderr.on('data', onData('warn'));
     child.on('error', (e) => { output += e.message; log(`${e.message}\n`, 'error'); });
-    child.on('close', (code) => resolve({ code, output }));
+    child.on('close', (code) => { if (toolChild === child) toolChild = null; resolve({ code, output }); });
   });
 }
 
@@ -708,7 +827,7 @@ async function uploadPython({ code, port }) {
 
 ipcMain.handle('volt:upload', async (e, { filePath, source, port, fqbn }) => {
   if (busy) return { ok: false, message: 'An upload is already running.' };
-  const compiled = compileSource(source);
+  const compiled = compileSource(source, filePath);
   if (!compiled.ok) return compiled;
   if (!volt.TARGETS[compiled.target].board) return { ok: false, message: 'This program is a script, not a board program. Use Run instead.' };
   if (!port) return { ok: false, message: 'Pick a port first (plug in your board and press the refresh button).' };
@@ -716,8 +835,14 @@ ipcMain.handle('volt:upload', async (e, { filePath, source, port, fqbn }) => {
   // Also save the compiled file next to the .volt file, like the Compile button does
   if (filePath) {
     const { outDir, outFile } = volt.outputPath(filePath, compiled.target);
-    fs.mkdirSync(outDir, { recursive: true });
-    fs.writeFileSync(outFile, compiled.code);
+    try {
+      fs.mkdirSync(outDir, { recursive: true });
+      fs.writeFileSync(outFile, compiled.code);
+    } catch (err) {
+      // This ran before `busy` was set, so a throw here used to leave the toolbar
+      // stuck on "Uploading…" for the rest of the session.
+      return { ok: false, message: `Could not write ${path.basename(outFile)}: ${friendlyFsError(err)}` };
+    }
   }
 
   busy = true;
@@ -787,7 +912,10 @@ function tryInterpreter(command, args, pattern) {
 }
 
 function findInterpreter(lang) {
-  if (interpreterCache[lang]) return interpreterCache[lang];
+  // A miss is cached as null, so `in` rather than a truthiness test. Tools >
+  // Upload Setup Check empties the cache, which is the way to look again after
+  // installing something.
+  if (lang in interpreterCache) return interpreterCache[lang];
   let found = null;
   if (lang === 'python') {
     const tries = process.platform === 'win32'
@@ -810,7 +938,9 @@ function findInterpreter(lang) {
     // Volt Studio can run JavaScript itself (Electron includes Node.js)
     found = { command: process.execPath, args: [], env: { ELECTRON_RUN_AS_NODE: '1' }, version: `Node.js ${process.versions.node} (built in)` };
   }
-  if (found) interpreterCache[lang] = found;
+  // Remember a miss too. Without this, every Run on a computer with no Python
+  // re-ran three 8-second probes before printing anything, which looked frozen.
+  interpreterCache[lang] = found || null;
   return found;
 }
 
@@ -831,6 +961,16 @@ function writeOutput(filePath, target, code) {
   const outFile = path.join(dir, volt.TARGETS[target].file(base));
   fs.writeFileSync(outFile, code);
   return outFile;
+}
+
+// Same thing, but a disk problem comes back as a message the console can print
+// rather than an exception that makes the Run button look dead.
+function writeOutputSafely(filePath, target, code) {
+  try {
+    return { outFile: writeOutput(filePath, target, code) };
+  } catch (err) {
+    return { error: `Could not write the compiled file: ${friendlyFsError(err)}` };
+  }
 }
 
 function openPreview(file) {
@@ -876,7 +1016,12 @@ ipcMain.handle('volt:run', async (e, { filePath, source, assetDir }) => {
   const { target, code } = compiled;
   if (volt.TARGETS[target].board) return { ok: false, message: 'This is a board program. Use Upload instead.' };
 
-  const outFile = writeOutput(filePath, target, code);
+  const written = writeOutputSafely(filePath, target, code);
+  if (written.error) {
+    log(`${written.error}\n`, 'error');
+    return { ok: false, target, message: written.error };
+  }
+  const outFile = written.outFile;
 
   if (target === 'html') {
     openPreview(outFile);
@@ -888,7 +1033,7 @@ ipcMain.handle('volt:run', async (e, { filePath, source, assetDir }) => {
   const lang = target === 'python' ? 'python' : target;
   const interp = findInterpreter(lang);
   if (!interp) {
-    log(`${INSTALL_HELP[lang]}\n`, 'error');
+    log(`${INSTALL_HELP[lang] || `Volt couldn't find anything on this computer that runs #${lang} programs.`}\n`, 'error');
     return { ok: false, target, missing: lang };
   }
 
@@ -918,9 +1063,15 @@ ipcMain.handle('volt:run', async (e, { filePath, source, assetDir }) => {
 });
 
 ipcMain.handle('volt:stop', () => {
-  if (!runChild) return false;
-  runChild.kill();
-  return true;
+  if (runChild) { runChild.kill(); return true; }
+  // An upload in progress: arduino-cli and friends run through run(), which
+  // keeps the handle in toolChild.
+  if (toolChild) {
+    log('Stopping…\n', 'step');
+    try { toolChild.kill(); } catch (err) { /* already finished */ }
+    return true;
+  }
+  return false;
 });
 
 // Text typed into the console goes to the running program (for 'ask')
@@ -935,10 +1086,11 @@ ipcMain.handle('volt:openInBrowser', () => {
   return false;
 });
 
-ipcMain.handle('tools:interpreters', () => ({
-  python: findInterpreter('python'),
-  ruby: findInterpreter('ruby'),
-  js: findInterpreter('js'),
-}));
+ipcMain.handle('tools:interpreters', () => {
+  // This is the "look again" button, so forget what was found (or not found)
+  // last time - someone pressing it has usually just installed something.
+  for (const k of Object.keys(interpreterCache)) delete interpreterCache[k];
+  return { python: findInterpreter('python'), ruby: findInterpreter('ruby'), js: findInterpreter('js') };
+});
 
 app.on('before-quit', () => { if (runChild) runChild.kill(); });

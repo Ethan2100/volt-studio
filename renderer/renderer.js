@@ -28,6 +28,33 @@ const LANGS = {
   html: { label: 'HTML page', short: 'HTML', directive: '#html', board: false, mode: 'htmlmixed', group: 'Web', blurb: 'A web page with buttons, text and your own CSS' },
 };
 
+// Languages that addons have added. They go into LANGS so that every place that
+// asks "what does this file compile to?" - the status bar, the output pane header,
+// the toolbar menu, the primary button - gets an answer instead of a blank or a
+// crash. Filled in once at startup by loadAddonLanguages().
+const ADDON_MODES = { lua: null, luau: null, text: null };
+
+async function loadAddonLanguages() {
+  let extra = [];
+  try { extra = (await api.voltTargets()) || []; } catch (e) { extra = []; }
+  const group = document.createElement('optgroup');
+  group.label = 'Addons';
+  for (const t of extra) {
+    if (LANGS[t.id]) continue;                       // never shadow one of Volt's own
+    LANGS[t.id] = {
+      label: t.label, short: t.label, directive: `#${t.id}`, board: !!t.board,
+      mode: ADDON_MODES[t.lang] !== undefined ? ADDON_MODES[t.lang] : null,
+      group: 'Addon', blurb: 'Added by an addon in your plugins folder',
+    };
+    const option = document.createElement('option');
+    option.value = t.id;
+    option.textContent = t.label;
+    group.appendChild(option);
+  }
+  if (group.childElementCount) $('target-select').appendChild(group);
+  if (state.target && LANGS[state.target]) setTarget(state.target);
+}
+
 const SCRIPT_STARTER = (directive, what) => `${directive}
 // My ${what} - press Run (F5)
 let name = ask "What's your name?"
@@ -166,8 +193,29 @@ function setStatus(text, kind = '') {
   s.className = `status ${kind}`;
 }
 
+// Only one dialog at a time. A native menu accelerator (Ctrl+N twice) still
+// fires while the overlay is up, and a second modal() used to rewrite the open
+// dialog in place and leave the first promise pending for ever.
+let modalOpen = null;
 function modal(title, html, actions = [{ label: 'OK', primary: true }]) {
-  return new Promise((resolve) => {
+  if (modalOpen) return modalOpen;
+  const p = new Promise((resolve) => {
+    const finish = (index) => {
+      document.removeEventListener('keydown', onKey, true);
+      $('modal').classList.add('hidden');
+      modalOpen = null;
+      resolve(index);
+    };
+    // Escape takes the way out, never the action that changes something: the
+    // button named Cancel or Close if there is one, otherwise the first.
+    const escapeTo = Math.max(0, actions.findIndex((a) => /^(cancel|close)$/i.test(a.label)));
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      finish(escapeTo);
+    };
+    document.addEventListener('keydown', onKey, true);
     $('modal-title').textContent = title;
     $('modal-body').innerHTML = html;
     const bar = $('modal-actions');
@@ -176,12 +224,14 @@ function modal(title, html, actions = [{ label: 'OK', primary: true }]) {
       const b = document.createElement('button');
       b.className = `btn${a.primary ? ' primary' : ''}`;
       b.textContent = a.label;
-      b.onclick = () => { $('modal').classList.add('hidden'); resolve(i); };
+      b.onclick = () => finish(i);
       bar.appendChild(b);
     });
     $('modal').classList.remove('hidden');
     bar.lastChild.focus();
   });
+  modalOpen = p;
+  return p;
 }
 
 const escapeHtml = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -275,12 +325,15 @@ async function newFile() {
 async function openFile() {
   if (!(await confirmDiscard())) return;
   const r = await api.open();
-  if (r) { loadDocument(r.content, r.path); toast(`Opened ${baseName(r.path)}`); }
+  if (!r) return;
+  if (r.error) { toast(r.error, true); return; }
+  loadDocument(r.content, r.path); toast(`Opened ${baseName(r.path)}`);
 }
 
 async function saveFile(saveAs = false) {
   const r = await api.save({ filePath: state.filePath, content: editor.getValue(), saveAs, suggestedName: state.suggestedName });
   if (!r) return false;
+  if (r.error) { toast(r.error, true); setStatus(r.error, 'error'); return false; }
   state.filePath = r.path;
   setDirty(false);
   updateTitle();
@@ -518,15 +571,18 @@ function scheduleCompile() {
 
 async function compileNow() {
   const source = editor.getValue();
-  const lang = (await api.langDiagnostics({ source, filePath: state.filePath })) || {};
+  // One round trip, one pass over the file. These used to be two calls that each
+  // compiled the whole program, which is felt as lag in the larger examples.
+  const lang = (await api.langReview({ source, filePath: state.filePath, assetDir: state.assetDir }))
+    || { diagnostics: [], target: null, ok: false, code: null, line: 0, message: 'The editor could not reach the compiler.' };
   const problems = lang.diagnostics || [];
-  const r = await api.compile(source);
+  const r = { ok: lang.ok, target: lang.target, code: lang.code, line: lang.line, message: lang.message };
   state.lastResult = r;
   updateAiErrorButton();
   showProblems(problems);
   // Say what the file compiles to even when it doesn't compile yet, so the language shown in the
   // toolbar always matches the first line rather than lagging behind the last program that worked.
-  if (lang.target && lang.target !== state.target && LANGS[lang.target]) setTarget(lang.target);
+  if (lang.target && lang.target !== state.target) setTarget(lang.target);
   const errors = problems.filter((p) => p.severity !== 'warning');
   const warnings = problems.filter((p) => p.severity === 'warning');
   if (r.ok) {
@@ -538,7 +594,7 @@ async function compileNow() {
     const count = r.code.split('\n').length;
     $('output-info').textContent = `${count} lines · updates as you type`;
     const note = warnings.length ? ` · ${warnings.length} thing${warnings.length === 1 ? '' : 's'} to look at` : '';
-    setStatus(`✓ No errors · compiles to ${LANGS[r.target].label}${note}`, warnings.length ? '' : 'ok');
+    setStatus(`✓ No errors · compiles to ${(LANGS[r.target] || { label: `#${r.target}` }).label}${note}`, warnings.length ? '' : 'ok');
   } else {
     // the language service found every problem; the compiler agrees about the first one
     const first = errors[0] || { line: r.line, col: null, message: r.message };
@@ -584,12 +640,20 @@ function jumpToError() {
 $('status').addEventListener('click', () => { if ($('status').classList.contains('error')) jumpToError(); });
 
 // Rewrites the first line (#c++, #python, #html ...) when a language is picked
+// Every word that can be a first line, addon ones included. Built from LANGS so
+// that adding an addon can't leave this list behind - picking a language while an
+// addon file was open used to add a *second* first line and break the program.
+function isDirectiveLine(text) {
+  if (/^#(c\+\+|cpp|arduino|python|py|micropython|ruby|rb|js|javascript|node|html|web)$/i.test(text)) return true;
+  return Object.keys(LANGS).some((id) => text.toLowerCase() === `#${id}`);
+}
+
 function switchTarget(target) {
   const directive = LANGS[target].directive;
   for (let i = 0; i < editor.lineCount(); i++) {
     const text = editor.getLine(i).trim();
     if (text === '' || text.startsWith('//')) continue;
-    if (/^#(c\+\+|cpp|arduino|python|py|micropython|ruby|rb|js|javascript|node|html|web)$/i.test(text)) {
+    if (isDirectiveLine(text)) {
       editor.replaceRange(directive, { line: i, ch: 0 }, { line: i, ch: editor.getLine(i).length });
       return;
     }
@@ -914,13 +978,15 @@ async function loadExamples() {
   const box = $('examples');
   box.innerHTML = '';
   list.forEach((ex) => {
-    const lang = LANGS[directiveTarget(ex.content)];
+    const lang = LANGS[directiveTarget(ex.head || ex.firstLine || '')] || LANGS.cpp;
     const b = document.createElement('button');
     b.className = 'example';
     b.innerHTML = `<h4>${escapeHtml(ex.name.replace(/^\d+_/, '').replace(/_/g, ' '))} <span class="lang-pill">${lang.short}</span></h4><p>${escapeHtml(ex.description)}</p>`;
     b.onclick = async () => {
       if (!(await confirmDiscard())) return;
-      loadDocument(ex.content, null);
+      const content = await api.exampleSource(ex.file);
+      if (content == null) { toast(`Could not read the ${ex.name} example`, true); return; }
+      loadDocument(content, null);
       state.assetDir = ex.assetDir || null;
       state.suggestedName = `${ex.name.replace(/^\d+_/, '')}.volt`;
       setDirty(false);
@@ -958,7 +1024,17 @@ function addPanelTab(plugin) {
   body.appendChild(frame);
   $('side-pane').appendChild(body);
 
-  api.pluginsPanelUrl({ id: plugin.id }).then((url) => { if (url) frame.src = url; });
+  api.pluginsPanelUrl({ id: plugin.id }).then((url) => {
+    if (url) { frame.src = url; return; }
+    // The entry file is missing or points outside the addon's folder. A blank white
+    // rectangle in a dark app tells nobody anything, so say what is wrong instead.
+    const entry = (plugin.manifest.panel && plugin.manifest.panel.entry) || 'index.html';
+    frame.remove();
+    const problem = document.createElement('p');
+    problem.className = 'ai-empty';
+    problem.textContent = `This addon's page could not be opened: ${plugin.id} has no readable "${entry}". Check the "entry" in its plugin.json.`;
+    body.appendChild(problem);
+  });
   panelTabEls.push({ button, body, frame, targets: plugin.manifest.targets || null, title: button.textContent });
 }
 
@@ -1012,8 +1088,18 @@ async function loadPlugins() {
   // Library tab: every "library" plugin's snippet files, click-to-insert
   const box = $('library');
   box.innerHTML = '';
+  // An addon the app could not read at all. The reason was worked out at scan
+  // time and used to be thrown away, which made a trailing comma in a plugin.json
+  // look exactly like having installed nothing.
+  for (const p of plugins.filter((x) => x.broken)) {
+    const bad = document.createElement('div');
+    bad.className = 'example broken';
+    bad.innerHTML = `<h4>${escapeHtml(p.id)} <span class="lang-pill">can't be read</span></h4><p>${escapeHtml(p.error || 'Unknown problem')}</p>`;
+    box.appendChild(bad);
+  }
+
   const libraries = plugins.filter((p) => !p.broken && p.manifest.type === 'library');
-  if (!libraries.length) {
+  if (!libraries.length && !plugins.some((p) => p.broken)) {
     box.innerHTML = '<p class="ai-empty">No library addons installed. Drop a folder with a plugin.json into the plugins folder to add one.</p>';
   }
   for (const p of libraries) {
@@ -1090,8 +1176,9 @@ window.addEventListener('message', (ev) => {
 // ---------------------------------------------------------------------
 const aiHistory = []; // [{ role, content }], sent in full with every request
 
-function renderAiCode(container) {
-  container.querySelectorAll('pre code').forEach((code) => {
+function renderAiCode(container, truncated = false) {
+  const blocks = [...container.querySelectorAll('pre code')];
+  blocks.forEach((code) => {
     const lang = (code.className.match(/language-(\S+)/) || [])[1];
     const mode = { volt: 'volt', cpp: 'text/x-c++src', 'c++': 'text/x-c++src', python: 'python', ruby: 'ruby', js: 'javascript', javascript: 'javascript', html: 'htmlmixed' }[lang];
     const text = code.textContent;
@@ -1115,6 +1202,17 @@ function renderAiCode(container) {
       editor.focus();
     };
 
+    // A cut-off answer ends mid-code-block, and replacing the whole file with
+    // half a program is the one action here that is hard to undo by eye. Copy
+    // and Insert stay - they destroy nothing.
+    if (truncated && code === blocks[blocks.length - 1]) {
+      const partial = document.createElement('div');
+      partial.className = 'ai-code-actions';
+      partial.append(btn, insertBtn);
+      code.parentElement.insertAdjacentElement('afterend', partial);
+      return;
+    }
+
     const replaceBtn = document.createElement('button');
     replaceBtn.className = 'copy-btn';
     replaceBtn.textContent = 'Replace file';
@@ -1136,14 +1234,20 @@ function renderAiCode(container) {
   });
 }
 
-function addAiMessage(role, text) {
+function addAiMessage(role, text, truncated = false) {
   const list = $('ai-messages');
   list.querySelector('.ai-empty')?.remove();
   const div = document.createElement('div');
   div.className = `ai-msg ${role}`;
   if (role === 'assistant') {
     div.innerHTML = marked.parse(text);
-    renderAiCode(div);
+    renderAiCode(div, truncated);
+    if (truncated) {
+      const cut = document.createElement('p');
+      cut.className = 'ai-cut';
+      cut.textContent = 'This answer ran out of room and stops part-way. Ask for the rest, or for a shorter version.';
+      div.appendChild(cut);
+    }
   } else {
     div.textContent = text;
   }
@@ -1197,8 +1301,10 @@ async function sendAiMessage(text) {
     clearInterval(ticker);
     thinking.remove();
     if (r.ok) {
-      addAiMessage('assistant', r.reply);
-      aiHistory.push({ role: 'assistant', content: r.reply });
+      // lib/ai.js returns { text, truncated }; a bare string is the older shape
+      const reply = typeof r.reply === 'string' ? { text: r.reply, truncated: false } : (r.reply || { text: '' });
+      addAiMessage('assistant', reply.text, reply.truncated);
+      aiHistory.push({ role: 'assistant', content: reply.text });
     } else {
       addAiMessage('error', r.error);
       aiHistory.pop(); // don't keep a failed turn in the sent history
@@ -1223,7 +1329,9 @@ $('ai-form').addEventListener('submit', (e) => {
   sendAiMessage(text);
 });
 $('ai-text').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('ai-form').requestSubmit(); }
+  // requestSubmit() ignores a disabled submit button, so without this check Enter
+  // could start a second question while the first was still in flight.
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!$('ai-send').disabled) $('ai-form').requestSubmit(); }
 });
 $('btn-ai-clear').addEventListener('click', () => {
   aiHistory.length = 0;
@@ -1255,13 +1363,15 @@ $('btn-ai-settings').addEventListener('click', async () => {
   const modalPromise = modal('Anthropic API key',
     `<p class="muted" style="margin-top:0">Used only to power the AI tab, called from this app's own process - your key never leaves your computer except straight to Anthropic. Get a key at <code>console.anthropic.com</code>.</p>
      <label style="display:block;margin-bottom:10px">API key
-       <input type="password" id="ai-key-input" value="${escapeHtml(state.settings.anthropicApiKey || '')}" placeholder="${info.hasKey && info.source === 'env' ? 'Leave blank to keep using the environment variable' : 'sk-ant-…'}" style="width:100%;margin-top:4px;padding:7px 9px;background:var(--panel-2);border:1px solid var(--border);border-radius:7px;color:var(--text);font:inherit">
+       <input type="password" id="ai-key-input" value="" placeholder="${info.hasKey ? `A key ending …${escapeHtml(info.last4)} is saved - type a new one to replace it` : 'sk-ant-…'}" style="width:100%;margin-top:4px;padding:7px 9px;background:var(--panel-2);border:1px solid var(--border);border-radius:7px;color:var(--text);font:inherit">
      </label>
      <label style="display:block;margin-bottom:10px">Model
        <input type="text" id="ai-model-input" value="${escapeHtml(state.settings.anthropicModel || '')}" placeholder="${info.model}" style="width:100%;margin-top:4px;padding:7px 9px;background:var(--panel-2);border:1px solid var(--border);border-radius:7px;color:var(--text);font:inherit">
      </label>
      ${envNote}`,
-    [{ label: 'Cancel' }, { label: 'Save', primary: true }]);
+    info.source === 'settings'
+      ? [{ label: 'Cancel' }, { label: 'Remove saved key' }, { label: 'Save', primary: true }]
+      : [{ label: 'Cancel' }, { label: 'Save', primary: true }]);
   // modal()'s DOM setup (including its own default focus on the Save
   // button) runs synchronously before it returns the pending promise, so
   // this re-focus - onto the key field, where someone opening this dialog
@@ -1276,12 +1386,20 @@ $('btn-ai-settings').addEventListener('click', async () => {
   modelInput.addEventListener('keydown', saveOnEnter);
 
   const choice = await modalPromise;
-  if (choice !== 1) return;
-  const anthropicApiKey = keyInput.value.trim();
+  if (choice === 1 && info.source === 'settings') {
+    state.settings = await api.setSettings({ anthropicApiKey: '' });
+    await updateAiKeyStatus();
+    toast('Removed the saved key');
+    return;
+  }
+  if (choice === 0) return;
+  // The box starts empty (the key itself never comes back out of the app's own
+  // process), so blank means "leave the saved key alone" rather than "clear it".
+  const typed = keyInput.value.trim();
   const anthropicModel = modelInput.value.trim(); // blank = fall back to ANTHROPIC_MODEL / the default
-  state.settings = await api.setSettings({ anthropicApiKey, anthropicModel });
+  state.settings = await api.setSettings(typed ? { anthropicApiKey: typed, anthropicModel } : { anthropicModel });
   await updateAiKeyStatus();
-  toast(anthropicApiKey ? 'Saved your API key' : 'Cleared the saved key');
+  toast(typed ? 'Saved your API key' : 'Saved');
 });
 
 // ---------------------------------------------------------------------
@@ -1384,6 +1502,23 @@ api.onOpenPath(async (filePath) => {
 // ---------------------------------------------------------------------
 //  Start up
 // ---------------------------------------------------------------------
+
+// ---------------------------------------------------------------------
+//  Safety net
+// ---------------------------------------------------------------------
+// Everything the editor asks the app to do goes over IPC, and a rejected
+// invoke with no .catch() used to disappear into devtools - which is how
+// Save, Compile and Run could each do nothing at all and say nothing. If
+// one ever gets through again it is at least visible.
+window.addEventListener('unhandledrejection', (e) => {
+  const message = (e.reason && e.reason.message) || String(e.reason || 'Something went wrong');
+  toast(message.replace(/^Error invoking remote method '[^']*':\s*/, ''), true);
+  state.uploading = false;
+  state.running = false;
+  updatePrimaryButton();
+  e.preventDefault();
+});
+
 (async function start() {
   const info = await api.info();
   state.settings = info.settings || {};
@@ -1391,10 +1526,13 @@ api.onOpenPath(async (filePath) => {
   if (state.settings.fontSize) setFontSize(state.settings.fontSize);
   $('baud-select').value = String(state.settings.baud || 9600);
   fillBoards();
+  // before the first file is opened, so a file in an addon language shows its own
+  // name in the toolbar rather than a blank menu
+  await loadAddonLanguages();
   setTarget('cpp');
 
   const last = await api.lastFile();
-  if (last) loadDocument(last.content, last.path);
+  if (last && last.content != null) loadDocument(last.content, last.path);
   else { loadDocument(STARTER.cpp, null); setDirty(false); }
 
   updateAiKeyStatus();

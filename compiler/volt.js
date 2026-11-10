@@ -1237,8 +1237,11 @@ const EXTRA_GENERATORS = {};
 // generator instead of one of the built-ins.
 function registerTarget(firstLineWord, def) {
   const id = firstLineWord.toLowerCase();
-  if (TARGET_NAMES[id] || EXTRA_GENERATORS[id]) {
-    throw new Error(`A target called '${id}' is already registered`);
+  // Registering the same addon again just replaces it - that is how Volt Studio
+  // picks up an edited addon when you press Rescan. Taking the name of one of
+  // Volt's own languages is a different matter and is refused.
+  if (TARGET_NAMES[id] && !EXTRA_GENERATORS[id]) {
+    throw new Error(`'${id}' is one of Volt's own languages, so an addon can't use that name`);
   }
   TARGET_NAMES[id] = id;
   TARGETS[id] = { label: def.label || id, board: !!def.board, lang: def.lang || 'text', file: def.file || ((n) => `${n}.${id}.txt`) };
@@ -4316,5 +4319,16 @@ function main() {
   }
 }
 
-module.exports = { VERSION, lex, parse, generate, compile, check, prepare, formatProblem, findImport, outputPath, VoltError, KEYWORDS, BUILTINS, TARGETS, TARGET_NAMES, GAME_WORDS, PAGE_WORDS, LIST_WORDS, PIN_MODES, registerTarget };
+// Every language that came from an addon rather than from Volt itself, so the
+// app can put them in its language menu instead of showing a blank one.
+function addonTargets() {
+  return Object.keys(EXTRA_GENERATORS).map((id) => ({
+    id,
+    label: (TARGETS[id] && TARGETS[id].label) || id,
+    board: !!(TARGETS[id] && TARGETS[id].board),
+    lang: (TARGETS[id] && TARGETS[id].lang) || 'text',
+  }));
+}
+
+module.exports = { VERSION, lex, parse, generate, compile, check, prepare, formatProblem, findImport, outputPath, VoltError, KEYWORDS, BUILTINS, TARGETS, TARGET_NAMES, GAME_WORDS, PAGE_WORDS, LIST_WORDS, PIN_MODES, registerTarget, addonTargets };
 if (require.main === module) main();

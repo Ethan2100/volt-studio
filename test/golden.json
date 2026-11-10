@@ -1,8 +1,13 @@
 {
  "apps/tonefield.volt": {
   "target": "html",
-  "sha1": "f2427511d306436db9affcf08b47a5b53e18646f",
-  "bytes": 44721
+  "sha1": "a6f63486f4de14fa25f1b90837c7f74199f28ff5",
+  "bytes": 45162
+ },
+ "apps/volt-fm.volt": {
+  "target": "html",
+  "sha1": "abf2f55ebeb46643ffe952e628ab36874b7d6af0",
+  "bytes": 48357
  },
  "examples/01_blink.volt": {
   "target": "cpp",

@@ -98,6 +98,54 @@ app.on('browser-window-created', (e, win) => {
       const script = await visibleTabs();
       check('panel targets: a plain script shows neither', !script.includes('Pin Diagram') && !script.includes('World Studio'), true);
 
+      // 8. a program that uses `import` compiles in the editor, not just on Run.
+      //    The live compile used to drop the file's own folder, so every such file
+      //    showed a red error on a correct line and Run and Upload refused to start.
+      const imported = path.join(__dirname, '..', 'examples', '22_import_library.volt');
+      await js(`(async () => {
+        const r = await window.volt.openPath(${JSON.stringify(imported)});
+        loadDocument(r.content, r.path);
+      })()`);
+      await sleep(1400);
+      check('a file that imports has no problems', await js('state.problems.length'), 0);
+      check('a file that imports compiles', await js('state.lastResult.ok'), true);
+
+      // 9. a language added by an addon (#lua ships in plugins/) is a language the
+      //    editor knows about, rather than a crash on the status line and a blank menu
+      await js("state.filePath = null; true");
+      await setCode('#lua\nlet x = 1\nprint x');
+      await sleep(1200);
+      check('an addon language compiles', await js('state.lastResult.ok'), true);
+      check('an addon language names itself in the toolbar', await js("document.getElementById('status-target').textContent"), 'Lua');
+      check('an addon language is in the language menu', await js("document.getElementById('target-select').value"), 'lua');
+      check('an addon language says so on the status line', /compiles to Lua/.test(await js("document.getElementById('status').textContent")), true);
+
+      // 10. picking a language while an addon file is open replaces its first line
+      //     instead of adding a second one
+      await js("switchTarget('python'); true");
+      await sleep(900);
+      check('switching away from an addon language replaces line 1',
+        await js(`document.querySelector('#editor .CodeMirror').CodeMirror.getValue().split('\\n').slice(0, 2).join('|')`),
+        '#python|let x = 1');
+      check('switching away from an addon language leaves a program that compiles', await js('state.lastResult.ok'), true);
+
+      // 11. Escape closes a dialog, and takes the way out rather than the action
+      const escaped = await js(`(async () => {
+        const p = modal('Test', '<p>x</p>', [{ label: 'Cancel' }, { label: 'Replace', primary: true }]);
+        await new Promise(r => setTimeout(r, 120));
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        const choice = await p;
+        return choice + ':' + document.getElementById('modal').classList.contains('hidden');
+      })()`);
+      check('Escape closes a dialog by cancelling', escaped, '0:true');
+
+      // 12. a save that cannot be written says so instead of looking like it worked
+      const refused = await js(`(async () => {
+        const r = await window.volt.save({ filePath: ${JSON.stringify(path.join(out, 'no', 'such', 'folder', 'x.volt'))}, content: 'x' });
+        return r && r.error ? 'reported' : 'silent';
+      })()`);
+      check('a save that fails is reported', refused, 'reported');
+
       check('no console errors', errors.filter((m) => !/Autofill|devtools/i.test(m)), []);
     } catch (err) {
       results.push({ name: 'threw', got: String(err && err.message), want: '', ok: false });
