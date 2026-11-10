@@ -42,6 +42,8 @@
       "plugins/**",
       "examples/**",
       "docs/**",
+      "vscode-volt/**",
+      "packages/**",
       "build/icon.png",
       "node_modules/**",
       "!node_modules/@serialport/bindings-cpp/build/**"
