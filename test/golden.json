@@ -6,8 +6,8 @@
  },
  "apps/volt-fm.volt": {
   "target": "html",
-  "sha1": "7607aaccf2f70ee94466196f7a0cef9be5e98558",
-  "bytes": 48564
+  "sha1": "b5c65e6179697724348be75037eca9d195c905a4",
+  "bytes": 55493
  },
  "examples/01_blink.volt": {
   "target": "cpp",

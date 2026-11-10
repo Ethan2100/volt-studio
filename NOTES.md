@@ -411,3 +411,22 @@ Both were caught by driving the page in a real browser - clicking where a person
 checking what changed - rather than by looking at it again.
 
 `test/golden.json` has it, so its output is pinned like everything else.
+
+### Volt FM, second pass: what an outside opinion changed
+
+I asked ChatGPT (signed out, in the browser pane, so nothing of Ethan's account was touched) what a
+music app like this was missing and what made it feel like a demo. Two of its points held up and
+one I checked before accepting.
+
+- **A Now Playing screen with a seekable timeline.** Added (Enter, or click the cover). Checking
+  whether a timeline was *honest* turned up the real problem: every "song" was a 16-step loop,
+  3 to 6 seconds long, so a progress bar would have advertised it. All eight are now 64-step,
+  four-bar arrangements (11 to 25 seconds). The bar reads `__song.step` from the music runtime
+  rather than a clock beside it, and clicking it sets that counter, so it is a real seek.
+- **Stop advertising shortcuts in the UI.** The sidebar no longer shows "1 Home"; the keys still
+  work. The "press up and down to scroll" line became a scrollbar.
+- Not taken: cutting the mood chips. Its reasoning (eight songs is too few to filter) is fair, but
+  Search is the screen that makes this look like a music app at all.
+
+Verified by driving the page: the step counter advances while playing, a click at 75% lands at
+step 50 of 64, and play/pause, next, add-to-playlist and Escape all work from the new screen.
