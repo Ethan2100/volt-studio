@@ -1,0 +1,4 @@
+# Keep the line endings that are already in the repo, whatever a contributor's editor or
+# git settings would otherwise do. compiler/volt.js in particular is CRLF, and a tool that
+# silently rewrites it as LF turns a small change into a whole-file diff.
+* -text
