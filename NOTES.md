@@ -430,3 +430,36 @@ one I checked before accepting.
 
 Verified by driving the page: the step counter advances while playing, a click at 75% lands at
 step 50 of 64, and play/pause, next, add-to-playlist and Escape all work from the new screen.
+
+---
+
+## apps/volt-chat.volt - a messaging app with Instagram's look
+
+WhatsApp's behaviour in Instagram's clothes, as one `.volt` file with no assets.
+
+- **Chat list** newest first, with unread badges, a "typing..." state, and a search box that is
+  the keyboard itself: what you type filters conversations.
+- **Threads** with bubbles, word-wrapping, timestamps, a typing indicator, and replies that arrive
+  on their own after a delay. People also write first now and then, which is what makes it feel
+  alive instead of like a form.
+- **Instagram's half:** stories across the top with the gradient ring (grey once viewed), a
+  full-screen story viewer that auto-advances and where tapping the left or right side moves
+  between people, and a double-tap on any bubble to heart it.
+- **Posting a story** is done by typing what it should say in the search box and tapping the +
+  on "You".
+- Messages, hearts and which stories you have seen persist through `save` / `saved`.
+
+The people are scripted, not real - nothing here talks to a server. That is stated on the screen
+that would otherwise imply it, and it is why the replies are keyword-light and in character.
+
+### How text gets in
+
+Volt's canvas has no text input, so the page listens for keys itself through one raw-JS line that
+appends to a Volt variable. That works because raw lines share the program's scope. Backspace and
+printable characters are handled there; Enter and Esc are ordinary `when key` handlers.
+
+### Bugs this caught while being driven in a real browser
+
+The heart on the newest message was drawn underneath the input bar, and story captions were
+unreadable where they crossed the white bars. Both were visible only in a screenshot.
+Volt also refused `open`, `time`, `list` and `p` as names, which `volt check` reported clearly.

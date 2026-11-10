@@ -4,6 +4,11 @@
   "sha1": "a6f63486f4de14fa25f1b90837c7f74199f28ff5",
   "bytes": 45162
  },
+ "apps/volt-chat.volt": {
+  "target": "html",
+  "sha1": "fbf493ea77b5a67b5ffb0618013ce36893362506",
+  "bytes": 58855
+ },
  "apps/volt-fm.volt": {
   "target": "html",
   "sha1": "b5c65e6179697724348be75037eca9d195c905a4",
