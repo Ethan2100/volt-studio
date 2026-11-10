@@ -1,0 +1,39 @@
+{
+  "name": "volt-language",
+  "displayName": "Volt",
+  "description": "The Volt language: syntax colours, mistakes as you type, autocomplete, hover and go to definition.",
+  "version": "1.0.0",
+  "publisher": "ethan",
+  "license": "MIT",
+  "engines": { "vscode": "^1.75.0" },
+  "categories": ["Programming Languages"],
+  "activationEvents": ["onLanguage:volt"],
+  "main": "./extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "volt",
+        "aliases": ["Volt", "volt"],
+        "extensions": [".volt"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      { "language": "volt", "scopeName": "source.volt", "path": "./syntaxes/volt.tmLanguage.json" }
+    ],
+    "commands": [
+      { "command": "volt.build", "title": "Volt: Build this file" },
+      { "command": "volt.run", "title": "Volt: Run this file" }
+    ],
+    "configuration": {
+      "title": "Volt",
+      "properties": {
+        "volt.path": {
+          "type": "string",
+          "default": "",
+          "description": "Where Volt Studio is installed. Leave empty and the extension looks in the usual places."
+        }
+      }
+    }
+  }
+}

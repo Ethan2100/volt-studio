@@ -13,7 +13,8 @@
     "compile": "node compiler/volt.js",
     "installer": "electron-builder --win dir --x64 && makensis -DVERSION=%npm_package_version% installer/installer.nsi",
     "test": "node test/run.js",
-    "volt": "node bin/volt.js"
+    "volt": "node bin/volt.js",
+    "grammar": "node vscode-volt/build-grammar.js"
   },
   "dependencies": {
     "codemirror": "5.65.21",
@@ -35,6 +36,7 @@
       "preload.js",
       "lib/**",
       "bin/**",
+      "lsp/**",
       "compiler/**",
       "renderer/**",
       "plugins/**",

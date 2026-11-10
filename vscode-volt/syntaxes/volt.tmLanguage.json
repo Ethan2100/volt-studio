@@ -1,0 +1,103 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Volt",
+  "scopeName": "source.volt",
+  "patterns": [
+    {
+      "include": "#comment"
+    },
+    {
+      "include": "#target"
+    },
+    {
+      "include": "#raw"
+    },
+    {
+      "include": "#string"
+    },
+    {
+      "include": "#number"
+    },
+    {
+      "include": "#type"
+    },
+    {
+      "include": "#function"
+    },
+    {
+      "include": "#keyword"
+    },
+    {
+      "include": "#command"
+    },
+    {
+      "include": "#builtin"
+    },
+    {
+      "include": "#operator"
+    }
+  ],
+  "repository": {
+    "comment": {
+      "match": "//.*$",
+      "name": "comment.line.double-slash.volt"
+    },
+    "target": {
+      "match": "^\\s*#(?:arduino|c\\+\\+|cpp|html|javascript|js|lua|luau|micropython|node|pseudo|py|python|rb|ruby|web)\\s*$",
+      "name": "keyword.control.directive.volt"
+    },
+    "raw": {
+      "match": "^\\s*#.*$",
+      "name": "meta.embedded.volt"
+    },
+    "string": {
+      "name": "string.quoted.double.volt",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "match": "\\\\.",
+          "name": "constant.character.escape.volt"
+        },
+        {
+          "begin": "\\{",
+          "end": "\\}",
+          "name": "meta.interpolation.volt",
+          "patterns": [
+            {
+              "include": "$self"
+            }
+          ]
+        }
+      ]
+    },
+    "number": {
+      "match": "\\b\\d+(?:\\.\\d+)?(?:ms|s)?\\b",
+      "name": "constant.numeric.volt"
+    },
+    "type": {
+      "match": "\\b([A-Za-z_]\\w*)(?=\\s*=\\s*type\\b)",
+      "name": "entity.name.type.volt"
+    },
+    "function": {
+      "match": "(?<=\\bfn\\s)\\s*[A-Za-z_]\\w*",
+      "name": "entity.name.function.volt"
+    },
+    "keyword": {
+      "match": "\\b(?:analog|and|ask|break|clear|continue|else|every|fade|false|fn|for|forever|if|import|input|let|match|not|off|on|or|output|over|pin|pressed|print|pwm|read|repeat|return|servo|set|show|step|stepper|stop|to|toggle|tone|true|turn|uptime|wait|when|while)\\b",
+      "name": "keyword.control.volt"
+    },
+    "command": {
+      "match": "^\\s*(?:add|anim3d|ao3d|attach3d|audio|box|burst3d|camera|camera3d|canvas|clear3d|color3d|draw|far3d|freeze3d|fx3d|glow3d|image|look3d|model3d|move3d|music|paint|player3d|remove|remove3d|render3d|save|scale3d|shine3d|show3d|solid3d|sound|sprite|tilt3d|torch3d|touchpad|turn3d|volume|walk3d|world3d|write)\\b",
+      "name": "support.function.command.volt"
+    },
+    "builtin": {
+      "match": "\\b(?:abs|aim3d|atan2|ball3d|block3d|ceil|chance|clamp|clicked|clicked3d|constrain|contains|cos|cos3|crisp|cyl3d|dist|dist3d|endsWith|envVar|fetchJson|fetchText|first|floor|held|hitdist|hitx|hity|hitz|hot3d|indexOf|join|lamp3d|last|length|lerp|locked3d|lower|map|max|min|mousedown|mousedx|mousedy|mousex|mousey|now|number|onground|overlaps|pad|padx|padx2|pady|pady2|part|pick|playerpitch|playerx|playery|playeryaw|playerz|pow|put3d|random|ray3d|readFile|repeatText|replace|reverse|round|saved|shuffle|sign|sin|sin3|sky3d|slice|sort|split|sqrt|startsWith|sum|text|touching3d|touchscreen|trim|upper|writeFile)(?=\\s*\\()",
+      "name": "support.function.builtin.volt"
+    },
+    "operator": {
+      "match": "\\+\\+|--|[-+*/%]=|[=!<>]=|[-+*/%=<>]",
+      "name": "keyword.operator.volt"
+    }
+  }
+}
