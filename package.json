@@ -11,7 +11,8 @@
     "dist": "electron-builder --win",
     "dist:portable": "electron-builder --win portable",
     "compile": "node compiler/volt.js",
-    "installer": "electron-builder --win dir --x64 && makensis -DVERSION=%npm_package_version% installer/installer.nsi"
+    "installer": "electron-builder --win dir --x64 && makensis -DVERSION=%npm_package_version% installer/installer.nsi",
+    "test": "node test/run.js"
   },
   "dependencies": {
     "codemirror": "5.65.21",

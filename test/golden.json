@@ -1,0 +1,245 @@
+{
+ "examples/01_blink.volt": {
+  "target": "cpp",
+  "sha1": "2873feb92acb6aaa11abcf7b446b9c3c61c46729",
+  "bytes": 300
+ },
+ "examples/02_button_counter.volt": {
+  "target": "cpp",
+  "sha1": "5bef7c6ffb1394c2021ed81396bd654a40f43eca",
+  "bytes": 1056
+ },
+ "examples/03_breathing_led.volt": {
+  "target": "cpp",
+  "sha1": "2344e16e24be9cf293387062b3584a472553ff9f",
+  "bytes": 849
+ },
+ "examples/04_knob_servo.volt": {
+  "target": "cpp",
+  "sha1": "487dc69d77231f55beacf0c4df7aff1848a15d0e",
+  "bytes": 812
+ },
+ "examples/05_dice_game.volt": {
+  "target": "cpp",
+  "sha1": "684b7424572660d5272abb956ac26eb2832523ff",
+  "bytes": 1479
+ },
+ "examples/06_night_light.volt": {
+  "target": "cpp",
+  "sha1": "c3a63eeb0a994c88042cd3396c9814b317bad3ea",
+  "bytes": 852
+ },
+ "examples/07_traffic_light.volt": {
+  "target": "cpp",
+  "sha1": "f2121fd97809b152c2a992dae0fc1f286ba4ce37",
+  "bytes": 765
+ },
+ "examples/08_raw_cpp_library.volt": {
+  "target": "cpp",
+  "sha1": "919ae7020966193aa7e82618055d4b849473f3b0",
+  "bytes": 473
+ },
+ "examples/09_micropython_blink.volt": {
+  "target": "micropython",
+  "sha1": "2ae1c286ab84ea983376039ee8677b5dc29c1503",
+  "bytes": 423
+ },
+ "examples/10_micropython_lamp.volt": {
+  "target": "micropython",
+  "sha1": "1ce3f623fd8d95b69f8b4e685c5a59098c42132b",
+  "bytes": 1073
+ },
+ "examples/11_python_guess_the_number.volt": {
+  "target": "python",
+  "sha1": "72210c89254f1eb7bb208588d915e05df342bd99",
+  "bytes": 632
+ },
+ "examples/12_ruby_times_tables.volt": {
+  "target": "ruby",
+  "sha1": "e86511e3993049b40649acd92e90709215690e4a",
+  "bytes": 421
+ },
+ "examples/13_js_countdown.volt": {
+  "target": "js",
+  "sha1": "6881e6d5cba1f28dfe9081df7b916bf4084167f7",
+  "bytes": 774
+ },
+ "examples/14_html_click_counter.volt": {
+  "target": "html",
+  "sha1": "e782527df197a6df0e5a04cae4e54eb479b366ac",
+  "bytes": 5311
+ },
+ "examples/15_html_quiz.volt": {
+  "target": "html",
+  "sha1": "8d922e0be095dcf38b76b94e3c89381dcddd7b7f",
+  "bytes": 5435
+ },
+ "examples/16_html_key_game.volt": {
+  "target": "html",
+  "sha1": "ec5ba620682d8f2e27df9a12aed13d94ba538cd7",
+  "bytes": 5378
+ },
+ "examples/17_stepper_basics.volt": {
+  "target": "cpp",
+  "sha1": "dcf29c27f36a69f837e5fcc3ee270a1a909845b5",
+  "bytes": 2040
+ },
+ "examples/18_joystick_stepper.volt": {
+  "target": "cpp",
+  "sha1": "21b02d3530dbfa30f278d866b9b8468ba27698e7",
+  "bytes": 2040
+ },
+ "examples/19_lua_number_guesser.volt": {
+  "target": "lua",
+  "sha1": "15de49d20cf49c70c53f31f9ba5b696cbe227e26",
+  "bytes": 1023
+ },
+ "examples/20_luau_part_spawner.volt": {
+  "target": "luau",
+  "sha1": "c1884eeb8c361e52a5e8beef473cf1119e5fdb66",
+  "bytes": 1684
+ },
+ "examples/21_html_struct_types.volt": {
+  "target": "html",
+  "sha1": "c8269fcdefd2d35bcc1d7963650cc4177dc0937c",
+  "bytes": 35561
+ },
+ "examples/22_import_library.volt": {
+  "target": "js",
+  "sha1": "dfa44eed19cc5be1481142076fdbf19ca8f46570",
+  "bytes": 628
+ },
+ "examples/22_import_library_lib.volt": {
+  "target": "cpp",
+  "sha1": "cb2dd461586e96fc8b1704e91fdfb52da74165aa",
+  "bytes": 286
+ },
+ "examples/23_decimals.volt": {
+  "target": "js",
+  "sha1": "50af8035982899c2b7f83066adc6813fd205daff",
+  "bytes": 688
+ },
+ "examples/24_99_nights.volt": {
+  "target": "html",
+  "sha1": "2501e1861f45f4acb90557f00d8b70a4b47f4c47",
+  "bytes": 46303
+ },
+ "examples/25_combat_vfx_demo.volt": {
+  "target": "html",
+  "sha1": "3882b9979018a30299d705ea62b9f17061d24ffe",
+  "bytes": 66279
+ },
+ "examples/26_cursed_arena_3d.volt": {
+  "target": "html",
+  "sha1": "45f3da17e1d9adda0f7e81873374e1c1ef590fdc",
+  "bytes": 278684
+ },
+ "examples/27_simple_styling.volt": {
+  "target": "html",
+  "sha1": "ec61de29a340d70f728201acad03c5a9b9bdaa21",
+  "bytes": 5165
+ },
+ "examples/28_thornkeep_realm.volt": {
+  "target": "html",
+  "sha1": "af7c2a6927023dbe75e733fe9ad518cd1839e2eb",
+  "bytes": 864517
+ },
+ "examples/3d-test/room.volt": {
+  "target": "html",
+  "sha1": "cd5e6cecb63790689e021cc9599ec4b9a5a2a745",
+  "bytes": 857789
+ },
+ "examples/3d-test/showcase.volt": {
+  "target": "html",
+  "sha1": "62853c606b989d82796276bdb0750f666b74fdcf",
+  "bytes": 858219
+ },
+ "examples/dungeon/moonwell.volt": {
+  "target": "html",
+  "sha1": "922ac67e5bc862fc150e87126a481deaf491f5f9",
+  "bytes": 613795
+ },
+ "examples/nightshift/models-test.volt": {
+  "target": "html",
+  "sha1": "9c59bf2d3a4c14d415c7f1badad6f915b09d10bb",
+  "bytes": 1419028
+ },
+ "examples/nightshift/nightshift.volt": {
+  "target": "html",
+  "sha1": "9f4d3ff4de0cd9aba0b1591bac31ed809771df5c",
+  "bytes": 2427670
+ },
+ "examples/ninety-nine-nights/forest.pre-roblox.volt": {
+  "target": "html",
+  "sha1": "a40e72c3bc865122a9b72e4df668905324418c0c",
+  "bytes": 8741108
+ },
+ "examples/ninety-nine-nights/forest.volt": {
+  "target": "html",
+  "sha1": "0bd12601862c359357ec1c2dbfa861391e22ea3a",
+  "bytes": 8743658
+ },
+ "examples/one-more-floor/one-more-floor.volt": {
+  "target": "html",
+  "sha1": "8b69907aa257df5424f6d55e391df73cddc6198c",
+  "bytes": 2678472
+ },
+ "examples/one-more-floor/one-more-floor13.volt": {
+  "target": "html",
+  "sha1": "b7af56a9e3dc5f17979bc1dd81146076766441ca",
+  "bytes": 2523319
+ },
+ "examples/overworld/fantasy-world.volt": {
+  "target": "html",
+  "sha1": "c41369dee25da7213b21ef296b3e1266de292de8",
+  "bytes": 90061
+ },
+ "examples/roguelike/yokai-descent.volt": {
+  "error": "line 1340: 'dist' is a reserved name (Volt or one of its languages already uses it), please pick another"
+ },
+ "plugins/combat-vfx/engine.volt": {
+  "target": "html",
+  "sha1": "4c135566675e003980e80cabab27c36addf0e3fb",
+  "bytes": 33217
+ },
+ "plugins/combat3d/engine3d.volt": {
+  "target": "html",
+  "sha1": "599878d0b9a1351eabdd3adcaee757b0aacd16b0",
+  "bytes": 163002
+ },
+ "plugins/studio-kit/flipbook-template.volt": {
+  "target": "html",
+  "sha1": "b3b6320a3aaec4d9e13573de4536f25f04711566",
+  "bytes": 82423
+ },
+ "plugins/studio-kit/lacrimosa-arduino.volt": {
+  "target": "cpp",
+  "sha1": "e1fc7e3f750e2e6e23a7dc9755cdc7677346b5af",
+  "bytes": 2355
+ },
+ "plugins/studio-kit/level-editor-template.volt": {
+  "target": "html",
+  "sha1": "b9d837c06c6f3f3e7d2d667bb22600bb3d36b6ca",
+  "bytes": 123792
+ },
+ "plugins/studio-kit/studio.volt": {
+  "target": "html",
+  "sha1": "02cbb6b8e616de67e968b86d590eaf9874d8a2ae",
+  "bytes": 11966
+ },
+ "plugins/topdown-kit/kit.volt": {
+  "target": "html",
+  "sha1": "ff7abab069b4118b56803177b70a36f4866f1307",
+  "bytes": 35480
+ },
+ "plugins/ui-kit/kit.volt": {
+  "target": "html",
+  "sha1": "cebe6d8e0b06f99ace9c3775549fba61b6ceed9a",
+  "bytes": 13342
+ },
+ "plugins/vfx-engine/engine.volt": {
+  "target": "html",
+  "sha1": "80eb71b4deb5345d1b546503326d7714c53a541d",
+  "bytes": 10823
+ }
+}
