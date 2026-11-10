@@ -1,4 +1,9 @@
 {
+ "apps/tonefield.volt": {
+  "target": "html",
+  "sha1": "f2427511d306436db9affcf08b47a5b53e18646f",
+  "bytes": 44721
+ },
  "examples/01_blink.volt": {
   "target": "cpp",
   "sha1": "2873feb92acb6aaa11abcf7b446b9c3c61c46729",
@@ -148,6 +153,11 @@
   "target": "html",
   "sha1": "2256747c4b43553875e37ff7f4da28501acae2f1",
   "bytes": 880007
+ },
+ "examples/30_orbs_and_pads.volt": {
+  "target": "html",
+  "sha1": "7f4672429746f63f383d4d3ab0f0099923c1424c",
+  "bytes": 883931
  },
  "examples/3d-test/room.volt": {
   "target": "html",

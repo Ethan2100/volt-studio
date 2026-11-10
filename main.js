@@ -42,7 +42,13 @@ function saveSettings() {
 }
 
 const send = (channel, data) => { if (win && !win.isDestroyed()) win.webContents.send(channel, data); };
-const log = (text, kind = 'info') => send('console', { text, kind });
+// Every line the app itself prints ends with a newline. Without this, messages written back to
+// back run together, like "Loaded target addon: #lua (lua-target)Loaded target addon: #luau...".
+// (A program's own output does NOT come through here - that is streamed as it arrives.)
+const log = (text, kind = 'info') => send('console', { text: /\n$/.test(text) ? text : `${text}\n`, kind });
+// A running program's output arrives in chunks that can stop in the middle of a line, so it goes
+// to the console exactly as it came, with nothing added.
+const stream = (text, kind = 'out') => send('console', { text, kind });
 
 // ---------------------------------------------------------------------
 //  Plugins / addons
@@ -621,7 +627,7 @@ function run(command, args, { cwd } = {}) {
       log(`${e.message}\n`, 'error');
       return resolve({ code: -1, output: e.message });
     }
-    const onData = (kind) => (d) => { const t = d.toString(); output += t; log(t, kind); };
+    const onData = (kind) => (d) => { const t = d.toString(); output += t; stream(t, kind); };
     child.stdout.on('data', onData('info'));
     child.stderr.on('data', onData('warn'));
     child.on('error', (e) => { output += e.message; log(`${e.message}\n`, 'error'); });
@@ -898,8 +904,8 @@ ipcMain.handle('volt:run', async (e, { filePath, source, assetDir }) => {
   }
   const started = Date.now();
   send('run:state', { running: true, target });
-  runChild.stdout.on('data', (d) => log(d.toString(), 'out'));
-  runChild.stderr.on('data', (d) => log(d.toString(), 'error'));
+  runChild.stdout.on('data', (d) => stream(d.toString(), 'out'));
+  runChild.stderr.on('data', (d) => stream(d.toString(), 'error'));
   runChild.on('error', (err) => log(`${err.message}\n`, 'error'));
   runChild.on('close', (code, signal) => {
     runChild = null;
