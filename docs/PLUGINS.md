@@ -74,6 +74,13 @@ pure-reference pinout table with no dependencies at all. For a big one, see
 `plugins/world-studio` - a Roblox-Studio-style 3D world editor that uses the
 bridge below to send Volt code into the editor and to load a world back.
 
+`plugins/ui-studio` is the 2D equivalent and a good one to copy from: it is a
+single file with no build step, it writes its own block into your program
+between two marker comments, and it can read that block back so a layout stays
+editable. Its layout is saved as JSON on one comment line inside the block,
+which is a simple way to round-trip a panel's state without having to parse
+the Volt it generated.
+
 ### Talking to the editor
 
 A panel posts messages to `window.parent`; Volt Studio only answers frames

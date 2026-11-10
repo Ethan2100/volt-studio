@@ -1,0 +1,749 @@
+<!doctype html>
+<!--
+  UI Studio - a Volt Studio panel for laying out a game's HUD or a page's UI by dragging,
+  instead of guessing pixel numbers and recompiling to see where things landed.
+
+  It must be ONE file: a panel runs in a sandboxed iframe and cannot load anything beside it.
+  See docs/PLUGINS.md.
+
+  What it writes into your program is ordinary Volt, between two marker comments, with the
+  layout itself saved as JSON on one comment line so the panel can read it back and keep
+  editing. Everything below that line is plain code you can read and change.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI Studio</title>
+<style>
+  :root {
+    --bg: #14161c; --panel: #1b1e26; --line: #2a2f3a; --text: #e2e5ee; --faint: #8b93a7;
+    --accent: #ffd23f; --ok: #6fd0a8; --err: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 13px/1.5 system-ui, "Segoe UI", sans-serif;
+    display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+  }
+  button, select, input, textarea {
+    font: inherit; color: var(--text); background: #232834;
+    border: 1px solid var(--line); border-radius: 7px; padding: 5px 9px;
+  }
+  button { cursor: pointer; }
+  button:hover { border-color: #3a4152; }
+  button.go { background: var(--accent); color: #1b1600; border-color: var(--accent); font-weight: 600; }
+  button.on { border-color: var(--accent); color: var(--accent); }
+  input, select, textarea { width: 100%; }
+  textarea { resize: vertical; font-family: Consolas, "Courier New", monospace; }
+
+  .bar { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; padding: 8px 10px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  .bar .sep { width: 1px; height: 22px; background: var(--line); }
+  .bar .grow { flex: 1; }
+  .tag { color: var(--faint); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+
+  .middle { flex: 1; display: flex; min-height: 0; }
+  .stagewrap { flex: 1; overflow: auto; padding: 18px; display: flex; align-items: flex-start; justify-content: center; }
+  .side { width: 236px; border-left: 1px solid var(--line); background: var(--panel); overflow-y: auto; padding: 10px; }
+  .side h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); }
+  .row { margin-bottom: 8px; }
+  .row label { display: block; font-size: 11px; color: var(--faint); margin-bottom: 2px; }
+  .pair { display: flex; gap: 6px; }
+
+  /* the stage is the game screen, scaled up; items sit on top of it as real boxes */
+  .stage { position: relative; background: #0b0d12; box-shadow: 0 0 0 1px var(--line), 0 10px 40px rgba(0,0,0,.5); }
+  .stage.page { background: #f6f7fb; color: #1d2130; width: 420px; min-height: 300px; padding: 14px; }
+  .grid { position: absolute; inset: 0; pointer-events: none; opacity: .5; }
+  .item { position: absolute; cursor: move; user-select: none; outline: 1px solid transparent; }
+  .item.sel { outline: 1px dashed var(--accent); z-index: 5; }
+  .item .grip { position: absolute; right: -4px; bottom: -4px; width: 9px; height: 9px; background: var(--accent); border-radius: 2px; cursor: nwse-resize; }
+  .item .lbl { position: absolute; top: -15px; left: 0; font-size: 9px; color: var(--accent); white-space: nowrap; pointer-events: none; }
+  /* text drawn roughly like Volt's own 6px-per-letter pixel font */
+  .vtext { font-family: Consolas, "Courier New", monospace; white-space: pre; line-height: 1; }
+
+  .pageitem { border: 1px dashed transparent; padding: 2px; cursor: move; }
+  .pageitem.sel { border-color: #c8a01a; }
+  .pageitem h1 { font-size: 2em; margin: 0 0 10px; }
+  .pageitem .pbtn { display: inline-block; padding: 8px 16px; border-radius: 9px; background: #ffd23f; color: #1b1600; font-weight: 600; }
+
+  .code { border-top: 1px solid var(--line); background: #0f1218; }
+  .code .head { display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-bottom: 1px solid var(--line); }
+  .code pre { margin: 0; padding: 9px 12px; max-height: 190px; overflow: auto; font: 12px/1.5 Consolas, "Courier New", monospace; color: #cfe3ff; white-space: pre; }
+  .list { display: flex; flex-direction: column; gap: 3px; margin-bottom: 10px; }
+  .list button { text-align: left; padding: 4px 8px; font-size: 12px; }
+  .list button.sel { border-color: var(--accent); }
+  .warn { color: var(--err); font-size: 11px; margin-top: 6px; }
+  .note { color: var(--faint); font-size: 11px; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <span class="tag">Mode</span>
+  <button id="mode-hud" class="on">Game HUD</button>
+  <button id="mode-page">Page</button>
+  <div class="sep"></div>
+  <span class="tag" id="size-label">Screen</span>
+  <input id="cw" type="number" style="width:62px" value="320" min="16" max="4096">
+  <input id="ch" type="number" style="width:62px" value="180" min="16" max="4096">
+  <button id="snap" class="on" title="Snap to a 2 pixel grid">Snap</button>
+  <div class="grow"></div>
+  <button id="load">Load from file</button>
+  <button id="send" class="go">Send to editor</button>
+</div>
+
+<div class="middle">
+  <div class="stagewrap"><div id="stage" class="stage"></div></div>
+  <div class="side">
+    <h3>Add</h3>
+    <div class="list" id="add"></div>
+    <h3>In this layout</h3>
+    <div class="list" id="items"></div>
+    <h3 id="prop-title">Nothing selected</h3>
+    <div id="props"></div>
+    <div class="note" id="note"></div>
+  </div>
+</div>
+
+<div class="code">
+  <div class="head">
+    <span class="tag">Volt it will write</span>
+    <div class="grow"></div>
+    <span class="tag" id="status"></span>
+  </div>
+  <pre id="out"></pre>
+</div>
+
+<script>
+'use strict';
+
+// =====================================================================
+//  The layout
+// =====================================================================
+const START = '// ---- UI Studio ----';
+const END = '// ---- end UI Studio ----';
+const DATA = '// ui-studio: ';
+
+let state = { mode: 'hud', w: 320, h: 180, items: [], styles: {}, next: 1 };
+let selected = null;
+let snap = true;
+
+// What you can add, and what each one starts out as
+const KINDS = {
+  hud: {
+    box: { label: 'Box', make: () => ({ kind: 'box', x: 8, y: 8, w: 60, h: 10, color: '#2a3140' }) },
+    text: { label: 'Text', make: () => ({ kind: 'text', x: 8, y: 8, text: 'Score: {score}', color: '#ffffff', size: 1, centered: false, shadow: true }) },
+    bar: { label: 'Bar (health, mana)', make: () => ({ kind: 'bar', x: 8, y: 8, w: 60, h: 6, back: '#2a1f1f', color: '#ff4d6d', value: 'hp * 100 / maxHp' }) },
+    sprite: { label: 'Sprite', make: () => ({ kind: 'sprite', x: 20, y: 20, name: 'icon', size: 1, w: 16, h: 16 }) },
+    button: { label: 'Button', make: () => ({ kind: 'button', x: 8, y: 8, w: 70, h: 16, label: 'Pause', color: '#232834', textColor: '#ffd23f', action: 'paused = not paused' }) },
+  },
+  page: {
+    title: { label: 'Heading', make: () => ({ kind: 'title', text: 'My page' }) },
+    print: { label: 'Line of text', make: () => ({ kind: 'print', text: 'Hello!' }) },
+    pagebutton: { label: 'Button', make: () => ({ kind: 'pagebutton', label: 'Click me', action: 'print "clicked"' }) },
+    html: { kind: 'html', label: 'Raw HTML', make: () => ({ kind: 'html', text: '<b>bold</b>' }) },
+  },
+};
+
+const el = (id) => document.getElementById(id);
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const round = (v) => (snap ? Math.round(v / 2) * 2 : Math.round(v));
+// Volt text in quotes: only " and \ need care, and it has to stay on one line
+const q = (s) => `"${String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/[\r\n]+/g, ' ')}"`;
+
+// =====================================================================
+//  Writing the Volt
+// =====================================================================
+function hudLines(items) {
+  const out = [];
+  for (const it of items) {
+    switch (it.kind) {
+      case 'box':
+        out.push(`box ${it.x}, ${it.y}, ${it.w}, ${it.h} color ${q(it.color)}`);
+        break;
+      case 'text': {
+        let line = `write ${textValue(it.text)} at ${it.x}, ${it.y}`;
+        if (it.color) line += ` color ${q(it.color)}`;
+        if (it.size && it.size !== 1) line += ` size ${it.size}`;
+        if (it.centered) line += ' centered';
+        if (it.shadow) line += ' shadow';
+        out.push(line);
+        break;
+      }
+      case 'bar':
+        out.push(`// ${it.value} is how full the bar is, from 0 to 100`);
+        out.push(`box ${it.x}, ${it.y}, ${it.w}, ${it.h} color ${q(it.back)}`);
+        out.push(`box ${it.x}, ${it.y}, ${it.w} * (${it.value}) / 100, ${it.h} color ${q(it.color)}`);
+        break;
+      case 'sprite': {
+        let line = `draw ${it.name} at ${it.x}, ${it.y}`;
+        if (it.size && it.size !== 1) line += ` size ${it.size}`;
+        out.push(line);
+        break;
+      }
+      case 'button': {
+        const cx = it.x + Math.round(it.w / 2);
+        const cy = it.y + Math.max(0, Math.round((it.h - 7) / 2));
+        out.push(`box ${it.x}, ${it.y}, ${it.w}, ${it.h} color ${q(it.color)}`);
+        out.push(`write ${q(it.label)} at ${cx}, ${cy} color ${q(it.textColor)} centered`);
+        out.push(`if clicked() and mousex() >= ${it.x} and mousex() < ${it.x + it.w} and mousey() >= ${it.y} and mousey() < ${it.y + it.h} {`);
+        for (const line of String(it.action || '').split('\n')) out.push(`  ${line.trim() || '// what this button does'}`);
+        out.push('}');
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  return out;
+}
+
+// Text that already has {something} in it is Volt's own way of putting a value in text,
+// so it is written as plain text in quotes and Volt fills it in.
+function textValue(text) {
+  return q(text);
+}
+
+function pageLines(items, styles) {
+  const out = [];
+  for (const [target, props] of Object.entries(styles || {})) {
+    for (const [name, value] of Object.entries(props)) {
+      if (value === '' || value == null) continue;
+      out.push(`${target}.${name} = ${typeof value === 'number' ? value : q(value)}`);
+    }
+  }
+  for (const it of items) {
+    switch (it.kind) {
+      case 'title': out.push(`title ${q(it.text)}`); break;
+      case 'print': out.push(`print ${q(it.text)}`); break;
+      case 'html': out.push(`html ${q(it.text)}`); break;
+      case 'pagebutton':
+        out.push(`button ${q(it.label)} {`);
+        for (const line of String(it.action || '').split('\n')) out.push(`  ${line.trim() || '// what this button does'}`);
+        out.push('}');
+        break;
+      default: break;
+    }
+  }
+  return out;
+}
+
+// The whole block, markers and all. The JSON line is what lets the panel read it back.
+function exportVolt(s) {
+  const use = s || state;
+  const body = use.mode === 'hud' ? hudLines(use.items) : pageLines(use.items, use.styles);
+  return [
+    START,
+    DATA + JSON.stringify({ mode: use.mode, w: use.w, h: use.h, items: use.items, styles: use.styles }),
+    ...body,
+    END,
+  ].join('\n');
+}
+
+// Finds the block in a file. Returns where it starts and ends, and how far it was indented.
+function findBlock(source) {
+  const lines = String(source).replace(/\r\n?/g, '\n').split('\n');
+  const from = lines.findIndex((l) => l.trim() === START);
+  if (from < 0) return null;
+  const to = lines.findIndex((l, i) => i > from && l.trim() === END);
+  if (to < 0) return null;
+  const indent = (/^(\s*)/.exec(lines[from]) || ['', ''])[1];
+  return { from, to, indent, lines };
+}
+
+// Reads the layout back out of a file, so a block stays editable.
+function loadFromSource(source) {
+  const block = findBlock(source);
+  if (!block) return { ok: false, why: 'This file has no UI Studio block in it yet. Lay something out, then press "Send to editor".' };
+  const dataLine = block.lines.slice(block.from, block.to).find((l) => l.trim().startsWith(DATA.trim()));
+  if (!dataLine) return { ok: false, why: 'The block in this file has no saved layout line, so it cannot be opened here.' };
+  try {
+    const saved = JSON.parse(dataLine.trim().slice(DATA.trim().length).trim());
+    return { ok: true, state: Object.assign({ mode: 'hud', w: 320, h: 180, items: [], styles: {}, next: 1 }, saved) };
+  } catch (e) {
+    return { ok: false, why: 'The saved layout in this file is damaged, so it cannot be opened here.' };
+  }
+}
+
+// Puts the block back into a file: in place if it is already there, otherwise at the end.
+function applyToSource(source, code) {
+  const text = String(source).replace(/\r\n?/g, '\n');
+  const block = findBlock(text);
+  const put = (indent) => code.split('\n').map((l) => (l ? indent + l : l)).join('\n');
+  if (block) {
+    const lines = block.lines.slice();
+    lines.splice(block.from, block.to - block.from + 1, ...put(block.indent).split('\n'));
+    return lines.join('\n');
+  }
+  return `${text.replace(/\s*$/, '')}\n\n${put('')}\n`;
+}
+
+// The screen size written in the file, so the stage matches the real game
+function canvasSizeOf(source) {
+  const m = /^\s*canvas\s+(\d+)\s*,\s*(\d+)/m.exec(String(source));
+  return m ? { w: Number(m[1]), h: Number(m[2]) } : null;
+}
+
+// Sprites the file declares, so the sprite box can offer real names
+function spritesOf(source) {
+  const names = [];
+  const re = /^\s*sprite\s+([A-Za-z_]\w*)\s*=/gm;
+  let m;
+  while ((m = re.exec(String(source)))) names.push(m[1]);
+  return names;
+}
+
+// =====================================================================
+//  Drawing the stage
+// =====================================================================
+function scale() {
+  if (state.mode === 'page') return 1;
+  const room = Math.max(240, el('stagewrap-width') ? 0 : document.querySelector('.stagewrap').clientWidth - 36);
+  return Math.max(1, Math.min(6, Math.floor(room / state.w) || 1));
+}
+
+function draw() {
+  const stage = el('stage');
+  stage.className = state.mode === 'page' ? 'stage page' : 'stage';
+  stage.innerHTML = '';
+  if (state.mode === 'hud') {
+    const k = scale();
+    stage.style.width = `${state.w * k}px`;
+    stage.style.height = `${state.h * k}px`;
+    stage.style.padding = '0';
+    const grid = document.createElement('div');
+    grid.className = 'grid';
+    grid.style.backgroundImage = 'linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px)';
+    grid.style.backgroundSize = `${16 * k}px ${16 * k}px`;
+    stage.appendChild(grid);
+    state.items.forEach((it) => stage.appendChild(hudNode(it, k)));
+  } else {
+    stage.style.width = '';
+    stage.style.height = '';
+    if (state.styles.background && state.styles.background.color) stage.style.background = state.styles.background.color;
+    if (state.styles.text && state.styles.text.color) stage.style.color = state.styles.text.color;
+    state.items.forEach((it) => stage.appendChild(pageNode(it)));
+  }
+  drawSide();
+  const code = exportVolt();
+  el('out').textContent = code;
+  const off = state.mode === 'hud' ? state.items.filter(outside) : [];
+  el('status').textContent = `${state.items.length} item${state.items.length === 1 ? '' : 's'} · ${code.split('\n').length} lines`
+    + (off.length ? `  ·  ${off.length} off the screen` : '');
+  el('status').style.color = off.length ? 'var(--err)' : '';
+}
+
+// Something that reaches past the edge of the screen won't be fully visible in the game
+function outside(it) {
+  if (!('x' in it)) return false;
+  const size = sizeOf(it);
+  const left = it.centered ? it.x - size.w / 2 : it.x;
+  return left < 0 || it.y < 0 || left + size.w > state.w || it.y + size.h > state.h;
+}
+
+function sizeOf(it) {
+  if (it.kind === 'text') return { w: Math.max(6, String(it.text).length * 6 * (it.size || 1)), h: 8 * (it.size || 1) };
+  if (it.kind === 'sprite') return { w: (it.w || 16) * (it.size || 1), h: (it.h || 16) * (it.size || 1) };
+  return { w: it.w, h: it.h };
+}
+
+function hudNode(it, k) {
+  const size = sizeOf(it);
+  const node = document.createElement('div');
+  node.className = `item${selected === it.id ? ' sel' : ''}`;
+  if (outside(it)) node.style.boxShadow = '0 0 0 1px var(--err)';
+  node.style.left = `${it.x * k}px`;
+  node.style.top = `${it.y * k}px`;
+  node.style.width = `${size.w * k}px`;
+  node.style.height = `${size.h * k}px`;
+  node.dataset.id = it.id;
+
+  if (it.kind === 'box') node.style.background = it.color;
+  if (it.kind === 'bar') {
+    node.style.background = it.back;
+    const fill = document.createElement('div');
+    fill.style.cssText = `position:absolute;inset:0;width:60%;background:${it.color}`;
+    node.appendChild(fill);
+  }
+  if (it.kind === 'button') {
+    node.style.background = it.color;
+    node.style.display = 'flex';
+    node.style.alignItems = 'center';
+    node.style.justifyContent = 'center';
+    const t = document.createElement('span');
+    t.className = 'vtext';
+    t.style.cssText = `color:${it.textColor};font-size:${7 * k}px;letter-spacing:${k}px`;
+    t.textContent = it.label;
+    node.appendChild(t);
+  }
+  if (it.kind === 'text') {
+    const t = document.createElement('span');
+    t.className = 'vtext';
+    t.style.cssText = `color:${it.color};font-size:${7 * (it.size || 1) * k}px;letter-spacing:${(it.size || 1) * k}px;${it.shadow ? 'text-shadow:' + (it.size || 1) * k + 'px ' + (it.size || 1) * k + 'px 0 #000;' : ''}`;
+    t.textContent = it.text;
+    node.appendChild(t);
+    if (it.centered) node.style.transform = `translateX(-${size.w * k / 2}px)`;
+  }
+  if (it.kind === 'sprite') {
+    node.style.cssText += 'background:repeating-conic-gradient(#3a4152 0% 25%, #2a3140 0% 50%) 50%/8px 8px;display:flex;align-items:center;justify-content:center';
+    const t = document.createElement('span');
+    t.style.cssText = `font-size:${Math.max(8, 4 * k)}px;color:var(--accent)`;
+    t.textContent = it.name;
+    node.appendChild(t);
+  }
+
+  const label = document.createElement('span');
+  label.className = 'lbl';
+  label.textContent = `${it.kind} ${it.x},${it.y}`;
+  node.appendChild(label);
+
+  if (it.kind !== 'text' && it.kind !== 'sprite') {
+    const grip = document.createElement('div');
+    grip.className = 'grip';
+    grip.dataset.grip = it.id;
+    node.appendChild(grip);
+  }
+  return node;
+}
+
+function pageNode(it) {
+  const node = document.createElement('div');
+  node.className = `pageitem${selected === it.id ? ' sel' : ''}`;
+  node.dataset.id = it.id;
+  if (it.kind === 'title') node.innerHTML = '<h1></h1>', node.firstChild.textContent = it.text;
+  else if (it.kind === 'print') node.textContent = it.text;
+  else if (it.kind === 'html') node.textContent = `HTML: ${it.text}`;
+  else if (it.kind === 'pagebutton') {
+    const b = document.createElement('span');
+    b.className = 'pbtn';
+    b.textContent = it.label;
+    node.appendChild(b);
+  }
+  if (state.styles.text && state.styles.text.size) node.style.fontSize = `${state.styles.text.size}px`;
+  return node;
+}
+
+// =====================================================================
+//  The side panel
+// =====================================================================
+function drawSide() {
+  const add = el('add');
+  add.innerHTML = '';
+  for (const [key, spec] of Object.entries(KINDS[state.mode])) {
+    const b = document.createElement('button');
+    b.textContent = `+ ${spec.label}`;
+    b.onclick = () => addItem(key);
+    add.appendChild(b);
+  }
+
+  const list = el('items');
+  list.innerHTML = '';
+  state.items.forEach((it) => {
+    const b = document.createElement('button');
+    b.className = selected === it.id ? 'sel' : '';
+    b.textContent = `${it.kind}  ${it.text || it.label || it.name || ''}`.trim().slice(0, 28);
+    b.onclick = () => { selected = it.id; draw(); };
+    list.appendChild(b);
+  });
+
+  const item = state.items.find((i) => i.id === selected);
+  el('prop-title').textContent = item ? item.kind : 'Nothing selected';
+  const props = el('props');
+  props.innerHTML = '';
+  if (!item) {
+    if (state.mode === 'page') {
+      props.appendChild(field('Page background', (state.styles.background || {}).color || '', (v) => setStyle('background', 'color', v), 'color'));
+      props.appendChild(field('Text colour', (state.styles.text || {}).color || '', (v) => setStyle('text', 'color', v), 'color'));
+      props.appendChild(field('Text size (px)', (state.styles.text || {}).size || '', (v) => setStyle('text', 'size', v === '' ? '' : Number(v)), 'number'));
+    }
+    el('note').textContent = state.mode === 'hud'
+      ? 'Drag to move, drag the corner to resize, arrow keys nudge, Delete removes. The HUD block belongs inside every frame { }.'
+      : 'These go at the top level of an #html page, not inside a loop.';
+    return;
+  }
+  const set = (key) => (v) => { item[key] = v; draw(); };
+  const num = (key) => (v) => { item[key] = Math.round(Number(v) || 0); draw(); };
+
+  if ('x' in item) {
+    const pair = document.createElement('div');
+    pair.className = 'pair';
+    pair.appendChild(field('x', item.x, num('x'), 'number'));
+    pair.appendChild(field('y', item.y, num('y'), 'number'));
+    props.appendChild(pair);
+  }
+  if (item.kind === 'box' || item.kind === 'bar' || item.kind === 'button') {
+    const pair = document.createElement('div');
+    pair.className = 'pair';
+    pair.appendChild(field('width', item.w, num('w'), 'number'));
+    pair.appendChild(field('height', item.h, num('h'), 'number'));
+    props.appendChild(pair);
+  }
+  if (item.kind === 'box') props.appendChild(field('colour', item.color, set('color'), 'color'));
+  if (item.kind === 'bar') {
+    props.appendChild(field('empty colour', item.back, set('back'), 'color'));
+    props.appendChild(field('full colour', item.color, set('color'), 'color'));
+    props.appendChild(field('how full, 0 to 100', item.value, set('value')));
+  }
+  if (item.kind === 'text') {
+    props.appendChild(field('text', item.text, set('text')));
+    props.appendChild(field('colour', item.color, set('color'), 'color'));
+    props.appendChild(field('size', item.size, num('size'), 'number'));
+    props.appendChild(toggle('centred on x', item.centered, set('centered')));
+    props.appendChild(toggle('shadow', item.shadow, set('shadow')));
+  }
+  if (item.kind === 'sprite') {
+    props.appendChild(field('sprite name', item.name, set('name'), 'text', window.__sprites || []));
+    props.appendChild(field('size', item.size, num('size'), 'number'));
+    const pair = document.createElement('div');
+    pair.className = 'pair';
+    pair.appendChild(field('shown as wide', item.w, num('w'), 'number'));
+    pair.appendChild(field('shown as tall', item.h, num('h'), 'number'));
+    props.appendChild(pair);
+  }
+  if (item.kind === 'button') {
+    props.appendChild(field('label', item.label, set('label')));
+    props.appendChild(field('background', item.color, set('color'), 'color'));
+    props.appendChild(field('text colour', item.textColor, set('textColor'), 'color'));
+    props.appendChild(area('what it does', item.action, set('action')));
+  }
+  if (item.kind === 'title' || item.kind === 'print' || item.kind === 'html') props.appendChild(field('text', item.text, set('text')));
+  if (item.kind === 'pagebutton') {
+    props.appendChild(field('label', item.label, set('label')));
+    props.appendChild(area('what it does', item.action, set('action')));
+  }
+
+  const rm = document.createElement('button');
+  rm.textContent = 'Remove';
+  rm.onclick = () => removeItem(item.id);
+  props.appendChild(rm);
+
+  const notes = [];
+  if (outside(item)) notes.push('This reaches past the edge of the screen, so part of it will not be seen.');
+  if (item.kind === 'text' && /\{[^}]+\}/.test(item.text || '')) {
+    notes.push('The {values} are shown here as you typed them. In the game they become numbers, so the real width will differ - give it room, or tick "centred on x".');
+  }
+  if (item.kind === 'sprite') notes.push('Draw needs a sprite of this name in the file. "Load from file" fills the list from your own sprites.');
+  if (item.kind === 'button') notes.push('Uses clicked() and mousex(), so the program needs a canvas.');
+  el('note').textContent = notes.join(' ');
+}
+
+function field(label, value, onChange, type, options) {
+  const row = document.createElement('div');
+  row.className = 'row';
+  const l = document.createElement('label');
+  l.textContent = label;
+  row.appendChild(l);
+  if (options && options.length) {
+    const sel = document.createElement('select');
+    for (const name of [...new Set([value, ...options])].filter(Boolean)) {
+      const o = document.createElement('option');
+      o.value = name; o.textContent = name; o.selected = name === value;
+      sel.appendChild(o);
+    }
+    sel.onchange = () => onChange(sel.value);
+    row.appendChild(sel);
+    return row;
+  }
+  const input = document.createElement('input');
+  input.type = type === 'color' ? 'text' : (type || 'text');
+  input.value = value;
+  input.oninput = () => onChange(input.value);
+  row.appendChild(input);
+  return row;
+}
+
+function area(label, value, onChange) {
+  const row = document.createElement('div');
+  row.className = 'row';
+  const l = document.createElement('label');
+  l.textContent = label;
+  const t = document.createElement('textarea');
+  t.rows = 3;
+  t.value = value || '';
+  t.oninput = () => onChange(t.value);
+  row.append(l, t);
+  return row;
+}
+
+function toggle(label, value, onChange) {
+  const row = document.createElement('div');
+  row.className = 'row';
+  const b = document.createElement('button');
+  b.className = value ? 'on' : '';
+  b.textContent = `${label}: ${value ? 'yes' : 'no'}`;
+  b.onclick = () => onChange(!value);
+  row.appendChild(b);
+  return row;
+}
+
+// =====================================================================
+//  Changing the layout
+// =====================================================================
+function addItem(key) {
+  const made = KINDS[state.mode][key].make();
+  made.id = state.next++;
+  // step each new thing down and across a little, so they don't land on top of one another
+  if ('x' in made) {
+    const step = (state.items.length % 8) * 6;
+    made.x = clamp(made.x + step, 0, Math.max(0, state.w - 10));
+    made.y = clamp(made.y + step, 0, Math.max(0, state.h - 10));
+  }
+  state.items.push(made);
+  selected = made.id;
+  draw();
+  return made;
+}
+
+function removeItem(id) {
+  state.items = state.items.filter((i) => i.id !== id);
+  if (selected === id) selected = null;
+  draw();
+}
+
+function setStyle(target, name, value) {
+  state.styles[target] = state.styles[target] || {};
+  if (value === '' || value == null) delete state.styles[target][name];
+  else state.styles[target][name] = value;
+  if (!Object.keys(state.styles[target]).length) delete state.styles[target];
+  draw();
+}
+
+// ---- dragging on the stage ----
+let drag = null;
+el('stage').addEventListener('pointerdown', (e) => {
+  const grip = e.target.closest('[data-grip]');
+  const node = e.target.closest('[data-id]');
+  if (!node && !grip) { selected = null; draw(); return; }
+  const id = Number(grip ? grip.dataset.grip : node.dataset.id);
+  const item = state.items.find((i) => i.id === id);
+  if (!item) return;
+  selected = id;
+  if (state.mode === 'page') { draw(); return; }
+  const k = scale();
+  drag = { item, grip: !!grip, k, startX: e.clientX, startY: e.clientY, ox: item.x, oy: item.y, ow: item.w, oh: item.h };
+  el('stage').setPointerCapture(e.pointerId);
+  draw();
+  e.preventDefault();
+});
+el('stage').addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  const dx = (e.clientX - drag.startX) / drag.k;
+  const dy = (e.clientY - drag.startY) / drag.k;
+  if (drag.grip) {
+    drag.item.w = Math.max(2, round(drag.ow + dx));
+    drag.item.h = Math.max(2, round(drag.oh + dy));
+  } else {
+    drag.item.x = clamp(round(drag.ox + dx), -200, state.w + 200);
+    drag.item.y = clamp(round(drag.oy + dy), -200, state.h + 200);
+  }
+  draw();
+});
+const endDrag = () => { drag = null; };
+el('stage').addEventListener('pointerup', endDrag);
+el('stage').addEventListener('pointercancel', endDrag);
+
+document.addEventListener('keydown', (e) => {
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+  const item = state.items.find((i) => i.id === selected);
+  if (!item) return;
+  if (e.key === 'Delete' || e.key === 'Backspace') { removeItem(item.id); e.preventDefault(); return; }
+  const step = e.shiftKey ? 10 : 1;
+  const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+  if (!moves[e.key] || !('x' in item)) return;
+  item.x += moves[e.key][0];
+  item.y += moves[e.key][1];
+  draw();
+  e.preventDefault();
+});
+
+// =====================================================================
+//  Talking to Volt Studio
+// =====================================================================
+let connected = false;
+let nextReq = 1;
+const pending = new Map();
+
+function toHost(type, extra) {
+  try { window.parent.postMessage(Object.assign({ voltPanel: 1, type }, extra || {}), '*'); } catch (e) { /* on its own */ }
+}
+function getSource() {
+  return new Promise((done, fail) => {
+    const req = nextReq++;
+    pending.set(req, done);
+    toHost('getSource', { req });
+    setTimeout(() => { if (pending.delete(req)) fail(new Error('Volt Studio did not answer')); }, 4000);
+  });
+}
+window.addEventListener('message', (e) => {
+  const d = e.data;
+  if (!d || d.voltHost !== 1) return;
+  if (d.type === 'hello') connected = true;
+  if (d.type === 'source' && pending.has(d.req)) { pending.get(d.req)(d.source || ''); pending.delete(d.req); }
+});
+toHost('hello');
+// this panel needs room: a stage, a properties column and the code underneath
+toHost('wide', { on: true });
+
+el('load').onclick = async () => {
+  let source = '';
+  try { source = await getSource(); } catch (err) { toHost('toast', { text: 'Open this inside Volt Studio to load a file.', error: true }); return; }
+  const size = canvasSizeOf(source);
+  window.__sprites = spritesOf(source);
+  const found = loadFromSource(source);
+  if (!found.ok) {
+    if (size) { state.w = size.w; state.h = size.h; el('cw').value = size.w; el('ch').value = size.h; }
+    toHost('toast', { text: found.why, error: true });
+    draw();
+    return;
+  }
+  state = found.state;
+  if (!state.next) state.next = Math.max(0, ...state.items.map((i) => i.id || 0)) + 1;
+  selected = null;
+  setMode(state.mode);
+  el('cw').value = state.w;
+  el('ch').value = state.h;
+  toHost('toast', { text: `Opened ${state.items.length} item${state.items.length === 1 ? '' : 's'} from the file.` });
+  draw();
+};
+
+el('send').onclick = async () => {
+  const code = exportVolt();
+  let source = null;
+  try { source = await getSource(); } catch (err) { source = null; }
+  if (source === null) { toHost('insert', { code }); return; }
+  toHost('replace', { code: applyToSource(source, code), run: false });
+  toHost('toast', { text: findBlock(source) ? 'Updated the UI Studio block in your file.' : 'Added a UI Studio block at the end of your file.' });
+};
+
+// =====================================================================
+//  The toolbar
+// =====================================================================
+function setMode(mode) {
+  state.mode = mode;
+  el('mode-hud').className = mode === 'hud' ? 'on' : '';
+  el('mode-page').className = mode === 'page' ? 'on' : '';
+  el('size-label').style.opacity = mode === 'hud' ? '1' : '.35';
+  el('cw').disabled = el('ch').disabled = mode === 'page';
+  selected = null;
+  draw();
+}
+el('mode-hud').onclick = () => { if (state.mode !== 'hud') { state.items = []; setMode('hud'); } };
+el('mode-page').onclick = () => { if (state.mode !== 'page') { state.items = []; setMode('page'); } };
+el('cw').oninput = () => { state.w = clamp(Number(el('cw').value) || 320, 16, 4096); draw(); };
+el('ch').oninput = () => { state.h = clamp(Number(el('ch').value) || 180, 16, 4096); draw(); };
+el('snap').onclick = () => { snap = !snap; el('snap').className = snap ? 'on' : ''; };
+window.addEventListener('resize', draw);
+
+// Everything the tests drive, without any clicking
+window.UiStudio = {
+  get state() { return state; },
+  set state(v) { state = v; selected = null; setMode(state.mode); },
+  exportVolt, loadFromSource, applyToSource, findBlock, canvasSizeOf, spritesOf,
+  hudLines, pageLines, addItem, removeItem, setMode, draw,
+  select(id) { selected = id; draw(); },
+};
+
+draw();
+</script>
+</body>
+</html>

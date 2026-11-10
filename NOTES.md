@@ -240,3 +240,40 @@ manifest without anything using it would be surface to maintain for no one's ben
 
 The bundled plugins were left on their existing manifests for the same reason: they work, and
 porting them would have been churn.
+
+## UI Studio - laying out a HUD or a page by dragging
+
+`plugins/ui-studio/` is a Volt Studio panel for the thing the games here do by hand: a HUD built
+from `box` and `write` calls with pixel numbers guessed, compiled, looked at and adjusted.
+
+Two modes in one panel:
+
+- **Game HUD** - a stage at the program's real `canvas` size. Drag boxes, text, health bars,
+  sprites and buttons; it writes `box` / `write` / `draw` and, for a button, an
+  `if clicked() and mousex() >= ...` block to fill in. The block belongs inside `every frame`.
+- **Page** - `title`, `print`, `button ... { }`, `html` and `background.color` / `text.size`
+  styling, for a non-game `#html` page, at the top level.
+
+It writes between two marker comments and saves the layout as JSON on one comment line inside the
+block, so **Load from file** can open it again. That round-trips reliably without having to parse
+back the Volt it generated. Hand edits to the generated lines are not read back, which the panel
+and its README say plainly.
+
+It also reads the screen size from the `canvas` line and the sprite names from the `sprite` lines,
+so the stage matches the real game and the sprite box offers real names.
+
+### How it is tested
+
+`test/suite/15-ui-studio.js` runs the real panel in a headless browser, builds layouts, and
+**compiles what it writes with the real compiler** - inside a whole game for a HUD, as a whole
+page for page mode. It covers text people actually type (quotes, backslashes, percent signs,
+apostrophes, `{values}`), a layout surviving a save-and-open round trip unchanged, sending twice
+replacing the block rather than stacking copies, indentation being kept when the block sits
+inside `every frame`, and a damaged block being reported rather than breaking.
+
+One test plays the part of Volt Studio itself - answering `hello` and `getSource` and taking the
+`replace` - so the panel's half of the postMessage bridge is really exercised, not assumed.
+
+Two honest limits are shown in the panel rather than hidden: anything reaching past the edge of
+the screen is outlined in red and counted, and text holding `{values}` is previewed at the width
+you typed, which is not the width it will be once Volt fills the numbers in.

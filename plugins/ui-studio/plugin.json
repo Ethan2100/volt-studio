@@ -1,0 +1,10 @@
+{
+  "name": "ui-studio",
+  "type": "panel",
+  "version": "1.0.0",
+  "description": "Lay out a game's HUD or a page's buttons and headings by dragging them, at the real size they will appear, and send the finished Volt code straight into the editor. It can read its own block back out of a file, so a layout stays editable.",
+  "panel": {
+    "entry": "index.html",
+    "title": "UI Studio"
+  }
+}
