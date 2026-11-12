@@ -1,0 +1,13 @@
+{
+  "name": "excel-target",
+  "type": "target",
+  "version": "1.0.0",
+  "description": "Adds #excel as a compile target: turns a Volt program into a spreadsheet that actually runs it. Every row is one step of execution - formulas only, no macros.",
+  "target": {
+    "id": "excel",
+    "entry": "generate.js",
+    "label": "Spreadsheet",
+    "board": false,
+    "fileExt": "xls"
+  }
+}
