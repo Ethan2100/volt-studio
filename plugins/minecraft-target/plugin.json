@@ -1,0 +1,13 @@
+{
+  "name": "minecraft-target",
+  "type": "target",
+  "version": "1.0.0",
+  "description": "Adds #minecraft as a compile target: turns a Volt program into Minecraft commands that run on the scoreboard, one instruction per tick.",
+  "target": {
+    "id": "minecraft",
+    "entry": "generate.js",
+    "label": "Minecraft commands",
+    "board": false,
+    "fileExt": "mcfunction"
+  }
+}

@@ -17,7 +17,8 @@ class CompileError extends Error {}
 
 const MAX_INLINE_DEPTH = 24;
 
-function lower(ast) {
+function lower(ast, opts = {}) {
+  const TARGET = opts.target || 'this';
   const prog = [];          // instruction list
   const fns = new Map();    // name -> Fn node
   const vars = new Set();   // every variable/column the sheet needs
@@ -63,14 +64,14 @@ function lower(ast) {
       }
       case 'Ask':
         throw new CompileError(
-          `'ask' needs a keyboard, and a spreadsheet has no input (line ${e.line}). ` +
-          `Set the value with 'let' instead, or edit the cell in the sheet.`);
+          `'ask' needs a keyboard, and the #${TARGET} target has nothing to type into ` +
+          `(line ${e.line}). Set the value with 'let' instead.`);
       case 'Read':
-        throw new CompileError(`Pin reads need hardware; the #excel target has no pins (line ${e.line}).`);
+        throw new CompileError(`Pin reads need hardware, which the #${TARGET} target has none of (line ${e.line}).`);
       case 'Uptime':
-        throw new CompileError(`'uptime' needs a clock; the sheet counts steps, not milliseconds (line ${e.line}).`);
+        throw new CompileError(`'uptime' needs a clock; the #${TARGET} target counts steps, not milliseconds (line ${e.line}).`);
       default:
-        throw new CompileError(`The #excel target does not understand '${e.kind}' (line ${e.line}).`);
+        throw new CompileError(`The #${TARGET} target does not understand '${e.kind}' (line ${e.line}).`);
     }
   }
 
@@ -78,8 +79,8 @@ function lower(ast) {
   function inlineCall(name, args, line) {
     if (inlining.includes(name))
       throw new CompileError(
-        `'${name}' calls itself (line ${line}). A spreadsheet row has no call stack, ` +
-        `so the #excel target cannot do recursion - rewrite it as a loop.`);
+        `'${name}' calls itself (line ${line}). The #${TARGET} target inlines functions ` +
+        `and has no call stack, so it cannot do recursion - rewrite it as a loop.`);
     if (inlining.length >= MAX_INLINE_DEPTH)
       throw new CompileError(`Functions are nested more than ${MAX_INLINE_DEPTH} deep at line ${line}.`);
 
@@ -255,19 +256,19 @@ function lower(ast) {
       case 'Raw':
       case 'RawTop':
         throw new CompileError(
-          `Raw code (# / ##) is for the language you are escaping into, and a ` +
-          `spreadsheet has none (line ${n.line}).`);
+          `Raw code (# / ##) is for the language you are escaping into, and the ` +
+          `#${TARGET} target has none (line ${n.line}).`);
 
       case 'Pin': case 'Write': case 'Set': case 'SetSpeed': case 'Fade':
       case 'Tone': case 'When': case 'Every':
         throw new CompileError(
-          `'${n.kind}' drives hardware or a timer, which a spreadsheet has no way to do (line ${n.line}).`);
+          `'${n.kind}' drives hardware or a timer, which the #${TARGET} target cannot do (line ${n.line}).`);
 
       case 'Button': case 'Title': case 'Html': case 'WhenKey':
-        throw new CompileError(`'${n.kind}' is for web pages, not spreadsheets (line ${n.line}).`);
+        throw new CompileError(`'${n.kind}' is for web pages, which the #${TARGET} target does not produce (line ${n.line}).`);
 
       default:
-        throw new CompileError(`The #excel target does not understand '${n.kind}' (line ${n.line}).`);
+        throw new CompileError(`The #${TARGET} target does not understand '${n.kind}' (line ${n.line}).`);
     }
   }
 

@@ -16,7 +16,7 @@ const { lower, CompileError } = require('./lower');
 const { emit } = require('./emit');
 
 function generate(ast) {
-  const lowered = lower(ast);
+  const lowered = lower(ast, { target: 'excel' });
   return emit(lowered, {});
 }
 
