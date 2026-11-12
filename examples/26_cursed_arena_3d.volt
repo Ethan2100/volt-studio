@@ -718,6 +718,9 @@
 #   haru: { skin: 0xf1d2b5, hair: 0xb9e3ff, hairStyle: 'spiky', jacket: 0x1c2548, trim: 0x6fb4ff, pants: 0x141a30, shoes: 0xdde6ff, eye: 0x7fe6ff, goggles: true, aura: 'haru' },
 #   kage: { skin: 0xe9c8b6, hair: 0x15101e, hairStyle: 'long', jacket: 0x1a1424, trim: 0x9a5cff, pants: 0x0e0a16, shoes: 0x241a34, eye: 0xc08cff, hood: true, scarf: 0x40205f, aura: 'kage' },
 #   akai: { skin: 0xe9b999, hair: 0x7c1022, hairStyle: 'spiky2', jacket: 0x2d0d14, trim: 0xff3a4a, pants: 0x1a1217, shoes: 0x120a0c, eye: 0xff5a50, bandages: true, aura: 'akai' },
+#   rei: { skin: 0xeef3f6, hair: 0xe3f5ff, hairStyle: 'long', jacket: 0x14283e, trim: 0x9fe8ff, pants: 0x0d1c2c, shoes: 0xcdeeff, eye: 0xbdeeff, scarf: 0xd6f3ff, aura: 'rei' },
+#   zan: { skin: 0xe0a888, hair: 0xff5a1a, hairStyle: 'spiky', jacket: 0x301006, trim: 0xff7a1a, pants: 0x1c0a04, shoes: 0x120603, eye: 0xffb020, bandages: true, aura: 'zan' },
+#   void: { skin: 0x3a3450, hair: 0x0a0612, hairStyle: 'spiky2', jacket: 0x0a0612, trim: 0x6a3ad0, pants: 0x05040a, shoes: 0x030208, eye: 0xb060ff, mask: 0x1a1428, aura: 'void' },
 #   grunt: { skin: 0x7b6a98, scale: 0.98, mask: 0xe9e4d8, eye: 0xff3040, jacket: 0x2a2236, pants: 0x1e1a28, shoes: 0x16121e, longArms: 1.12, hunch: 1, aura: null },
 #   fang: { skin: 0x5d7a6a, scale: 1.02, mask: 0xd8e6dc, eye: 0xffa020, jacket: 0x1f2e2a, pants: 0x18221f, shoes: 0x101815, longArms: 1.08, hunch: 1, aura: null },
 #   caster: { skin: 0x4a3a78, scale: 1.0, mask: 0xcfc8e8, eye: 0xd060ff, jacket: 0x241a46, pants: 0x241a46, shoes: 0x241a46, robe: true, hood: true, aura: null },
@@ -780,7 +783,13 @@
 #   swipe: [K(0, {}), K(0.3, { torso: [6, -36, 0], shR: [-60, -60, -70], elR: [-40, 0, 0], hy: -0.12, fwd: -0.06 }), K(0.5, { torso: [8, 44, 0], shR: [-86, 60, -30], elR: [-10, 0, 0], hy: -0.14, fwd: 0.26 }), K(1, {})],
 #   victory: [K(0, {}), K(0.5, { shR: [-170, 0, -20], elR: [-10, 0, 0], torso: [-6, 0, 0], head: [-12, 0, 0] }), K(1, { shR: [-170, 0, -20], elR: [-10, 0, 0], torso: [-6, 0, 0], head: [-12, 0, 0] })],
 #   jump: [K(0, { hy: 0.06, shL: [-40, 0, 40], shR: [-40, 0, -40], elL: [-30, 0, 0], elR: [-30, 0, 0], hpL: [-40, 0, 4], knL: [60, 0, 0], hpR: [-10, 0, -4], knR: [70, 0, 0], torso: [4, 0, 0] })],
-#   fall: [K(0, { hy: 0.0, shL: [-20, 0, 70], shR: [-20, 0, -70], elL: [-20, 0, 0], elR: [-20, 0, 0], hpL: [-30, 0, 8], knL: [40, 0, 0], hpR: [-6, 0, -8], knR: [50, 0, 0], torso: [8, 0, 0] })]
+#   fall: [K(0, { hy: 0.0, shL: [-20, 0, 70], shR: [-20, 0, -70], elL: [-20, 0, 0], elR: [-20, 0, 0], hpL: [-30, 0, 8], knL: [40, 0, 0], hpR: [-6, 0, -8], knR: [50, 0, 0], torso: [8, 0, 0] })],
+#   freeze: [K(0, {}), K(0.3, { torso: [-6, 0, 0], shL: [-150, -30, 18], elL: [-10, 0, 0], shR: [-150, 30, -18], elR: [-10, 0, 0], head: [-16, 0, 0], hy: -0.1 }),
+#     K(0.55, { torso: [16, 0, 0], shL: [-80, -6, 10], elL: [-6, 0, 0], shR: [-80, 6, -10], elR: [-6, 0, 0], hy: -0.2, fwd: 0.3, head: [10, 0, 0] }), K(1, { torso: [14, 0, 0], shL: [-80, -6, 10], shR: [-80, 6, -10], hy: -0.2, fwd: 0.26 })],
+#   ignite: [K(0, {}), K(0.22, { torso: [-8, -30, 0], shR: [-100, -10, -30], elR: [-70, 0, 0], hy: -0.12, fwd: -0.08, head: [-6, 0, 0] }),
+#     K(0.44, { torso: [6, 42, 0], shR: [-40, 0, -70], elR: [-30, 0, 0], shL: [-40, 0, 30], elL: [-20, 0, 0], hpL: [-30, 0, 6], knL: [40, 0, 0], hy: -0.08, fwd: 0.32, lean: 8 }), K(1, { torso: [4, 32, 0], hy: -0.08, fwd: 0.28, lean: 6 })],
+#   warp: [K(0, {}), K(0.3, { torso: [10, 20, 0], head: [-10, 10, 0], shL: [-70, -50, 30], elL: [-90, 0, 0], shR: [-70, 50, -30], elR: [-90, 0, 0], hy: -0.3, hpL: [-50, 0, 8], knL: [70, 0, 0], hpR: [-20, 0, -8], knR: [70, 0, 0] }),
+#     K(0.6, { torso: [-16, -30, 0], head: [12, -10, 0], shR: [-96, 0, -8], elR: [-4, 0, 0], hy: -0.08, fwd: 0.34, lean: -6 }), K(1, {})]
 # };
 # // keyframes -> radians + defaults filled from STANCE, with carry-forward
 # for (const name in ANIMS) {
@@ -980,6 +989,9 @@
 #   haru: { a: 0x3fa8ff, b: 0xa070ff, core: 0xdff4ff, dark: 0x0a1c50 },   // Limitless-style: clean blue flame, violet at the edges
 #   kage: { a: 0x2a1250, b: 0xa05cff, core: 0xe0c8ff, dark: 0x05020c },   // shadow: ink-black smoke with violet rim
 #   akai: { a: 0xff2236, b: 0xff8a3a, core: 0xfff0e0, dark: 0x2a0008 },   // blood lightning: red/black arcs
+#   rei: { a: 0x7fd9ff, b: 0xffffff, core: 0xeaffff, dark: 0x04202e },    // frost: pale cyan ice, white core
+#   zan: { a: 0xff7a1a, b: 0xffd34a, core: 0xfff4d0, dark: 0x1a0800 },    // ember blade: orange fire, gold edge
+#   void: { a: 0x3a1a60, b: 0x8a3cff, core: 0xd0a0ff, dark: 0x030108 },   // null wraith: deep void violet, starlight core
 #   curse: { a: 0x7a3cff, b: 0xff40c0, core: 0xffffff, dark: 0x10061c }
 # };
 # G3.PAL = PAL;
@@ -1042,7 +1054,7 @@
 #   + ' a *= (1.0 - smoothstep(0.5, 1.0, vUv.y)) * smoothstep(0.0, 0.12, vUv.y); gl_FragColor = vec4(c, clamp(a, 0.0, 1.0)); }';
 # const AURA_VERT = 'varying vec2 vUv; varying vec3 vN; varying vec3 vP; uniform float uTime; uniform float uLvl; void main(){ vUv = uv; vec3 p = position; float an = atan(p.z, p.x); float fl = sin(p.y * 7.0 - uTime * 6.0 + an * 3.0) * 0.5 + sin(p.y * 13.0 - uTime * 9.0 - an * 5.0) * 0.5; float up = smoothstep(-0.2, 0.95, p.y); p.xz *= 1.0 - up * 0.55; p += normal * fl * 0.07 * (0.4 + up); p.y += up * (0.15 + 0.12 * sin(an * 4.0 + uTime * 8.0)) * (0.6 + uLvl * 0.3); vN = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(p, 1.0); vP = mv.xyz; gl_Position = projectionMatrix * mv; }';
 # G3.auraAttach = function (rig, style) {
-#   const p = palOf(style), sid = style === 'haru' ? 0 : style === 'kage' ? 1 : 2;
+#   const p = palOf(style), sid = (style === 'haru' || style === 'rei') ? 0 : (style === 'kage' || style === 'void') ? 1 : 2;
 #   const geo = new THREE.CapsuleGeometry(0.46, 0.95, 6, 14);
 #   const m = new THREE.Mesh(geo, addMat(AURA_FRAG, { uA: { value: col3(p.a, 1.6) }, uB: { value: col3(p.b, 1.6) }, uLvl: { value: 0 }, uStyle: { value: sid } }, AURA_VERT, sid === 1 ? { blending: THREE.NormalBlending } : {}));
 #   m.position.y = 1.0; m.scale.set(1.35, 1.25, 1.35); m.renderOrder = 4; m.visible = false; rig.body.add(m);
@@ -1210,7 +1222,27 @@
 #     if (Math.random() < 0.5) { const t = Math.random() * L; bolt(x + fx * t, y + rand(-0.5, 0.5), z + fz * t, x + fx * t + rand(-4, 4), y + rand(-3, 3), z + fz * t + rand(-4, 4), 0xe0b0ff, 0.1, 0.3, 3); }
 #   }, () => { disposeObj(g); const ex2 = x + fx * len * 0.9, ez = z + fz * len * 0.9; shell(ex2, 1, ez, 6, 0xa050ff, 0.5, 2.2, true); ring(ex2, 0.1, ez, 12, 0xc080ff, 0.6, 0.3, null, 2.4); sparkBurst(ex2, 1, ez, 40, 12, 0xd090ff, 0.7); });
 # };
-# 
+# // Generic recolorable beam (same shape as the Purple beam above, any two colors) -
+# // used by newer characters' piercing techniques so they don't need their own beam code.
+# G3.beam = function (x, y, z, yawDeg, len, dur, hex1, hex2) {
+#   len = len || 40; const yaw = yawDeg * D2R, fx = Math.sin(yaw), fz = Math.cos(yaw); dur = dur || 0.9;
+#   const c1 = hex1 == null ? 0x7fd9ff : hex1, c2 = hex2 == null ? 0xffffff : hex2;
+#   G3.hitstop(90); G3.shake(0.9, dur * 1000 + 200); G3.fovKick(7); G3.flashScreen(0.3); G3.sfx && G3.sfx('red');
+#   const mk = (r, a) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 1, 18, 1, true), addMat(BEAM_FRAG, { uA: { value: a }, uC: { value: col3(c1, 1.8) }, uC2: { value: col3(c2, 2.2) } })); m.renderOrder = 6; m.rotation.order = 'YXZ'; return m; };
+#   const outer = mk(0.75, 1), inner = mk(0.34, 1);
+#   const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = yaw; scene.add(g);
+#   for (const m of [outer, inner]) { m.rotation.x = Math.PI / 2; m.position.z = 0; g.add(m); }
+#   const head = new THREE.Mesh(new THREE.SphereGeometry(0.7, 16, 12), new THREE.MeshBasicMaterial({ color: col3(c2, 3) })); head.renderOrder = 7; g.add(head);
+#   G3.hitProps(x + fx * len * 0.5, z + fz * len * 0.5, len * 0.5, 999); G3.propsInLine(x, z, x + fx * len, z + fz * len, 1.8, 999);
+#   addFx(dur, (u) => {
+#     const ex = easeOut(Math.min(1, u * 8)), L = len * ex, rad = (u < 0.15 ? u / 0.15 : (u > 0.7 ? Math.max(0, (1 - u) / 0.3) : 1)) * (1.5 + Math.sin(S.t * 36) * 0.1);
+#     for (const [m, k] of [[outer, 1], [inner, 0.42]]) { m.scale.set(rad * k, Math.max(0.01, L), rad * k); m.position.z = L / 2; m.material.uniforms.uA.value = 1; }
+#     head.scale.setScalar(rad * 1.3); head.position.z = 0.3;
+#     for (let i = 0; i < 6; i++) { const t = Math.random() * L, a = rand(0, TAU); P({ x: x + fx * t + Math.cos(a) * rad, y: y + Math.sin(a) * rad, z: z + fz * t, vx: fx * 9, vy: rand(-1, 1), vz: fz * 9, life: 0.3, s0: 0.2, s1: 0, c0: 0xffffff, c1: c1, g: 2.4, drag: 1 }); }
+#     G3.pointFlash(x + fx * 3, y, z + fz * 3, c1, 5, 0.1);
+#   }, () => { disposeObj(g); const ex2 = x + fx * len * 0.9, ez = z + fz * len * 0.9; shell(ex2, 1, ez, 5, c1, 0.5, 2.2, true); ring(ex2, 0.1, ez, 10, c2, 0.6, 0.3, null, 2.4); sparkBurst(ex2, 1, ez, 32, 10, c1, 0.7); });
+# };
+#
 # // ======== KAGE — shadow summons ========
 # const POOL_FRAG = 'uniform float uA; uniform vec3 uC; varying vec2 vUv; void main(){ vec2 d = vUv - 0.5; float r = length(d) * 2.0; float a = atan(d.y, d.x); float n = vnoise(vec3(cos(a) * 2.0 + uTime * 0.6, sin(a) * 2.0 - uTime * 0.4, r * 3.0 - uTime * 1.6)); float edge = smoothstep(1.0, 0.82 + n * 0.12, r); float rim = smoothstep(0.55, 1.0, r) * edge; '
 #   + 'vec3 c = mix(vec3(0.01, 0.0, 0.03), uC * 2.0, rim * 0.9); gl_FragColor = vec4(c, edge * uA * 0.95); }';
@@ -1537,7 +1569,10 @@
 # const CHARS = [
 #   { id: 'haru', name: 'HARU', ty: 'Limitless · Six-Eyed Sorcerer', c1: '#5ab4ff', c2: '#8a5cff', l: 'H', sk: [['E', 'Blue'], ['X', 'Red'], ['R', 'Purple'], ['G', 'Domain']], desc: ['<b>E</b>Blue — pulls enemies into a point', '<b>X</b>Red — explosive repulsion', '<b>R</b>Hollow Purple — world-tearing beam', '<b>G</b>Boundless Expanse domain'] },
 #   { id: 'kage', name: 'KAGE', ty: 'Shadow Technique', c1: '#b070ff', c2: '#4a1a90', l: 'K', sk: [['E', 'Shadow Step'], ['X', 'Hounds'], ['R', 'Shadow Storm'], ['G', 'Domain']], desc: ['<b>E</b>Shadow Step — teleport behind target', '<b>X</b>Summon shadow hounds', '<b>R</b>Legion — mass summon + spears', '<b>G</b>Hollow Garden domain'] },
-#   { id: 'akai', name: 'AKAI', ty: 'Blood & Black Lightning', c1: '#ff3a4a', c2: '#ff9a40', l: 'A', sk: [['E', 'Crimson Dash'], ['X', 'Red Bolt'], ['R', 'Meteor Rain'], ['G', 'Domain']], desc: ['<b>E</b>Crimson Dash — lightning rush strike', '<b>X</b>Red Bolt — piercing lightning', '<b>R</b>Meteor Rain — falling blasts', '<b>G</b>Crimson Colosseum domain'] }
+#   { id: 'akai', name: 'AKAI', ty: 'Blood & Black Lightning', c1: '#ff3a4a', c2: '#ff9a40', l: 'A', sk: [['E', 'Crimson Dash'], ['X', 'Red Bolt'], ['R', 'Meteor Rain'], ['G', 'Domain']], desc: ['<b>E</b>Crimson Dash — lightning rush strike', '<b>X</b>Red Bolt — piercing lightning', '<b>R</b>Meteor Rain — falling blasts', '<b>G</b>Crimson Colosseum domain'] },
+#   { id: 'rei', name: 'REI', ty: 'Frost Monarch', c1: '#7fd9ff', c2: '#ffffff', l: 'R', sk: [['E', 'Frost Step'], ['X', 'Ice Lance'], ['R', 'Absolute Zero'], ['G', 'Domain']], desc: ['<b>E</b>Frost Step — icy teleport dash that freezes on contact', '<b>X</b>Ice Lance — piercing frost beam, shatters frozen foes', '<b>R</b>Absolute Zero — freezing nova around you', '<b>G</b>Everfrost Expanse domain'] },
+#   { id: 'zan', name: 'ZAN', ty: 'Ember Blade', c1: '#ff7a1a', c2: '#ffd34a', l: 'Z', sk: [['E', 'Ember Dash'], ['X', 'Crescent Flame'], ['R', 'Inferno Crash'], ['G', 'Domain']], desc: ['<b>E</b>Ember Dash — blazing rush strike', '<b>X</b>Crescent Flame — wide burning sword arc', '<b>R</b>Inferno Crash — ground-shaking flame eruption', '<b>G</b>Scorched Arena domain'] },
+#   { id: 'void', name: 'VOID', ty: 'Null Wraith', c1: '#8a3cff', c2: '#3a1a60', l: 'V', sk: [['E', 'Warp Slash'], ['X', 'Event Horizon'], ['R', 'Collapse'], ['G', 'Domain']], desc: ['<b>E</b>Warp Slash — teleport behind target, strike instantly', '<b>X</b>Event Horizon — a gravity well that pulls and detonates', '<b>R</b>Collapse — drag every foe in and crush them', '<b>G</b>Null Garden domain'] }
 # ];
 # const MODES = [['Training', 'Infinite dummy · no limits'], ['Survival', 'Endless waves'], ['Boss', 'Fight the Calamity'], ['Arena', '1v1 duel vs rival sorcerer']];
 # G3.CHARS = CHARS; G3.MODES = MODES;
@@ -2055,6 +2090,9 @@ fn summonFx(x, z, big) {
 fn shadowSpike(x, z, h) {
   # G3.shadowSpike(x, z, h)
 }
+fn shadowSpikeC(x, z, h, hex) {
+  # G3.shadowSpike(x, z, h, hex)
+}
 fn shadowPool(x, z, r, d) {
   # G3.shadowPool(x, z, r, d)
 }
@@ -2072,6 +2110,12 @@ fn purpleFx(x, y, z, yaw, ln, d) {
 }
 fn lightningLine(x1, y1, z1, x2, y2, z2, n) {
   # G3.lightningLine(x1, y1, z1, x2, y2, z2, n)
+}
+fn lightningLineC(x1, y1, z1, x2, y2, z2, n, hex) {
+  # G3.lightningLine(x1, y1, z1, x2, y2, z2, n, hex)
+}
+fn beamFx(x, y, z, yaw, ln, dur, hex1, hex2) {
+  # G3.beam(x, y, z, yaw, ln, dur, hex1, hex2)
 }
 fn meteorFall(x, z, d) {
   # G3.meteorFall(x, z, d)
@@ -2119,16 +2163,19 @@ fn styleOf() {
   if ch == 1 {
     return "kage"
   }
-  return "akai"
+  if ch == 2 {
+    return "akai"
+  }
+  if ch == 3 {
+    return "rei"
+  }
+  if ch == 4 {
+    return "zan"
+  }
+  return "void"
 }
 fn lookOf() {
-  if ch == 0 {
-    return "haru"
-  }
-  if ch == 1 {
-    return "kage"
-  }
-  return "akai"
+  return styleOf()
 }
 
 // ---------------------------------------------------------------------
@@ -2232,10 +2279,24 @@ fn kLook(k) {
     return "boss"
   }
   if k == 4 {
-    if ch == 2 {
+    // the rival sorcerer in Arena mode - a different look than whichever one you picked
+    let rival = (ch + 3) % 6
+    if rival == 0 {
+      return "haru"
+    }
+    if rival == 1 {
       return "kage"
     }
-    return "akai"
+    if rival == 2 {
+      return "akai"
+    }
+    if rival == 3 {
+      return "rei"
+    }
+    if rival == 4 {
+      return "zan"
+    }
+    return "void"
   }
   return "grunt"
 }
@@ -3242,19 +3303,20 @@ fn atkDur(s) {
   return 0.72
 }
 fn atkDmg(s) {
+  // bumped up across the board - sorcerers hit harder now
   if s == 1 {
-    return 7.0
-  }
-  if s == 2 {
-    return 7.0
-  }
-  if s == 3 {
     return 9.0
   }
-  if s == 4 {
-    return 11.0
+  if s == 2 {
+    return 9.0
   }
-  return 17.0
+  if s == 3 {
+    return 12.0
+  }
+  if s == 4 {
+    return 14.0
+  }
+  return 22.0
 }
 
 fn faceNearest(maxd) {
@@ -3431,7 +3493,7 @@ fn strikeHeavy() {
       }
       if d < rr {
         if abs(adiff(pyaw, ang(dx, dz))) < 80.0 or d < 1.4 {
-          hurtFoe(i, 26.0, dx / max(d, 0.1), dz / max(d, 0.1), 16.0, 7.5, kind)
+          hurtFoe(i, 34.0, dx / max(d, 0.1), dz / max(d, 0.1), 16.0, 7.5, kind)
           hitAny = true
         }
       }
@@ -3469,7 +3531,7 @@ fn doSlamImpact() {
       let dz = foes[i].z - pz
       let d = dst(px, pz, foes[i].x, foes[i].z)
       if d < 5.0 {
-        hurtFoe(i, 24.0, dx / max(d, 0.1), dz / max(d, 0.1), 12.0, 4.0, 1)
+        hurtFoe(i, 32.0, dx / max(d, 0.1), dz / max(d, 0.1), 12.0, 4.0, 1)
       }
     }
     i += 1
@@ -3543,10 +3605,10 @@ fn castE() {
   if pcdE > 0.0 or pce < 20.0 {
     return 0
   }
-  pce -= 20.0
+  pce -= 16.0
   if ch == 0 {
     // BLUE - pulls everything into a point
-    pcdE = 5.5
+    pcdE = 4.2
     let n = nearestFoe(16.0)
     let fx = sin(pyaw)
     let fz = cos(pyaw)
@@ -3564,7 +3626,7 @@ fn castE() {
   }
   if ch == 1 {
     // SHADOW STEP - sink into shadow, emerge behind the target
-    pcdE = 3.5
+    pcdE = 2.6
     let n = nearestFoe(24.0)
     let nx = px + sin(pyaw) * 10.0
     let nz = pz + cos(pyaw) * 10.0
@@ -3595,7 +3657,7 @@ fn castE() {
   }
   if ch == 2 {
     // CRIMSON DASH - lightning rush
-    pcdE = 4.0
+    pcdE = 3.0
     let n = nearestFoe(16.0)
     if n >= 0 {
       pyaw = ang(foes[n].x - px, foes[n].z - pz)
@@ -3617,16 +3679,109 @@ fn castE() {
     aura(prig, 1.6)
     lightningLine(px, 1.2, pz, px + rushDx * 11.0, 1.2, pz + rushDz * 11.0, 4)
   }
+  if ch == 3 {
+    // FROST STEP - teleport behind the target and freeze them
+    pcdE = 2.6
+    let n = nearestFoe(24.0)
+    let nx = px + sin(pyaw) * 10.0
+    let nz = pz + cos(pyaw) * 10.0
+    ringFx(px, 0.1, pz, 2.4, 8375295, 0.3)
+    sparks(px, 0.6, pz, 18, 3.0, 16777215)
+    if n >= 0 {
+      let dx = foes[n].x - px
+      let dz = foes[n].z - pz
+      let d = max(dst(px, pz, foes[n].x, foes[n].z), 0.5)
+      nx = foes[n].x + dx / d * 2.1
+      nz = foes[n].z + dz / d * 2.1
+      foes[n].state = "stun"
+      foes[n].stT = 1.1
+      foes[n].armor = 0.0
+    }
+    let sx = cpx(nx, nz, 0.6)
+    let sz = cpz(nx, nz, 0.6)
+    px = sx
+    pz = sz
+    if n >= 0 {
+      pyaw = ang(foes[n].x - px, foes[n].z - pz)
+    }
+    ringFx(px, 0.1, pz, 2.8, 16777215, 0.35)
+    sparks(px, 0.8, pz, 24, 4.0, 8375295)
+    pinv = 0.5
+    pamb = 3.0
+    pvx = 0.0
+    pvz = 0.0
+    castLock(0.3, "freeze")
+    msg("FROST STEP", 8375295)
+  }
+  if ch == 4 {
+    // EMBER DASH - blazing rush strike
+    pcdE = 3.0
+    let n = nearestFoe(16.0)
+    if n >= 0 {
+      pyaw = ang(foes[n].x - px, foes[n].z - pz)
+    }
+    pstate = "rush"
+    pst = 0.0
+    pdur = 0.26
+    rushId += 1
+    rushDx = sin(pyaw)
+    rushDz = cos(pyaw)
+    pvx = rushDx * 44.0
+    pvz = rushDz * 44.0
+    pinv = 0.4
+    rigPlay(prig, "ignite", 0.3, true)
+    sfx("dash")
+    speedLines(260, "255,122,26")
+    fovKick(7.0)
+    trail(prig, 0.5)
+    aura(prig, 1.6)
+    lightningLineC(px, 1.2, pz, px + rushDx * 11.0, 1.2, pz + rushDz * 11.0, 4, 16744474)
+  }
+  if ch == 5 {
+    // WARP SLASH - teleport behind the target and strike instantly
+    pcdE = 2.8
+    let n = nearestFoe(24.0)
+    let nx = px + sin(pyaw) * 10.0
+    let nz = pz + cos(pyaw) * 10.0
+    shadowOut(px, pz)
+    if n >= 0 {
+      let dx = foes[n].x - px
+      let dz = foes[n].z - pz
+      let d = max(dst(px, pz, foes[n].x, foes[n].z), 0.5)
+      nx = foes[n].x + dx / d * 2.0
+      nz = foes[n].z + dz / d * 2.0
+    }
+    px = cpx(nx, nz, 0.6)
+    pz = cpz(nx, nz, 0.6)
+    if n >= 0 {
+      pyaw = ang(foes[n].x - px, foes[n].z - pz)
+    }
+    shadowIn(px, pz)
+    if n >= 0 {
+      let dx2 = foes[n].x - px
+      let dz2 = foes[n].z - pz
+      let d2 = max(dst(px, pz, foes[n].x, foes[n].z), 0.2)
+      hurtFoe(n, 30.0, dx2 / d2, dz2 / d2, 14.0, 5.0, 2)
+      fxSlash(px, 1.2, pz, pyaw, 0.0, 2.6, "void", 0.2, 150, false)
+      fxBlackFlash(foes[n].x, foes[n].y + 1.2, foes[n].z)
+    }
+    pinv = 0.5
+    pamb = 3.0
+    pvx = 0.0
+    pvz = 0.0
+    castLock(0.3, "warp")
+    msg("WARP SLASH", 9077503)
+  }
 }
 
 fn castX() {
   if pcdX > 0.0 or pce < 28.0 {
     return 0
   }
-  pce -= 28.0
+  pce -= 22.0
   if ch == 0 {
     // RED - explosive repulsion
-    pcdX = 5.0
+    pcdX = 3.8
     let n = nearestFoe(18.0)
     let tx = px + sin(pyaw) * 6.5
     let tz = pz + cos(pyaw) * 6.5
@@ -3645,7 +3800,7 @@ fn castX() {
         let d = dst(tx, tz, foes[i].x, foes[i].z)
         if d < 8.0 {
           let dd = max(d, 0.2)
-          hurtFoe(i, 34.0, dx / dd, dz / dd, 24.0, 8.5, 2)
+          hurtFoe(i, 46.0, dx / dd, dz / dd, 24.0, 8.5, 2)
         }
       }
       i += 1
@@ -3658,7 +3813,7 @@ fn castX() {
   }
   if ch == 1 {
     // SHADOW HOUNDS
-    pcdX = 7.0
+    pcdX = 5.2
     castLock(0.7, "summon")
     let cnt = 0
     while cnt < 2 {
@@ -3673,7 +3828,7 @@ fn castX() {
   }
   if ch == 2 {
     // RED BOLT - piercing lightning
-    pcdX = 4.5
+    pcdX = 3.4
     let n = nearestFoe(24.0)
     if n >= 0 {
       pyaw = ang(foes[n].x - px, foes[n].z - pz)
@@ -3696,7 +3851,7 @@ fn castX() {
         let along = rx * fx + rz * fz
         let side = abs(rx * fz - rz * fx)
         if along > 0.0 and along < 25.0 and side < 2.0 {
-          hurtFoe(i, 28.0, fx, fz, 14.0, 3.0, 2)
+          hurtFoe(i, 38.0, fx, fz, 14.0, 3.0, 2)
           foes[i].state = "stun"
           foes[i].stT = 1.0
         }
@@ -3704,6 +3859,90 @@ fn castX() {
       i += 1
     }
     hitProps(px + fx * 12.0, pz + fz * 12.0, 12.0, 30.0)
+  }
+  if ch == 3 {
+    // ICE LANCE - piercing frost beam, shatters anything already frozen
+    pcdX = 3.4
+    let n = nearestFoe(24.0)
+    if n >= 0 {
+      pyaw = ang(foes[n].x - px, foes[n].z - pz)
+    }
+    castLock(0.45, "freeze")
+    let fx = sin(pyaw)
+    let fz = cos(pyaw)
+    beamFx(px, 1.4, pz, pyaw, 24.0, 0.5, 8375295, 16777215)
+    shake(0.6, 240)
+    flashScreen(0.12)
+    sfx("red")
+    let i = 0
+    while i < length(foes) {
+      if foes[i].dead == false and foes[i].state != "trapped" {
+        let rx = foes[i].x - px
+        let rz = foes[i].z - pz
+        let along = rx * fx + rz * fz
+        let side = abs(rx * fz - rz * fx)
+        if along > 0.0 and along < 25.0 and side < 2.0 {
+          let shatter = foes[i].state == "stun"
+          let dmg = 40.0
+          if shatter {
+            dmg = 62.0
+          }
+          hurtFoe(i, dmg, fx, fz, 14.0, 3.0, 2)
+          foes[i].state = "stun"
+          foes[i].stT = 1.2
+        }
+      }
+      i += 1
+    }
+    hitProps(px + fx * 12.0, pz + fz * 12.0, 12.0, 30.0)
+  }
+  if ch == 4 {
+    // CRESCENT FLAME - wide burning sword arc
+    pcdX = 3.6
+    let n = nearestFoe(20.0)
+    if n >= 0 {
+      pyaw = ang(foes[n].x - px, foes[n].z - pz)
+    }
+    castLock(0.4, "swipe")
+    fxSlash(px, 1.2, pz, pyaw, 10.0, 7.2, "zan", 0.26, 220, false)
+    shake(0.5, 200)
+    sfx("red")
+    let i = 0
+    while i < length(foes) {
+      if foes[i].dead == false and foes[i].state != "trapped" {
+        let d = dst(px, pz, foes[i].x, foes[i].z)
+        if d < 7.2 {
+          let dx = foes[i].x - px
+          let dz = foes[i].z - pz
+          let dd = max(d, 0.1)
+          let fa = ang(dx, dz)
+          if abs(adiff(fa, pyaw)) < 75.0 {
+            hurtFoe(i, 40.0, dx / dd, dz / dd, 14.0, 4.0, 2)
+          }
+        }
+      }
+      i += 1
+    }
+  }
+  if ch == 5 {
+    // EVENT HORIZON - a gravity well that pulls and detonates
+    pcdX = 4.6
+    let n = nearestFoe(20.0)
+    let tx = px + sin(pyaw) * 7.0
+    let tz = pz + cos(pyaw) * 7.0
+    if n >= 0 {
+      tx = foes[n].x
+      tz = foes[n].z
+      pyaw = ang(tx - px, tz - pz)
+    }
+    castLock(0.4, "cast")
+    shadowPool(tx, tz, 8.0, 1.5)
+    ringFx(tx, 0.5, tz, 1.5, 9077503, 0.4)
+    sparks(tx, 0.8, tz, 26, 4.0, 10592511)
+    blueX = tx
+    blueZ = tz
+    blueT = 1.5
+    msg("EVENT HORIZON", 9077503)
   }
 }
 
@@ -3756,6 +3995,49 @@ fn castR() {
     banner("CRIMSON METEORS", "The sky bleeds red", 16724530, 1500)
     sfx("ult")
   }
+  if ch == 3 {
+    // ABSOLUTE ZERO - a freezing nova around you
+    pstate = "ult"
+    pst = 0.0
+    pdur = 1.8
+    castKind = 4
+    castFired = false
+    rigPlay(prig, "freeze", 1.0, false)
+    aura(prig, 2.0)
+    auraBurst(prig, 1.6)
+    cinePush(px, 0.0, pz, 1.1, pyaw + 20.0, 5.0, 1.8)
+    banner("ABSOLUTE ZERO", "Everything stops here", 8375295, 1500)
+    sfx("ult")
+  }
+  if ch == 4 {
+    // INFERNO CRASH - a ground-shaking flame eruption
+    pstate = "ult"
+    pst = 0.0
+    pdur = 1.6
+    castKind = 5
+    castFired = false
+    rigPlay(prig, "airslam", 1.0, false)
+    aura(prig, 2.0)
+    auraBurst(prig, 1.6)
+    cinePush(px, 0.0, pz, 1.0, pyaw + 25.0, 5.2, 1.6)
+    banner("INFERNO CRASH", "The ground itself ignites", 16744474, 1500)
+    sfx("ult")
+  }
+  if ch == 5 {
+    // COLLAPSE - drag every foe in and crush them
+    pstate = "ult"
+    pst = 0.0
+    pdur = 2.0
+    castKind = 6
+    castFired = false
+    rigPlay(prig, "summon", 1.2, false)
+    aura(prig, 2.0)
+    auraBurst(prig, 1.6)
+    shadowPool(px, pz, 11.0, 5.0)
+    cineOrbit(px, 0.0, pz, 1.4, pyaw + 150.0, pyaw + 260.0, 6.0, 1.6)
+    banner("COLLAPSE", "Nothing escapes a void", 9077503, 1500)
+    sfx("ult")
+  }
 }
 
 fn fireUlt() {
@@ -3773,7 +4055,7 @@ fn fireUlt() {
         let along = rx * fx + rz * fz
         let side = abs(rx * fz - rz * fx)
         if along > 0.0 and along < 48.0 and side < 3.6 {
-          hurtFoe(i, 95.0, fx, fz, 28.0, 5.0, 2)
+          hurtFoe(i, 130.0, fx, fz, 28.0, 5.0, 2)
         }
       }
       i += 1
@@ -3784,7 +4066,7 @@ fn fireUlt() {
     while i < length(foes) {
       if foes[i].dead == false and foes[i].state != "trapped" and foes[i].kind != 5 {
         shadowSpike(foes[i].x, foes[i].z, 5.5)
-        hurtFoe(i, 42.0, 0.0, 1.0, 4.0, 9.0, 2)
+        hurtFoe(i, 58.0, 0.0, 1.0, 4.0, 9.0, 2)
       }
       i += 1
     }
@@ -3813,10 +4095,79 @@ fn fireUlt() {
     while n < 5 {
       let a = rnd(0.0, 360.0)
       let rr = rnd(4.0, 11.0)
-      add Blast { x: px + sin(a) * rr, z: pz + cos(a) * rr, t: 0.9 + n * 0.12, r: 4.8, dmg: 38.0, kind: 2 } to blasts
+      add Blast { x: px + sin(a) * rr, z: pz + cos(a) * rr, t: 0.9 + n * 0.12, r: 4.8, dmg: 50.0, kind: 2 } to blasts
       meteorFall(px + sin(a) * rr, pz + cos(a) * rr, 0.9 + n * 0.12)
       n += 1
     }
+  }
+  if castKind == 4 {
+    // ABSOLUTE ZERO - freezing nova: everything nearby takes heavy damage and freezes solid
+    ringFx(px, 0.5, pz, 2.0, 8375295, 0.5)
+    ringFx(px, 0.5, pz, 2.0, 16777215, 0.65)
+    sparks(px, 1.0, pz, 50, 9.0, 16777215)
+    debrisFx(px, pz, 24, 10.0)
+    shake(1.0, 450)
+    flashScreen(0.35)
+    hitstop(100)
+    let i = 0
+    while i < length(foes) {
+      if foes[i].dead == false and foes[i].state != "trapped" {
+        let d = dst(px, pz, foes[i].x, foes[i].z)
+        if d < 11.0 {
+          let dx = foes[i].x - px
+          let dz = foes[i].z - pz
+          let dd = max(d, 0.2)
+          hurtFoe(i, 85.0, dx / dd, dz / dd, 10.0, 6.0, 2)
+          foes[i].state = "stun"
+          foes[i].stT = 2.0
+          foes[i].armor = 0.0
+        }
+      }
+      i += 1
+    }
+  }
+  if castKind == 5 {
+    // INFERNO CRASH - a huge eruption at your feet, plus a ring of falling embers
+    crimsonBlast(px, pz, 9.0)
+    let n = 0
+    while n < 5 {
+      let a = n * 72.0
+      let rr = rnd(6.0, 12.0)
+      add Blast { x: px + sin(a) * rr, z: pz + cos(a) * rr, t: 0.5 + n * 0.1, r: 5.2, dmg: 54.0, kind: 2 } to blasts
+      meteorFall(px + sin(a) * rr, pz + cos(a) * rr, 0.5 + n * 0.1)
+      n += 1
+    }
+    let i = 0
+    while i < length(foes) {
+      if foes[i].dead == false and foes[i].state != "trapped" {
+        let d = dst(px, pz, foes[i].x, foes[i].z)
+        if d < 9.0 {
+          let dx = foes[i].x - px
+          let dz = foes[i].z - pz
+          let dd = max(d, 0.2)
+          hurtFoe(i, 70.0, dx / dd, dz / dd, 20.0, 8.0, 2)
+        }
+      }
+      i += 1
+    }
+  }
+  if castKind == 6 {
+    // COLLAPSE - drag every foe toward you, then crush them
+    let i = 0
+    while i < length(foes) {
+      if foes[i].dead == false and foes[i].state != "trapped" and foes[i].kind != 5 {
+        let dx = px - foes[i].x
+        let dz = pz - foes[i].z
+        let d = max(dst(px, pz, foes[i].x, foes[i].z), 0.5)
+        foes[i].x += dx / d * min(d * 0.7, 6.0)
+        foes[i].z += dz / d * min(d * 0.7, 6.0)
+        shadowSpikeC(foes[i].x, foes[i].z, 5.5, 9077503)
+        hurtFoe(i, 72.0, 0.0, 1.0, 2.0, 10.0, 2)
+      }
+      i += 1
+    }
+    shake(1.1, 500)
+    flashScreen(0.3)
   }
 }
 
@@ -3879,7 +4230,7 @@ fn blueTick(dt) {
       if foes[k].dead == false and foes[k].state != "trapped" {
         let d2 = dst(blueX, blueZ, foes[k].x, foes[k].z)
         if d2 < 4.0 {
-          hurtFoe(k, 20.0, 0.0, 1.0, 5.0, 6.0, 2)
+          hurtFoe(k, 28.0, 0.0, 1.0, 5.0, 6.0, 2)
         }
       }
       k += 1
@@ -3891,31 +4242,70 @@ fn blueTick(dt) {
 // Domain Expansion (a cinematic with guaranteed hits)
 // ---------------------------------------------------------------------
 fn domainName() {
-  if domKind == 1 {
+  if ch == 0 {
     return "BOUNDLESS EXPANSE"
   }
-  if domKind == 2 {
+  if ch == 1 {
     return "HOLLOW GARDEN"
   }
-  return "CRIMSON COLOSSEUM"
+  if ch == 2 {
+    return "CRIMSON COLOSSEUM"
+  }
+  if ch == 3 {
+    return "EVERFROST EXPANSE"
+  }
+  if ch == 4 {
+    return "SCORCHED ARENA"
+  }
+  return "NULL GARDEN"
 }
 fn domainSub() {
-  if domKind == 1 {
+  if ch == 0 {
     return "Domain Expansion - Infinite Void"
   }
-  if domKind == 2 {
+  if ch == 1 {
     return "Domain Expansion - Garden of a Thousand Shadows"
   }
-  return "Domain Expansion - Arena of Blood Lightning"
+  if ch == 2 {
+    return "Domain Expansion - Arena of Blood Lightning"
+  }
+  if ch == 3 {
+    return "Domain Expansion - A World Frozen Solid"
+  }
+  if ch == 4 {
+    return "Domain Expansion - Everything Burns"
+  }
+  return "Domain Expansion - Garden of the Unmade"
 }
 fn domainHex() {
-  if domKind == 1 {
+  if ch == 0 {
     return 5944575
   }
-  if domKind == 2 {
+  if ch == 1 {
     return 11563263
   }
-  return 16722490
+  if ch == 2 {
+    return 16722490
+  }
+  if ch == 3 {
+    return 8375295
+  }
+  if ch == 4 {
+    return 16744474
+  }
+  return 9077503
+}
+// which Domain Expansion's geometry/backdrop a character's domain reuses -
+// newer characters borrow the closest-matching look rather than needing
+// a whole new hand-built domain scene of their own.
+fn domGeom() {
+  if ch == 0 or ch == 3 {
+    return 1
+  }
+  if ch == 1 or ch == 5 {
+    return 2
+  }
+  return 3
 }
 
 fn castG() {
@@ -3926,7 +4316,7 @@ fn castG() {
     msg("NO TARGETS", 16777215)
     return 0
   }
-  domKind = ch + 1
+  domKind = domGeom()
   domPhase = 1
   domT = 0.0
   domN = 0
@@ -4431,7 +4821,7 @@ fn playerTick(dt) {
       if foes[i].dead == false and foes[i].state != "trapped" and foes[i].rushTag != rushId {
         if dst(px, pz, foes[i].x, foes[i].z) < 2.4 {
           foes[i].rushTag = rushId
-          hurtFoe(i, 18.0, rushDx, rushDz, 8.0, 4.0, 2)
+          hurtFoe(i, 24.0, rushDx, rushDz, 8.0, 4.0, 2)
           lightningLine(px, 1.2, pz, foes[i].x, 1.4, foes[i].z, 3)
         }
       }
@@ -4550,7 +4940,7 @@ fn counterStrike() {
       if d < 4.6 {
         if abs(adiff(pyaw, ang(dx, dz))) < 85.0 or d < 1.4 {
           fxCrit(foes[i].x, foes[i].y + 1.2, foes[i].z, styleOf())
-          hurtFoe(i, 36.0, dx / max(d, 0.1), dz / max(d, 0.1), 18.0, 8.0, 1)
+          hurtFoe(i, 48.0, dx / max(d, 0.1), dz / max(d, 0.1), 18.0, 8.0, 1)
         }
       }
     }
