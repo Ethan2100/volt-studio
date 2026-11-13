@@ -1295,7 +1295,10 @@
 # const DOMAINS = {
 #   1: { name: 'Boundless Expanse', sub: 'Infinite Void', col: 0x5ab4ff, col2: 0xa070ff, fog: 0x050b24, fogD: 0.012, bg: 0x02040e, hemi: [0x5a80ff, 0x120a30, 1.1], key: [0xa0c0ff, 1.2] },
 #   2: { name: 'Hollow Garden', sub: 'Garden of a Thousand Shadows', col: 0xb070ff, col2: 0x4a1a90, fog: 0x07030f, fogD: 0.03, bg: 0x030108, hemi: [0x6a30b0, 0x05020a, 0.8], key: [0x8a50e0, 0.9] },
-#   3: { name: 'Crimson Colosseum', sub: 'Arena of Blood Lightning', col: 0xff2a3a, col2: 0xff9a40, fog: 0x1a0306, fogD: 0.016, bg: 0x0a0104, hemi: [0xff4a50, 0x200508, 1.0], key: [0xff6a50, 1.3] }
+#   3: { name: 'Crimson Colosseum', sub: 'Arena of Blood Lightning', col: 0xff2a3a, col2: 0xff9a40, fog: 0x1a0306, fogD: 0.016, bg: 0x0a0104, hemi: [0xff4a50, 0x200508, 1.0], key: [0xff6a50, 1.3] },
+#   4: { name: 'Everfrost Expanse', sub: 'A World Frozen Solid', col: 0x7fdfff, col2: 0xeaffff, fog: 0x0a2230, fogD: 0.02, bg: 0x061018, hemi: [0x9ad8ff, 0x0c2838, 1.15], key: [0xcafeff, 1.3] },
+#   5: { name: 'Scorched Arena', sub: 'Everything Burns', col: 0xff6a3a, col2: 0xffce70, fog: 0x1a0a04, fogD: 0.022, bg: 0x0c0502, hemi: [0xff8a40, 0x140402, 1.1], key: [0xffb060, 1.35] },
+#   6: { name: 'Null Garden', sub: 'Garden of the Unmade', col: 0x8a90ff, col2: 0xffffff, fog: 0x030308, fogD: 0.028, bg: 0x010104, hemi: [0x6a60d0, 0x04040a, 0.85], key: [0x9a90ff, 1.0] }
 # };
 # G3.DOMAINS = DOMAINS;
 # const DOME_FRAG = 'uniform float uK; uniform vec3 uC, uC2; varying vec3 vW; void main(){ vec3 d = normalize(vW); float h = d.y; vec3 c = vec3(0.0);'
@@ -1304,14 +1307,25 @@
 #   + '   c = mix(vec3(0.01, 0.02, 0.08), mix(uC2, uC, n) * 0.7, neb) + vec3(st + st2) * 1.2; float gx = exp(-pow((h - 0.02) * 9.0, 2.0)) * 0.6; c += uC * gx * 0.5; }'
 #   + ' else if (uK < 2.5) { float n = vnoise(d * 4.0 + vec3(uTime * 0.1, 0, 0)); float moon = smoothstep(0.994, 0.997, dot(d, normalize(vec3(0.25, 0.55, -0.8)))); float trees = step(h, 0.1 + 0.12 * sin(atan(d.x, d.z) * 14.0 + sin(atan(d.x, d.z) * 31.0)) * 0.6 + n * 0.1);'
 #   + '   c = mix(vec3(0.02, 0.005, 0.05), uC2 * 0.55, pow(1.0 - clamp(h, 0.0, 1.0), 3.0) * (0.4 + n)) ; c += vec3(moon) * vec3(2.0, 1.6, 3.0); c = mix(c, vec3(0.0), trees * 0.92); c += uC * pow(max(0.0, 1.0 - abs(h - 0.1) * 5.0), 3.0) * 0.18; }'
-#   + ' else { float n = vnoise(d * 5.0 + vec3(0.0, -uTime * 0.25, 0.0)); float sunD = dot(d, normalize(vec3(-0.3, 0.45, -0.85))); float sun = smoothstep(0.985, 0.992, sunD); float glow = pow(max(0.0, sunD), 14.0);'
+#   + ' else if (uK < 3.5) { float n = vnoise(d * 5.0 + vec3(0.0, -uTime * 0.25, 0.0)); float sunD = dot(d, normalize(vec3(-0.3, 0.45, -0.85))); float sun = smoothstep(0.985, 0.992, sunD); float glow = pow(max(0.0, sunD), 14.0);'
 #   + '   c = mix(vec3(0.12, 0.01, 0.02), vec3(0.55, 0.05, 0.05), pow(1.0 - clamp(h, 0.0, 1.0), 2.0)) * (0.5 + n * 0.9); c += vec3(sun) * vec3(3.0, 0.7, 0.4) + uC * glow * 1.4; float bolt = step(0.93, vnoise(vec3(d.x * 14.0, d.z * 14.0, uTime * 8.0))) * step(0.3, h); c += vec3(1.0, 0.2, 0.2) * bolt * 1.5; }'
+#   + ' else if (uK < 4.5) { float n = vnoise(d * 3.5 + vec3(0.0, uTime * 0.04, 0.0)); float band = sin(d.x * 2.6 + n * 2.0 + uTime * 0.3) * 0.5 + sin(d.z * 3.1 - uTime * 0.22) * 0.5; float aurora = smoothstep(0.1, 0.9, band) * smoothstep(-0.1, 0.5, h) * smoothstep(1.0, 0.3, h);'
+#   + '   float st = step(0.987, hash(floor(d * 240.0))) * (0.4 + 0.6 * sin(uTime * 2.2 + hash(floor(d * 240.0)) * 30.0));'
+#   + '   c = mix(vec3(0.01, 0.02, 0.05), vec3(0.03, 0.06, 0.1), clamp(h, 0.0, 1.0)) + vec3(st) * 0.9 + mix(uC, uC2, band * 0.5 + 0.5) * aurora * 1.6; float horizon = exp(-pow((h + 0.02) * 10.0, 2.0)); c += uC2 * horizon * 0.5; }'
+#   + ' else if (uK < 5.5) { float n = vnoise(d * 4.5 + vec3(uTime * 0.15, -uTime * 0.3, 0.0)); float n2 = vnoise(d * 12.0 - vec3(0.0, uTime * 1.2, 0.0)); float ember = step(0.965, n2) * smoothstep(-0.2, 0.5, h);'
+#   + '   float horizon = exp(-pow((h + 0.05) * 6.0, 2.0)); c = mix(vec3(0.03, 0.01, 0.01), vec3(0.4, 0.08, 0.02), pow(max(0.0, 1.0 - abs(h)), 2.0) * (0.5 + n * 0.7)); c += uC * horizon * 1.8 + uC2 * ember * 2.0; float ash = step(0.99, hash(floor(d * 300.0 + uTime))); c += vec3(0.5, 0.3, 0.2) * ash; }'
+#   + ' else { float n = vnoise(d * 6.0 + vec3(0.0, uTime * 0.08, 0.0)); float crack = pow(abs(sin(atan(d.x, d.z) * 9.0 + n * 4.0) * sin(h * 11.0 - uTime * 0.5 + n * 3.0)), 0.15); float rift = smoothstep(0.82, 0.95, crack);'
+#   + '   float st = step(0.99, hash(floor(d * 260.0))) * (0.3 + 0.7 * sin(uTime * 1.6 + hash(floor(d * 260.0)) * 50.0));'
+#   + '   c = mix(vec3(0.0), uC * 0.5, n * 0.3) + vec3(st) * 0.7 + mix(uC, uC2, 0.5) * rift * 1.4; }'
 #   + ' gl_FragColor = vec4(c, 1.0); }';
 # function domainFloor(kind) {
 #   const w = 512, cv = document.createElement('canvas'); cv.width = cv.height = w; const g = cv.getContext('2d');
 #   if (kind === 1) { g.fillStyle = '#04081c'; g.fillRect(0, 0, w, w); g.strokeStyle = 'rgba(90,170,255,0.55)'; g.lineWidth = 2; for (let i = 0; i <= 16; i++) { g.beginPath(); g.moveTo(i * w / 16, 0); g.lineTo(i * w / 16, w); g.moveTo(0, i * w / 16); g.lineTo(w, i * w / 16); g.stroke(); } for (let i = 0; i < 160; i++) { g.fillStyle = 'rgba(160,220,255,' + rand(0.2, 0.9) + ')'; g.fillRect(rand(0, w), rand(0, w), 2, 2); } }
 #   else if (kind === 2) { g.fillStyle = '#07030f'; g.fillRect(0, 0, w, w); for (let i = 0; i < 400; i++) { g.fillStyle = 'rgba(' + (60 + rand(0, 60) | 0) + ',20,' + (110 + rand(0, 90) | 0) + ',' + rand(0.08, 0.35) + ')'; g.beginPath(); g.ellipse(rand(0, w), rand(0, w), rand(2, 14), rand(1, 6), rand(0, 3), 0, TAU); g.fill(); } }
-#   else { g.fillStyle = '#1a0507'; g.fillRect(0, 0, w, w); for (let i = 0; i < 90; i++) { g.strokeStyle = 'rgba(255,60,60,' + rand(0.1, 0.5) + ')'; g.lineWidth = rand(1, 3); g.beginPath(); let x = rand(0, w), y = rand(0, w); g.moveTo(x, y); for (let k = 0; k < 6; k++) { x += rand(-40, 40); y += rand(-40, 40); g.lineTo(x, y); } g.stroke(); } g.strokeStyle = 'rgba(255,60,70,0.6)'; g.lineWidth = 5; g.beginPath(); g.arc(w / 2, w / 2, w * 0.33, 0, TAU); g.stroke(); g.beginPath(); g.arc(w / 2, w / 2, w * 0.12, 0, TAU); g.stroke(); }
+#   else if (kind === 3) { g.fillStyle = '#1a0507'; g.fillRect(0, 0, w, w); for (let i = 0; i < 90; i++) { g.strokeStyle = 'rgba(255,60,60,' + rand(0.1, 0.5) + ')'; g.lineWidth = rand(1, 3); g.beginPath(); let x = rand(0, w), y = rand(0, w); g.moveTo(x, y); for (let k = 0; k < 6; k++) { x += rand(-40, 40); y += rand(-40, 40); g.lineTo(x, y); } g.stroke(); } g.strokeStyle = 'rgba(255,60,70,0.6)'; g.lineWidth = 5; g.beginPath(); g.arc(w / 2, w / 2, w * 0.33, 0, TAU); g.stroke(); g.beginPath(); g.arc(w / 2, w / 2, w * 0.12, 0, TAU); g.stroke(); }
+#   else if (kind === 4) { g.fillStyle = '#9fe8ff'; g.fillRect(0, 0, w, w); for (let i = 0; i < 6; i++) { g.fillStyle = 'rgba(180,235,255,' + rand(0.2, 0.5) + ')'; g.beginPath(); let x = rand(0, w), y = rand(0, w); g.moveTo(x, y); for (let k = 0; k < 7; k++) { x += rand(-60, 60); y += rand(-60, 60); g.lineTo(x, y); } g.lineTo(x + rand(-10, 10), y + rand(-10, 10)); g.closePath(); g.fill(); } g.strokeStyle = 'rgba(230,255,255,0.8)'; g.lineWidth = 2; for (let i = 0; i < 30; i++) { g.beginPath(); let x = rand(0, w), y = rand(0, w); g.moveTo(x, y); for (let k = 0; k < 4; k++) { x += rand(-30, 30); y += rand(-30, 30); g.lineTo(x, y); } g.stroke(); } for (let i = 0; i < 220; i++) { g.fillStyle = 'rgba(255,255,255,' + rand(0.3, 0.9) + ')'; g.fillRect(rand(0, w), rand(0, w), 2, 2); } }
+#   else if (kind === 5) { g.fillStyle = '#120402'; g.fillRect(0, 0, w, w); g.strokeStyle = 'rgba(255,120,30,0.0)'; for (let i = 0; i < 22; i++) { const gx = g.createLinearGradient(0, 0, w, w); const hue = 'rgba(255,' + (90 + rand(0, 90) | 0) + ',20,'; gx.addColorStop(0, hue + '0)'); gx.addColorStop(0.5, hue + rand(0.4, 0.9) + ')'); gx.addColorStop(1, hue + '0)'); g.strokeStyle = hue + rand(0.5, 1) + ')'; g.lineWidth = rand(3, 9); g.beginPath(); let x = rand(0, w), y = rand(0, w); g.moveTo(x, y); for (let k = 0; k < 6; k++) { x += rand(-50, 50); y += rand(-50, 50); g.lineTo(x, y); } g.stroke(); } for (let i = 0; i < 60; i++) { g.fillStyle = 'rgba(40,20,20,' + rand(0.3, 0.7) + ')'; g.beginPath(); g.ellipse(rand(0, w), rand(0, w), rand(6, 30), rand(4, 20), rand(0, 3), 0, TAU); g.fill(); } }
+#   else { g.fillStyle = '#030106'; g.fillRect(0, 0, w, w); for (let i = 0; i < 40; i++) { g.strokeStyle = 'rgba(' + (140 + rand(0, 60) | 0) + ',' + (120 + rand(0, 40) | 0) + ',255,' + rand(0.3, 0.8) + ')'; g.lineWidth = rand(0.6, 2.2); g.beginPath(); let x = rand(0, w), y = rand(0, w); g.moveTo(x, y); for (let k = 0; k < 8; k++) { x += rand(-45, 45); y += rand(-45, 45); g.lineTo(x, y); } g.stroke(); } for (let i = 0; i < 10; i++) { g.strokeStyle = 'rgba(255,255,255,' + rand(0.3, 0.7) + ')'; g.lineWidth = 1; g.beginPath(); let x = rand(0, w), y = rand(0, w); g.moveTo(x, y); for (let k = 0; k < 5; k++) { x += rand(-30, 30); y += rand(-30, 30); g.lineTo(x, y); } g.stroke(); } }
 #   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
 # }
 # G3.domainOn = function (kind, x, z) {
@@ -1322,8 +1336,10 @@
 #   const gp = new THREE.Group(); gp.position.set(x, 0, z); scene.add(gp); DOM.group = gp;
 #   const dome = new THREE.Mesh(new THREE.SphereGeometry(180, 32, 20), new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, fog: false, uniforms: { uTime: UT, uK: { value: kind }, uC: { value: col3(d.col, 1) }, uC2: { value: col3(d.col2, 1) } }, vertexShader: 'varying vec3 vW; void main(){ vW = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }', fragmentShader: 'uniform float uTime;\n' + GLSL_NOISE + '\n' + DOME_FRAG }));
 #   dome.renderOrder = -10; gp.add(dome); DOM.dome = dome;
-#   const ft = domainFloor(kind); ft.repeat.set(kind === 3 ? 1 : 9, kind === 3 ? 1 : 9);
-#   const floor = new THREE.Mesh(new THREE.CircleGeometry(kind === 3 ? 34 : 120, 64).rotateX(-Math.PI / 2), G3.toon(0xffffff, { map: ft, emissive: kind === 1 ? 0x112244 : 0x000000, emissiveMap: kind === 1 ? ft : null })); floor.receiveShadow = true; gp.add(floor);
+#   const smallFloor = kind === 3 || kind === 5;
+#   const ft = domainFloor(kind); ft.repeat.set(smallFloor ? 1 : 9, smallFloor ? 1 : 9);
+#   const glowFloor = kind === 1 || kind === 4;
+#   const floor = new THREE.Mesh(new THREE.CircleGeometry(smallFloor ? 34 : 120, 64).rotateX(-Math.PI / 2), G3.toon(0xffffff, { map: ft, emissive: glowFloor ? 0x112244 : 0x000000, emissiveMap: glowFloor ? ft : null })); floor.receiveShadow = true; gp.add(floor);
 #   const near = (hex, a) => { const m = new THREE.Mesh(new THREE.CircleGeometry(30, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: glowTex, color: hex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: a })); m.position.y = 0.04; gp.add(m); };
 #   if (kind === 1) { // floating crystal shards + orbiting rings
 #     near(0x3a80ff, 0.6);
@@ -1333,11 +1349,28 @@
 #     near(0x7a30d0, 0.45);
 #     for (let i = 0; i < 40; i++) { const a = rand(0, TAU), r = rand(9, 48); const tr = new THREE.Group(); const h = rand(5, 13); const tk = G3.tmesh(new THREE.CylinderGeometry(0.1, 0.35, h, 6), 0x0a0614, { th: 0.04, oc: 0x6a30c0 }); tk.position.y = h / 2; tr.add(tk); for (let b = 0; b < 4; b++) { const br = G3.tmesh(new THREE.CylinderGeometry(0.04, 0.12, rand(2, 4), 5), 0x0a0614, { th: 0.03, oc: 0x6a30c0 }); br.position.set(0, h * rand(0.5, 0.95), 0); br.rotation.set(rand(-.5, .5), rand(0, TAU), rand(0.5, 1.1)); tr.add(br); } tr.position.set(Math.cos(a) * r, 0, Math.sin(a) * r); gp.add(tr); }
 #     for (let i = 0; i < 22; i++) { const a = rand(0, TAU), r = rand(5, 30); const l = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), new THREE.MeshBasicMaterial({ color: col3(0xb070ff, 3) })); l.position.set(Math.cos(a) * r, rand(1, 7), Math.sin(a) * r); l.userData = { by: l.position.y, ph: rand(0, 9), sp: rand(0.5, 1.2) }; gp.add(l); DOM.mats.push(l); }
-#   } else { // colosseum ring of pillars + blood moon
+#   } else if (kind === 3) { // colosseum ring of pillars + blood moon
 #     near(0xff2a3a, 0.5);
 #     for (let i = 0; i < 20; i++) { const a = i / 20 * TAU, r = 32; const pl = G3.tmesh(new THREE.CylinderGeometry(1.2, 1.5, 15, 8), 0x3a1418, { th: 0.05, oc: 0xff3040, mo: { emissive: 0x200408 } }); pl.position.set(Math.cos(a) * r, 7.5, Math.sin(a) * r); if (i % 4 === 0) pl.scale.y = 0.6, pl.position.y = 4.5; gp.add(pl); const cap = G3.tmesh(new THREE.BoxGeometry(3.4, 1, 3.4), 0x4a1c20, { th: 0.04, oc: 0xff3040 }); cap.position.set(Math.cos(a) * r, pl.position.y * 2 - (i % 4 === 0 ? 0 : 0) , Math.sin(a) * r); if (i % 4 !== 0) gp.add(cap); }
 #     for (let i = 0; i < 20; i++) { const a = (i + 0.5) / 20 * TAU, r = 32; const arc = G3.tmesh(new THREE.BoxGeometry(11, 2, 1.6), 0x2a0e12, { th: 0.04, oc: 0xff3040 }); arc.position.set(Math.cos(a) * r, 14, Math.sin(a) * r); arc.rotation.y = -a + Math.PI / 2; gp.add(arc); }
 #     for (let i = 0; i < 4; i++) { const t = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1.6, 6), new THREE.MeshBasicMaterial({ color: col3(0xff6a30, 3) })); const a = i / 4 * TAU + 0.78; t.position.set(Math.cos(a) * 13, 1.6, Math.sin(a) * 13); gp.add(t); const bs = G3.tmesh(new THREE.CylinderGeometry(0.4, 0.5, 1.2, 6), 0x1a0a0c, { th: 0.03 }); bs.position.set(t.position.x, 0.6, t.position.z); gp.add(bs); t.userData = { flame: 1 }; DOM.mats.push(t); }
+#   } else if (kind === 4) { // REI's EVERFROST EXPANSE - a glacier canyon of jagged ice spires, aurora light, drifting snow
+#     near(0x6ac8ff, 0.55);
+#     for (let i = 0; i < 24; i++) { const a = rand(0, TAU), r = rand(10, 46), h = rand(6, 18); const sp = G3.tmesh(new THREE.ConeGeometry(rand(0.8, 2.2), h, 6), 0x9adfff, { th: 0.03, oc: 0xeaffff, mo: { emissive: 0x3a90c0, transparent: true, opacity: 0.88 } }); sp.position.set(Math.cos(a) * r, h / 2, Math.sin(a) * r); sp.rotation.y = rand(0, TAU); sp.userData = { by: sp.position.y, ph: rand(0, 9), sp: rand(0.1, 0.3) }; gp.add(sp); DOM.mats.push(sp);
+#       if (Math.random() < 0.4) { const sh = G3.tmesh(new THREE.ConeGeometry(rand(0.3, 0.7), rand(2, 4), 5), 0xcaf0ff, { th: 0.02, oc: 0xffffff }); sh.position.set(sp.position.x + rand(-1.5, 1.5), h * 0.3, sp.position.z + rand(-1.5, 1.5)); gp.add(sh); } }
+#     for (let i = 0; i < 2; i++) { const rg = new THREE.Mesh(new THREE.TorusGeometry(20 + i * 14, 0.1, 6, 90), new THREE.MeshBasicMaterial({ color: col3(0xaaf0ff, 1.8), transparent: true, opacity: 0.6 })); rg.position.y = 10 + i * 6; rg.rotation.x = Math.PI / 2 + (i - 0.5) * 0.4; rg.userData = { spin: (i + 1) * 0.05 }; gp.add(rg); DOM.mats.push(rg); }
+#     const mist = new THREE.Mesh(new THREE.CircleGeometry(60, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xcaf0ff, transparent: true, opacity: 0.1, depthWrite: false })); mist.position.y = 0.3; gp.add(mist);
+#   } else if (kind === 5) { // ZAN's SCORCHED ARENA - a cracked volcanic chasm, obsidian spires, lava geysers
+#     near(0xff5a2a, 0.55);
+#     for (let i = 0; i < 16; i++) { const a = i / 16 * TAU, r = 30 + rand(-3, 3), h = rand(4, 10); const sp = G3.tmesh(new THREE.ConeGeometry(rand(0.8, 1.6), h, 5), 0x120402, { th: 0.04, oc: 0xff4a20, mo: { emissive: 0x4a1200 } }); sp.position.set(Math.cos(a) * r, h / 2, Math.sin(a) * r); sp.rotation.z = rand(-0.3, 0.3); gp.add(sp); }
+#     for (let i = 0; i < 6; i++) { const a = rand(0, TAU), r = rand(6, 22); const gy = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.9, 0.3, 10), new THREE.MeshBasicMaterial({ color: col3(0xff6a30, 3) })); gy.position.set(Math.cos(a) * r, 0.1, Math.sin(a) * r); gy.userData = { flame: 1, geyser: true, gx: gy.position.x, gz: gy.position.z, next: rand(0.5, 2.5) }; gp.add(gy); DOM.mats.push(gy); }
+#     for (let i = 0; i < 10; i++) { const a = rand(0, TAU), r = rand(4, 28); const chunk = G3.tmesh(new THREE.DodecahedronGeometry(rand(0.5, 1.4)), 0x2a0e08, { th: 0.03, oc: 0xff5a2a, mo: { emissive: 0x3a1004 } }); chunk.position.set(Math.cos(a) * r, rand(2, 10), Math.sin(a) * r); chunk.userData = { by: chunk.position.y, ph: rand(0, 9), sp: rand(0.3, 0.8) }; gp.add(chunk); DOM.mats.push(chunk); }
+#   } else { // VOID's NULL GARDEN - a fractured dimension: shattered reality-shards orbiting a dark rift
+#     near(0x6a60e0, 0.4);
+#     const rift = new THREE.Mesh(new THREE.SphereGeometry(2.4, 16, 12), new THREE.MeshBasicMaterial({ color: 0x000000 })); rift.position.y = 7; gp.add(rift);
+#     const riftRing = new THREE.Mesh(new THREE.TorusGeometry(3.4, 0.2, 8, 48), new THREE.MeshBasicMaterial({ color: col3(0x9a90ff, 2.4) })); riftRing.position.y = 7; riftRing.userData = { spin: 0.4 }; gp.add(riftRing); DOM.mats.push(riftRing);
+#     for (let i = 0; i < 30; i++) { const a = rand(0, TAU), r = rand(8, 46), h = rand(1, 16); const shard = G3.tmesh(new THREE.TetrahedronGeometry(rand(0.6, 2.0)), 0x0a0a16, { th: 0.03, oc: 0xa090ff, mo: { emissive: 0x2a2060, transparent: true, opacity: 0.92 } }); shard.position.set(Math.cos(a) * r, h, Math.sin(a) * r); shard.rotation.set(rand(0, TAU), rand(0, TAU), rand(0, TAU)); shard.userData = { by: shard.position.y, ph: rand(0, 9), sp: rand(0.15, 0.5), spin: rand(-0.3, 0.3) }; gp.add(shard); DOM.mats.push(shard); }
+#     for (let i = 0; i < 4; i++) { const rg = new THREE.Mesh(new THREE.TorusGeometry(14 + i * 9, 0.08, 6, 80), new THREE.MeshBasicMaterial({ color: col3(0xffffff, 1.6), transparent: true, opacity: 0.35 })); rg.position.y = 3 + i * 3; rg.rotation.x = Math.PI / 2 + (i - 1.5) * 0.3; rg.userData = { spin: (i % 2 ? -1 : 1) * 0.1 }; gp.add(rg); DOM.mats.push(rg); }
 #   }
 #   G3.setSky && 0;
 #   scene.background = new THREE.Color(d.bg); scene.fog.color.setHex(d.fog); scene.fog.density = d.fogD;
@@ -1355,17 +1388,22 @@
 # function updateDomain(dt) {
 #   if (!DOM.on) return; DOM.t += dt;
 #   for (const o of DOM.mats) {
-#     const u = o.userData; if (u.ph !== undefined) { o.position.y = u.by + Math.sin(S.t * u.sp + u.ph) * 0.8; if (o.rotation) o.rotation.y += dt * 0.4; }
-#     if (u.spin) o.rotation.z += dt * u.spin; if (u.flame) o.scale.set(1 + Math.sin(S.t * 14) * 0.15, 1 + Math.sin(S.t * 11 + 1) * 0.25, 1);
+#     const u = o.userData; if (u.ph !== undefined) { o.position.y = u.by + Math.sin(S.t * u.sp + u.ph) * 0.8; if (o.rotation) o.rotation.y += dt * (u.spin2 !== undefined ? u.spin2 : 0.4); }
+#     if (u.spin) o.rotation.z += dt * u.spin; if (u.flame && !u.geyser) o.scale.set(1 + Math.sin(S.t * 14) * 0.15, 1 + Math.sin(S.t * 11 + 1) * 0.25, 1);
+#     if (u.geyser) { u.next -= dt; if (u.next <= 0) { u.next = rand(1.2, 3.2); P({ x: u.gx, y: 0.2, z: u.gz, vx: rand(-0.6, 0.6), vy: rand(6, 11), vz: rand(-0.6, 0.6), life: rand(0.6, 1.1), s0: 0.3, s1: 0.04, c0: 0xffd090, c1: 0xff4a1a, g: 2.4, drag: 0.2 }); G3.pointFlash(u.gx, 0.6, u.gz, 0xff6a2a, 2.2, 0.3); } o.scale.setScalar(1 + Math.max(0, 1 - u.next * 2) * 0.6); }
 #   }
 #   const g = DOM.group; if (!g) return; const k = DOM.kind;
 #   if (Math.random() < dt * 40) {
 #     const a = rand(0, TAU), r = rand(2, 40), x = DOM.x + Math.cos(a) * r, z = DOM.z + Math.sin(a) * r;
 #     if (k === 1) P({ x, y: rand(0.3, 10), z, vy: rand(0.2, 0.8), life: 3, s0: 0.1, s1: 0.1, c0: 0xffffff, c1: 0x7ab4ff, g: 2.4, drag: 0 });
 #     else if (k === 2) P({ x, y: rand(0.3, 8), z, vx: 0.8, vy: rand(-0.2, 0.5), life: 3.5, s0: 0.16, s1: 0.04, c0: 0xc890ff, c1: 0x5a20a0, g: 1.8, drag: 0, swirl: 0.8 });
-#     else P({ x, y: 0.2, z, vx: rand(-0.5, 0.5), vy: rand(2, 5), life: 2, s0: 0.12, s1: 0, c0: 0xffd0a0, c1: 0xff2236, g: 2.4, drag: 0.1 });
+#     else if (k === 3) P({ x, y: 0.2, z, vx: rand(-0.5, 0.5), vy: rand(2, 5), life: 2, s0: 0.12, s1: 0, c0: 0xffd0a0, c1: 0xff2236, g: 2.4, drag: 0.1 });
+#     else if (k === 4) P({ x, y: rand(2, 16), z, vx: rand(-0.3, 0.3), vy: rand(-2.2, -1.2), vz: rand(-0.3, 0.3), life: rand(1.5, 3), s0: 0.1, s1: 0.03, c0: 0xffffff, c1: 0xcaf0ff, g: 1.6, drag: 0.1, swirl: 0.6 });
+#     else if (k === 5) P({ x, y: rand(0.2, 2), z, vx: rand(-0.4, 0.4), vy: rand(1.5, 4), vz: rand(-0.4, 0.4), life: rand(1, 2), s0: 0.14, s1: 0.02, c0: 0xffd090, c1: 0xff4a1a, g: 1.8, drag: 0.3 });
+#     else P({ x, y: rand(1, 14), z, vx: rand(-0.2, 0.2), vy: rand(-0.3, 0.3), vz: rand(-0.2, 0.2), life: rand(1.5, 2.6), s0: 0.1, s1: 0.02, c0: 0xffffff, c1: 0x8a90ff, g: 1.2, drag: 0.6, swirl: 1.2 });
 #   }
 #   if (k === 3 && Math.random() < dt * 1.4) { const a = rand(0, TAU); bolt(DOM.x + Math.cos(a) * 30, 20, DOM.z + Math.sin(a) * 30, DOM.x + Math.cos(a) * rand(4, 28), 0, DOM.z + Math.sin(a) * rand(4, 28), 0xff3040, 0.25, 0.3, 2.6); }
+#   if (k === 6 && Math.random() < dt * 0.8) { const a = rand(0, TAU); bolt(DOM.x + Math.cos(a) * rand(4, 30), rand(2, 14), DOM.z + Math.sin(a) * rand(4, 30), DOM.x + Math.cos(a + rand(-0.6, 0.6)) * rand(4, 30), rand(2, 14), DOM.z + Math.sin(a + rand(-0.6, 0.6)) * rand(4, 30), 0xffffff, 0.12, 0.25, 2.4); }
 # }
 # // guaranteed-hit sequence strikes (visual, per hit). n = counter
 # G3.domainStrike = function (kind, x, y, z, n) {
@@ -1376,9 +1414,18 @@
 #   } else if (kind === 2) { // erupting shadow spears
 #     for (let i = 0; i < 3; i++) { const a = rand(0, TAU), r = i ? rand(0.5, 2.4) : 0; G3.shadowSpike(x + Math.cos(a) * r, z + Math.sin(a) * r, rand(3.5, 6)); }
 #     G3.hit(x, y, z, 2 + (n % 2), 'kage');
-#   } else { // raining crimson blades + black flash finisher on last
+#   } else if (kind === 3) { // raining crimson blades + black flash finisher on last
 #     for (let i = 0; i < 2; i++) bolt(x + rand(-2, 2), 14, z + rand(-2, 2), x, y, z, i ? 0xffffff : 0xff2236, 0.18, 0.15, 3.2);
 #     slash(x, y, z, rand(0, 360), rand(-40, 40), rand(3, 4.5), 'akai', 0.15, 170, n % 2 === 0); G3.hit(x, y, z, 2 + (n % 2), 'akai');
+#   } else if (kind === 4) { // impaling ice shards + frost shatter
+#     for (let i = 0; i < 2; i++) slash(x, y + rand(-.4, .4), z, rand(0, 360), rand(-50, 50), rand(2.4, 3.6), 'rei', 0.14, 160, true);
+#     ring(x, 0.1, z, 2.6, 0x9adfff, 0.3, 0.2, null, 2.2); sparks(x, y, z, 14, 4, 0xeaffff); G3.hit(x, y, z, 2 + (n % 2), 'rei'); if (n % 3 === 0) { G3.invert(45); shell(x, y, z, 3, 0xeaffff, 0.3, 2, false); }
+#   } else if (kind === 5) { // falling embers + eruption
+#     for (let i = 0; i < 2; i++) meteorFall(x + rand(-2.5, 2.5), z + rand(-2.5, 2.5), 0.25);
+#     slash(x, y, z, rand(0, 360), rand(-40, 40), rand(3, 4.2), 'zan', 0.16, 170, Math.random() < 0.5); G3.hit(x, y, z, 2 + (n % 2), 'zan');
+#   } else { // void tears + reality-rift pull
+#     for (let i = 0; i < 3; i++) slash(x, y + rand(-.5, .5), z, rand(0, 360), rand(-70, 70), rand(2.6, 4.0), 'void', 0.15, 160, Math.random() < 0.5);
+#     ring(x, y, z, 3, 0x000000, 0.3, 0.25, [0, 1, 0], 2.6); G3.hit(x, y, z, 2 + (n % 2), 'void'); if (n % 3 === 0) { G3.invert(45); ring(x, y, z, 5, 0xffffff, 0.3, 0.15, [0, 1, 0], 3); }
 #   }
 # };
 # G3.domainSure = function (kind, x, y, z) { // final guaranteed-hit detonation
@@ -4295,17 +4342,25 @@ fn domainHex() {
   }
   return 9077503
 }
-// which Domain Expansion's geometry/backdrop a character's domain reuses -
-// newer characters borrow the closest-matching look rather than needing
-// a whole new hand-built domain scene of their own.
+// which Domain Expansion geometry/backdrop a character's domain uses.
+// Each of the 6 characters now has its own original domain scene.
 fn domGeom() {
-  if ch == 0 or ch == 3 {
+  if ch == 0 {
     return 1
   }
-  if ch == 1 or ch == 5 {
+  if ch == 1 {
     return 2
   }
-  return 3
+  if ch == 2 {
+    return 3
+  }
+  if ch == 3 {
+    return 4
+  }
+  if ch == 4 {
+    return 5
+  }
+  return 6
 }
 
 fn castG() {
@@ -4419,7 +4474,7 @@ fn domainTick(dtR) {
       }
       slowmo(100, 10)
       cineLow(0.0, 0.0, 0.0, 5.2, 20.0, 330.0, 10.0)
-      if domKind == 1 {
+      if domKind == 1 or domKind == 6 {
         pce = pceMax
       }
       sfx("domain")
@@ -4450,6 +4505,12 @@ fn domainTick(dtR) {
         if domKind == 2 and domN % 4 == 0 {
           shadowPool(foes[pick].x, foes[pick].z, 3.0, 1.0)
         }
+        if domKind == 4 {
+          ringFx(foes[pick].x, 0.1, foes[pick].z, 1.6, 10604287, 0.3)
+        }
+        if domKind == 5 and domN % 3 == 0 {
+          meteorFall(foes[pick].x, foes[pick].z, 0.3)
+        }
       }
       domN += 1
     }
@@ -4474,7 +4535,7 @@ fn domainTick(dtR) {
         cz = cz / cnt
       }
       domainSure(domKind, 0.0, 1.5, 0.0)
-      if domKind == 3 {
+      if domKind == 3 or domKind == 5 {
         fxBlackFlash(cx, 1.4, cz)
       }
       sfx("ult")
