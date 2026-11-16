@@ -199,7 +199,8 @@ const PAGE_WORDS = ['button', 'title', 'html'];
 // Game commands (#html canvas games) and list commands. Like the page words they
 // aren't keywords, so 'let box = 3' or 'fn draw()' in older programs still work.
 const GAME_WORDS = ['canvas', 'image', 'sprite', 'draw', 'paint', 'box', 'write', 'camera', 'touchpad', 'music', 'save', 'audio', 'sound', 'volume',
-  'world3d', 'clear3d', 'camera3d', 'render3d', 'move3d', 'turn3d', 'show3d', 'glow3d', 'torch3d', 'model3d', 'anim3d', 'fx3d', 'shine3d', 'burst3d', 'look3d'];
+  'world3d', 'clear3d', 'camera3d', 'render3d', 'move3d', 'turn3d', 'show3d', 'glow3d', 'torch3d', 'model3d', 'anim3d', 'fx3d', 'shine3d', 'burst3d', 'look3d',
+  'toon3d', 'shot3d', 'lookat3d', 'shake3d', 'slowmo3d', 'hitstop3d', 'bars3d'];
 const LIST_WORDS = ['add', 'remove'];
 const NOT_A_COMMAND = ['=', '(', '[', '+=', '-=', '*=', '/=', 'eof'];
 
@@ -754,8 +755,12 @@ function parse(tokens) {
         return { kind: 'Cmd3d', cmd: t.value, args: [], opts: {}, line };
       // camera3d x, y, z, yaw, pitch      move3d id, x, y, z      turn3d id, yaw      show3d id, flag
       // glow3d id, "#4de1ff"      torch3d power, range
-      case 'camera3d': case 'move3d': case 'turn3d': case 'show3d': case 'glow3d': case 'torch3d': case 'anim3d': case 'fx3d': case 'shine3d': case 'burst3d': case 'look3d': {
-        const need = { camera3d: 5, move3d: 4, turn3d: 2, show3d: 2, glow3d: 2, torch3d: 2, anim3d: 2, fx3d: 3, shine3d: 3, burst3d: 6, look3d: 2 }[t.value];
+      // toon3d bands, outline, rim      shot3d x, y, z, atx, aty, atz, ms      lookat3d x, y, z
+      // shake3d power, ms      slowmo3d percent, ms      hitstop3d ms      bars3d on
+      case 'camera3d': case 'move3d': case 'turn3d': case 'show3d': case 'glow3d': case 'torch3d': case 'anim3d': case 'fx3d': case 'shine3d': case 'burst3d': case 'look3d':
+      case 'toon3d': case 'shot3d': case 'lookat3d': case 'shake3d': case 'slowmo3d': case 'hitstop3d': case 'bars3d': {
+        const need = { camera3d: 5, move3d: 4, turn3d: 2, show3d: 2, glow3d: 2, torch3d: 2, anim3d: 2, fx3d: 3, shine3d: 3, burst3d: 6, look3d: 2,
+          toon3d: 3, shot3d: 7, lookat3d: 3, shake3d: 2, slowmo3d: 2, hitstop3d: 1, bars3d: 1 }[t.value];
         const args = [expression()];
         while (match(',')) args.push(expression());
         if (args.length !== need) {
@@ -1170,6 +1175,8 @@ const HTML_CSS = `  :root { color-scheme: light dark; }
 // 3D games bundle Three.js (lib/three.min.js, MIT) and our small 3D runtime into the page
 const THREE_SRC = () => fs.readFileSync(path.join(__dirname, '..', 'lib', 'three.min.js'), 'utf8').replace(/<\/script/gi, '<\\/script');
 const VOLT3D_SRC = () => fs.readFileSync(path.join(__dirname, '..', 'lib', 'volt3d.js'), 'utf8');
+// The anime layer wraps functions from volt3d.js, so it must be concatenated after it.
+const VOLT3D_ANIME_SRC = () => fs.readFileSync(path.join(__dirname, '..', 'lib', 'volt3d-anime.js'), 'utf8');
 
 // Helpers for #html games, added to the page only when it uses canvas
 const GAME_RUNTIME = [
@@ -3400,7 +3407,7 @@ function generate(ast, target = 'cpp', options = {}) {
     '  });',
     '}',
     ...(usesGame ? GAME_RUNTIME : []),
-    ...(uses3d ? [THREE_SRC(), VOLT3D_SRC()] : []),
+    ...(uses3d ? [THREE_SRC(), VOLT3D_SRC(), VOLT3D_ANIME_SRC()] : []),
     ...block(topLines),
     ...program,
     '',

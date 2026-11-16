@@ -430,6 +430,62 @@ In your program **1 unit = 1 cm** (a 2 m corridor is 200) and **y is up**. **Ang
 
 `move3d`, `turn3d`, `show3d` and `glow3d` work on models too.
 
+### The anime look: toon3d
+
+Normal 3D lighting makes everything look like a photograph. Anime games don't use it. They use
+flat bands of colour instead of a smooth fade, a bright edge where a character catches the light,
+and a dark line drawn around the silhouette. `toon3d` turns all three on at once.
+
+```volt
+#html
+world3d "#141026" fog 2200 ambient 14 fov 55 shadows
+toon3d 3, 35, 60        // bands, outline thickness, rim brightness
+fx3d 45, 30, 4          // bloom, vignette, grain - anime art is bloomy
+```
+
+| Command | What it does |
+|---|---|
+| `toon3d bands, outline, rim` | Switches the whole world to the anime look. `bands` 2-8 is how many steps of light there are (3 is the usual, 2 is harsher). `outline` 0-100 is the thickness of the dark line, 0 turns it off. `rim` 0-100 is how bright the edge glow is, 0 turns it off. |
+
+Put `toon3d` just after `world3d`. Anything placed afterwards is drawn this way, and anything
+already placed gets restyled. It works on `block3d`, `ball3d`, `cyl3d` and loaded models alike.
+
+Raising `bands` softens the look; lowering it makes it harsher and more graphic. Turning `rim`
+up past about 70 starts to look like the character is glowing rather than lit, which is worth
+doing on purpose for a transformation scene and worth avoiding the rest of the time.
+
+### Cutscenes and fight feel: shot3d, shake3d, slowmo3d, hitstop3d, bars3d
+
+| Command | What it does |
+|---|---|
+| `shot3d x, y, z, atx, aty, atz, ms` | Glides the camera to `x, y, z` over `ms` milliseconds while keeping it pointed at `atx, aty, atz`. Call it once - it keeps running on its own until it finishes. |
+| `lookat3d x, y, z` | Points the camera at a spot in the world right now. |
+| `shake3d power, ms` | Shakes the camera. `power` 0-100: about 20 for a footstep, about 70 for a boss landing. |
+| `slowmo3d percent, ms` | Runs the world at `percent` of normal speed (10-100) for `ms` of real time. |
+| `hitstop3d ms` | Freezes everything for a moment. 60-120 ms on a heavy hit is what makes it feel heavy. |
+| `bars3d on` | `1` draws black cinema bars top and bottom, `0` removes them. |
+
+A hit that lands well is usually three of these together, in this order:
+
+```volt
+hitstop3d 90          // freeze on the impact frame
+shake3d 55, 220       // then the camera jolts
+burst3d x, y, z, "#ffd36e", 40, 260
+```
+
+A cutscene is `bars3d 1`, one or more `shot3d` calls, then `bars3d 0`:
+
+```volt
+bars3d 1
+shot3d 0, 180, 600, 0, 150, 0, 2500     // slow push towards the hero
+wait 2500ms
+shot3d 400, 90, 150, 0, 150, 0, 1200    // cut round to the side
+wait 1200ms
+bars3d 0
+```
+
+`shake3d` deliberately ignores slow motion, so a slow-motion impact still hits hard.
+
 ## Game types (structs)
 
 `#html` games can declare a named shape for the things in a game - a player, an enemy, a pickup - instead of juggling a separate list for every field (`ex`, `ey`, `ehp`, `emaxhp`, ...).
