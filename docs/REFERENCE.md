@@ -430,6 +430,33 @@ In your program **1 unit = 1 cm** (a 2 m corridor is 200) and **y is up**. **Ang
 
 `move3d`, `turn3d`, `show3d` and `glow3d` work on models too.
 
+### Mouse look, distances and angles
+
+These already exist and are easy to miss, so they are listed together here.
+
+| Command | What it does |
+|---|---|
+| `mousedx()` / `mousedy()` | How far the mouse moved since you last asked. This is how you turn the camera. |
+| `locked3d()` | 1 once the mouse is captured for looking around. |
+
+**You do not have to ask for the mouse.** Clicking anywhere in a 3D game captures it
+automatically, and `mousedx()` / `mousedy()` start reporting movement from then on. Pressing
+Escape releases it, and a click captures it again.
+
+| Command | What it does |
+|---|---|
+| `dist(x1, y1, x2, y2)` | Straight-line distance between two points. Use it for "is the enemy close enough to hit". |
+| `overlaps(ax, ay, aw, ah, bx, by, bw, bh)` | True when two boxes touch. Use it instead of writing four comparisons by hand. |
+| `sin3(angle)` / `cos3(angle)` | Sine and cosine in tenths of a degree, giving thousandths back. Use them to move in the direction something is facing. |
+| `atan2(y, x)` | The angle from one point to another, in tenths of a degree. Use it to turn an enemy towards the player. |
+
+So moving forwards in whatever direction the hero faces is:
+
+```volt
+px += sin3(yaw) * speed / 1000
+pz -= cos3(yaw) * speed / 1000
+```
+
 ### The anime look: toon3d
 
 Normal 3D lighting makes everything look like a photograph. Anime games don't use it. They use
@@ -453,6 +480,51 @@ already placed gets restyled. It works on `block3d`, `ball3d`, `cyl3d` and loade
 Raising `bands` softens the look; lowering it makes it harsher and more graphic. Turning `rim`
 up past about 70 starts to look like the character is glowing rather than lit, which is worth
 doing on purpose for a transformation scene and worth avoiding the rest of the time.
+
+### Moving many shapes as one: group3d, join3d
+
+A character built out of blocks and balls is a dozen separate objects. Without a group you have
+to `move3d` and `turn3d` every single one of them, every frame. A group is one object you move
+instead, and everything inside comes along.
+
+```volt
+let hero = group3d(0, 0, 700)        // the point the hero stands on and turns around
+let torso = block3d(0, 105, 700, 72, 115, 42, "#9b493b")
+let head  = ball3d(0, 235, 700, 38, "#c5a98a")
+join3d torso, hero
+join3d head, hero
+
+every frame {
+  move3d hero, px, 0, pz             // the whole hero moves
+  turn3d hero, yaw                   // and turns together
+  render3d
+}
+```
+
+| Command | What it does |
+|---|---|
+| `group3d(x, y, z)` | Makes an empty group at that spot and gives back its id. The spot is what the group turns around, so put it where the feet are, not in the middle. |
+| `join3d part, group` | Puts a shape (or a model, or another group) inside the group. The part stays exactly where it already looks, so you can build everything in world coordinates first and group it afterwards. |
+
+`move3d`, `turn3d` and `show3d` all work on a group. Hiding a group hides everything in it.
+
+### Doing something later: after
+
+`wait` stops everything until it finishes, so a `wait` inside `every frame` freezes the whole
+game while it counts down. `after` does not - it runs the block once, later, and the game keeps
+going in the meantime. Use it for anything that happens during play.
+
+```volt
+after 1700ms {
+  bars3d 0                 // end the cutscene a moment from now
+}
+```
+
+| Command | What it does |
+|---|---|
+| `after 1700ms { ... }` | Runs the block once, that much later, without holding anything up. Several can run at the same time. `#html` and `#js` only. |
+
+Use `wait` for a scripted sequence before play starts, and `after` for anything during play.
 
 ### Cutscenes and fight feel: shot3d, shake3d, slowmo3d, hitstop3d, bars3d
 

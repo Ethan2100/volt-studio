@@ -81,7 +81,7 @@ const KEYWORDS = new Set([
   'if', 'else', 'repeat', 'while', 'break', 'wait', 'stop',
   // output
   'show', 'clear',
-  'forever', 'every', 'when', 'fn', 'return',
+  'forever', 'every', 'after', 'when', 'fn', 'return',
   // values and logic
   'true', 'false', 'and', 'or', 'not',
 ]);
@@ -200,7 +200,7 @@ const PAGE_WORDS = ['button', 'title', 'html'];
 // aren't keywords, so 'let box = 3' or 'fn draw()' in older programs still work.
 const GAME_WORDS = ['canvas', 'image', 'sprite', 'draw', 'paint', 'box', 'write', 'camera', 'touchpad', 'music', 'save', 'audio', 'sound', 'volume',
   'world3d', 'clear3d', 'camera3d', 'render3d', 'move3d', 'turn3d', 'show3d', 'glow3d', 'torch3d', 'model3d', 'anim3d', 'fx3d', 'shine3d', 'burst3d', 'look3d',
-  'toon3d', 'shot3d', 'lookat3d', 'shake3d', 'slowmo3d', 'hitstop3d', 'bars3d', 'sky3d'];
+  'toon3d', 'shot3d', 'lookat3d', 'shake3d', 'slowmo3d', 'hitstop3d', 'bars3d', 'sky3d', 'join3d'];
 const LIST_WORDS = ['add', 'remove'];
 const NOT_A_COMMAND = ['=', '(', '[', '+=', '-=', '*=', '/=', 'eof'];
 
@@ -363,6 +363,14 @@ function parse(tokens) {
         }
         const ms = expect('duration', 'a time like 500ms or 2s (or the word frame)').value;
         return { kind: 'Every', ms, body: block(), line };
+      }
+
+      // after 1700ms { ... }   runs the block once, later, without holding up the game.
+      // Unlike 'wait' it does not stop everything else while it counts down.
+      case 'after': {
+        next();
+        const ms = expect('duration', 'a time like 500ms or 2s').value;
+        return { kind: 'After', ms, body: block(), line };
       }
 
       // when button pressed { ... }
@@ -758,9 +766,9 @@ function parse(tokens) {
       // toon3d bands, outline, rim      shot3d x, y, z, atx, aty, atz, ms      lookat3d x, y, z
       // shake3d power, ms      slowmo3d percent, ms      hitstop3d ms      bars3d on
       case 'camera3d': case 'move3d': case 'turn3d': case 'show3d': case 'glow3d': case 'torch3d': case 'anim3d': case 'fx3d': case 'shine3d': case 'burst3d': case 'look3d':
-      case 'toon3d': case 'shot3d': case 'lookat3d': case 'shake3d': case 'slowmo3d': case 'hitstop3d': case 'bars3d': case 'sky3d': {
+      case 'toon3d': case 'shot3d': case 'lookat3d': case 'shake3d': case 'slowmo3d': case 'hitstop3d': case 'bars3d': case 'sky3d': case 'join3d': {
         const need = { camera3d: 5, move3d: 4, turn3d: 2, show3d: 2, glow3d: 2, torch3d: 2, anim3d: 2, fx3d: 3, shine3d: 3, burst3d: 6, look3d: 2,
-          toon3d: 3, shot3d: 7, lookat3d: 3, shake3d: 2, slowmo3d: 2, hitstop3d: 1, bars3d: 1, sky3d: 1 }[t.value];
+          toon3d: 3, shot3d: 7, lookat3d: 3, shake3d: 2, slowmo3d: 2, hitstop3d: 1, bars3d: 1, sky3d: 1, join3d: 2 }[t.value];
         const args = [expression()];
         while (match(',')) args.push(expression());
         if (args.length !== need) {
@@ -1019,7 +1027,7 @@ const TARGET_NAMES = {
 const BUILTINS = {
   random: 2, abs: 1, min: 2, max: 2, constrain: 3, map: 5, number: 1, text: 1, length: 1, upper: 1, lower: 1, contains: 2, part: 3, sign: 1, held: 1, saved: 2, touchscreen: 0,
   // 3D and engine helpers (sin3/cos3/atan2 use tenths of a degree and thousandths - see the 3D section of the reference)
-  block3d: 7, ball3d: 5, cyl3d: 6, lamp3d: 6, put3d: 6, mousedx: 0, mousedy: 0, locked3d: 0, clicked3d: 0, hot3d: 4, sky3d: 1, crisp: 1, sin3: 1, cos3: 1, atan2: 2,
+  block3d: 7, ball3d: 5, cyl3d: 6, lamp3d: 6, put3d: 6, group3d: 3, mousedx: 0, mousedy: 0, locked3d: 0, clicked3d: 0, hot3d: 4, sky3d: 1, crisp: 1, sin3: 1, cos3: 1, atan2: 2,
   // everyday math (decimal sin/cos in degrees)
   sqrt: 1, sin: 1, cos: 1,
   // small gamedev helpers - plain math, so they work on every target
@@ -2354,6 +2362,7 @@ function generate(ast, target = 'cpp', options = {}) {
         case 'cyl3d':
         case 'lamp3d':
         case 'put3d':
+        case 'group3d':
           gameOnly(`'${e.name}'`, e.line);
           uses3d = true;
           return { code: `__${e.name}(${c.join(', ')})`, type: 'num' };
@@ -3129,6 +3138,18 @@ function generate(ast, target = 'cpp', options = {}) {
         if (s.art.icons) parts.push(`icons: [${s.art.icons.map(pic).join(', ')}]`);
         const art = parts.length ? `, { ${parts.join(', ')} }` : '';
         return [`${p}__touchpad([${s.keys.map(strLit).join(', ')}]${art});`];
+      }
+
+      case 'After': {
+        if (!html && !js) {
+          throw new VoltError("'after' is for #html games and #js. On a board use a counter with 'every'.", s.line);
+        }
+        return [
+          `${p}// after ${s.ms}ms (line ${s.line})`,
+          `${p}setTimeout(() => { if (__stopped) return; (async () => {`,
+          ...genBlock(s.body, depth + 1),
+          `${p}})().catch(__error); }, ${s.ms});`,
+        ];
       }
 
       case 'EveryFrame': {
