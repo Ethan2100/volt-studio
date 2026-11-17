@@ -24,6 +24,7 @@
 title "Striker"
 canvas 480, 270
 world3d "#6f8fb8" fog 14000 ambient 42 fov 72 shadows
+look3d 1, "#bcd4ea"
 fx3d 28, 26, 5
 sky3d 78
 
@@ -42,7 +43,9 @@ let GOAL_H = 240.0
 
 let score1 = 0
 let score2 = 0
-let clock = 0.0
+let tick = 0.0
+let secs = 0
+let mins = 0
 let msg = ""
 let msgT = 0.0
 
@@ -74,6 +77,9 @@ fn stands(z, h) {
 }
 
 fn buildPitch() {
+  // Ground that runs well past the goal lines. Without it there is no floor
+  // behind the goals and a shot that crosses the line falls out of the world.
+  block3d(0, 0 - 30, 0, PITCH_X * 2 + 3000, 40, PITCH_Z * 2 + 3000, "#2c6e34")
   let n = 0
   while n < 12 {
     let z = 0 - PITCH_Z + n * (PITCH_Z * 2 / 12) + PITCH_Z / 12
@@ -208,6 +214,33 @@ fn nearBall(i) {
 // Whoever is closest and close enough has it at their feet.
 fn settleOwner() {
   if loose > 0.0 { return 0 }
+
+  // Whoever has it keeps it until the ball actually gets away from them.
+  // Without this the owner flips every frame between two players standing
+  // on the same spot, and the AI freezes: one frame it is carrying the
+  // ball and running at goal, the next it is chasing a ball at its own
+  // feet and braking.
+  let cur = ballOwner
+  if cur >= 0 {
+    let curD = number(nearBall(cur))
+    if curD < 200.0 and men[cur].cool <= 0.0 {
+      // a defender right on top of them can still nick it
+      let j = 0
+      while j < length(men) {
+        if men[j].side != men[cur].side and men[j].cool <= 0.0 {
+          if number(nearBall(j)) < 70.0 and random(0, 100) < 4 {
+            ballOwner = j
+            men[cur].cool = 0.5
+            loose = 0.1
+            return 0
+          }
+        }
+        j = j + 1
+      }
+      return 0
+    }
+  }
+
   let best = 0 - 1
   let bestD = 150.0
   let i = 0
@@ -337,6 +370,23 @@ fn aiThink(i, dt) {
   let bz = ballZ()
 
   if m.keeper {
+    // a keeper who gathers it has to give it away again, or the match stalls
+    // with the ball in his hands forever
+    if ballOwner == i and m.cool <= 0.0 {
+      let mate = bestMate(i)
+      if mate >= 0 {
+        passTo(i, mate)
+        return 0
+      }
+      // nobody on: hoof it upfield
+      let up = 2400.0
+      if m.side == 2 { up = 0 - 2400.0 }
+      kick3d ball, number(random(0 - 400, 400)), 300, number(up)
+      ballOwner = 0 - 1
+      loose = 0.4
+      men[i].cool = 0.6
+      return 0
+    }
     // stay on the line, shuffle across to the ball
     let gz = 0 - PITCH_Z + 160.0
     if m.side == 2 { gz = PITCH_Z - 160.0 }
@@ -377,6 +427,15 @@ fn aiThink(i, dt) {
   }
 
   if chaser == i {
+    if ballOwner >= 0 and men[ballOwner].side != m.side {
+      // close the carrier down from the goal side, not by standing on them
+      let own = 0 - PITCH_Z
+      if m.side == 2 { own = PITCH_Z }
+      let gx = men[ballOwner].x * 0.8
+      let gz = men[ballOwner].z + (own - men[ballOwner].z) * 0.06
+      steer(i, gx, gz, 640.0, dt)
+      return 0
+    }
     steer(i, bx, bz, 620.0, dt)
     return 0
   }
@@ -499,11 +558,9 @@ fn outOfPlay() {
 fn hud() {
   box 0, 0, 480, 26 color "#0d1420"
   write "YOU " + text(score1) + "  -  " + text(score2) + " CPU" at 240, 8 centered
-  let mins = number(clock / 60)
-  let secs = number(clock) % 60
   let ss = text(secs)
   if secs < 10 { ss = "0" + text(secs) }
-  write text(mins) + ":" + ss at 60, 8
+  write text(mins) + ":" + ss at 40, 8
 
   // power bar, only while you are winding one up
   if charge > 0.02 {
@@ -530,16 +587,18 @@ phys3d ball, 52, 42
 buildTeams()
 resetBall()
 
-let started = false
-
-fn main() {
+every frame {
   let dt = 0.016
 
-  if started == false {
-    started = true
+  tick = tick + dt
+  if tick >= 1.0 {
+    tick = tick - 1.0
+    secs = secs + 1
+    if secs >= 60 {
+      secs = 0
+      mins = mins + 1
+    }
   }
-
-  clock = clock + dt
   if msgT > 0.0 { msgT = msgT - dt }
   if loose > 0.0 { loose = loose - dt }
 
