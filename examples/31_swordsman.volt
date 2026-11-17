@@ -47,33 +47,63 @@ let GOLD = "#f3c762"
 fn pillar(ang, r, lit) {
   let x = sin3(ang) / 1000.0 * r
   let z = cos3(ang) / 1000.0 * r
-  cyl3d(number(x), 210, number(z), 44, 420, "#7884a0")
-  cyl3d(number(x), 424, number(z), 52, 28, "#4a5466")
-  block3d(number(x), 448, number(z), 128, 26, 128, "#424c5d")
+  // base, shaft, collar, capital - four pieces, so it reads as masonry
+  // rather than as one cylinder standing in the dark
+  block3d(number(x), 18, number(z), 128, 36, 128, "#6c7793")
+  block3d(number(x), 44, number(z), 108, 20, 108, "#7c88a3")
+  cyl3d(number(x), 230, number(z), 42, 380, "#8a95ae")
+  cyl3d(number(x), 424, number(z), 50, 26, "#9aa5bd")
+  block3d(number(x), 448, number(z), 120, 26, 120, "#7e89a4")
   if lit {
-    // a brazier bowl on a short stand, between the pillars
-    let bx = sin3(number(ang + 225)) / 1000.0 * (r - 150.0)
-    let bz = cos3(number(ang + 225)) / 1000.0 * (r - 150.0)
-    cyl3d(number(bx), 55, number(bz), 16, 110, "#2a303c")
-    cyl3d(number(bx), 118, number(bz), 38, 30, "#4d3426")
-    ball3d(number(bx), 132, number(bz), 24, "#ff7a2a")
+    let bx = sin3(number(ang + 225)) / 1000.0 * (r - 170.0)
+    let bz = cos3(number(ang + 225)) / 1000.0 * (r - 170.0)
+    block3d(number(bx), 16, number(bz), 54, 32, 54, "#4e5566")
+    cyl3d(number(bx), 62, number(bz), 13, 92, "#2f3542")
+    cyl3d(number(bx), 116, number(bz), 36, 28, "#5e4330")
+    ball3d(number(bx), 130, number(bz), 23, "#ff7a2a")
+    ball3d(number(bx), 142, number(bz), 13, "#ffd37a")
     lamp3d(number(bx), 150, number(bz), "#ff9448", 56, 1500)
   }
 }
 
+// Rubble and low walls, so the floor is not an empty plane. Cheap: these
+// are the same cached box geometry the pillars use.
+fn debris() {
+  let n = 0
+  while n < 14 {
+    let a = number(n * 257 % 3600)
+    let r = 700.0 + number(n * 137 % 620)
+    let x = sin3(a) / 1000.0 * r
+    let z = cos3(a) / 1000.0 * r
+    let h = 20.0 + number(n * 53 % 46)
+    block3d(number(x), number(h / 2.0), number(z), number(40 + n % 5 * 16), number(h), number(36 + n % 3 * 20), "#6a768f")
+    n = n + 1
+  }
+  // two low walls framing the arena, which give the eye a middle distance
+  block3d(0 - 1500, 90, 0, 90, 180, 1500, "#5f6a84")
+  block3d(1500, 90, 0, 90, 180, 1500, "#5f6a84")
+  return 0
+}
+
 fn buildArena() {
-  // floor, in three stepped rings so the eye has something to read
-  block3d(0, 0 - 24, 0, 3000, 48, 3000, "#55617a")
+  // floor, in stepped rings so the eye has something to read
+  block3d(0, 0 - 24, 0, 3400, 48, 3400, "#55617a")
   block3d(0, 2, 0, 1900, 8, 1900, "#616e89")
   block3d(0, 7, 0, 1320, 6, 1320, "#6d7b98")
   block3d(0, 11, 0, 620, 4, 620, "#7987a6")
+  // a dais ring inlaid in the centre, so the middle of the floor has a focus
+  cyl3d(0, 13, 0, 300, 4, "#8d9bba")
+  cyl3d(0, 15, 0, 150, 4, "#a3b0cc")
 
   let n = 0
   while n < 8 {
     pillar(number(n * 450), 1180.0, n % 2 == 0)
     n = n + 1
   }
-  // cold key from above, so every figure gets a cool rim
+  debris()
+
+  // key from above and a cold fill from behind, so a figure gets a cool
+  // rim on one side and the braziers warm the other
   lamp3d(0, 820, 0, "#cfe7ff", 120, 3600)
   lamp3d(0, 340, 0 - 950, "#9fc4ea", 60, 2400)
 }
@@ -137,17 +167,21 @@ fn buildHero() {
 
   // The sword: a tapered blade, a crossguard and a pommel, all hung off
   // the right hand so the whole thing swings as one.
-  blade = block3d(0, 0, 0, 5, 96, 11, "#dceaf5")
+  // hand at the grip, guard above it, blade running out from there
+  blade = block3d(0, 62, 0, 5, 94, 11, "#dceaf5")
   solid3d blade, 0
   socket3d hero, "hand_r", blade
   glow3d blade, "#1b3d52"
 
-  let guard = block3d(0, 0 - 46, 0, 7, 7, 30, GOLD)
+  let guard = block3d(0, 13, 0, 7, 7, 28, GOLD)
   solid3d guard, 0
   socket3d hero, "hand_r", guard
-  let grip = block3d(0, 0 - 62, 0, 6, 24, 8, "#4a3425")
+  let grip = block3d(0, 0 - 4, 0, 6, 26, 8, "#4a3425")
   solid3d grip, 0
   socket3d hero, "hand_r", grip
+  let pommel = ball3d(0, 0 - 19, 0, 6, GOLD)
+  solid3d pommel, 0
+  socket3d hero, "hand_r", pommel
   return 0
 }
 
@@ -186,6 +220,9 @@ let comboT = 0.0
 let swung = false      // has this swing already looked for a target
 let camYaw = 0.0
 let camShake = 0.0
+let camFollowX = 0.0
+let camFollowZ = 0.0
+let camLag = 0.0
 
 // =====================================================================
 // DAMAGE
@@ -559,11 +596,18 @@ every frame {
   move3d hero, number(hx), 0, number(hz)
   turn3d hero, number(hyaw * 10.0)
 
-  // camera sits behind and a little above, and drops lower while he runs
-  let back = 380.0 + speed * 0.18
-  let cx = hx - sin3(number(camYaw * 10.0)) / 1000.0 * back
-  let cz = hz - cos3(number(camYaw * 10.0)) / 1000.0 * back
-  camera3d number(cx), 250, number(cz), number(1800.0 - camYaw * 10.0), 0 - 95
+  // The camera chases a point that itself chases the character, so it
+  // lags into turns and settles behind him instead of being welded on.
+  camFollowX = camFollowX + (hx - camFollowX) * 7.0 * dt
+  camFollowZ = camFollowZ + (hz - camFollowZ) * 7.0 * dt
+  let back = 400.0 + speed * 0.26
+  // ease the swing of the orbit too, so a flick of the mouse is not a snap
+  camLag = camLag + (camYaw - camLag) * 11.0 * dt
+  let cx = camFollowX - sin3(number(camLag * 10.0)) / 1000.0 * back
+  let cz = camFollowZ - cos3(number(camLag * 10.0)) / 1000.0 * back
+  // and rise a little while he sprints, which widens the view of the arena
+  let ch = 250.0 + speed * 0.1
+  camera3d number(cx), number(ch), number(cz), number(1800.0 - camLag * 10.0), 0 - 95
 
   render3d
   hud()
