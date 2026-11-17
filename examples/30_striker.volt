@@ -198,10 +198,22 @@ fn resetBall() {
 // theirs. 'hx'/'hz' is the shape position the player drifts back to when
 // they are not the one chasing.
 // =====================================================================
-Man = type { rig: int, x: float, z: float, yaw: float, side: int, keeper: bool, hx: float, hz: float, speed: float, kickT: float, foot: float, cool: float }
+Man = type { rig: int, x: float, z: float, yaw: float, side: int, keeper: bool, hx: float, hz: float, speed: float, kickT: float, foot: float, cool: float, name: string, num: int }
 
 let men = []
 let you = 0
+
+// Invented squads. Nothing here is a real footballer - the references are
+// full of licensed names and faces and none of them belong in this.
+let homeNames = ["OKONKWO", "VASILIEV", "MBEKI", "HALVORSEN", "ODHIAMBO"]
+let awayNames = ["RENTERIA", "KAUFMANN", "SOLANKE", "FERREIRA", "DEMIR"]
+let homeNums = [9, 7, 4, 6, 1]
+let awayNums = [10, 8, 5, 3, 1]
+
+// Two floating markers: the player you drive, and the one you would switch
+// to. Two objects reused every frame rather than one per player.
+let curMine = 0
+let curNext = 0
 
 // ---------------------------------------------------------------------
 // Kits. The base characters are bare torsos with painted-on shorts, so a
@@ -248,7 +260,18 @@ fn spawn(side, keeper, hx, hz, female) {
       dress(rid, "#eef1f4", "#1b2a52")
     }
   }
-  add Man { rig: rid, x: hx, z: hz, yaw: 0.0, side: side, keeper: keeper, hx: hx, hz: hz, speed: 0.0, kickT: 0.0, foot: 0.0, cool: 0.0 } to men
+  let idx = length(men)
+  let nm = "PLAYER"
+  let nu = 2
+  if side == 1 {
+    nm = homeNames[idx % 5]
+    nu = homeNums[idx % 5]
+  }
+  if side == 2 {
+    nm = awayNames[idx % 5]
+    nu = awayNums[idx % 5]
+  }
+  add Man { rig: rid, x: hx, z: hz, yaw: 0.0, side: side, keeper: keeper, hx: hx, hz: hz, speed: 0.0, kickT: 0.0, foot: 0.0, cool: 0.0, name: nm, num: nu } to men
   return length(men) - 1
 }
 
@@ -570,6 +593,49 @@ let camMode = 0
 let camNames = ["BROADCAST", "THIRD", "FIRST", "TACTICAL"]
 let camHeld = false
 
+// Who you would switch to: the team-mate closest to the ball who is not
+// already you. The real games draw this as a second, dimmer cursor.
+fn nextMan() {
+  let best = 0 - 1
+  let bestD = 99999.0
+  let i = 0
+  while i < length(men) {
+    if i != you and men[i].side == 1 and men[i].keeper == false {
+      let d = number(nearBall(i))
+      if d < bestD {
+        bestD = d
+        best = i
+      }
+    }
+    i = i + 1
+  }
+  return best
+}
+
+// Markers float above the head and bob, so they read against a green
+// background without an outline.
+fn placeCursors() {
+  let m = men[you]
+  let bob = sin3(number(secs * 3600 + tick * 3600.0)) / 1000.0 * 8.0
+  move3d curMine, number(m.x), number(238.0 + bob), number(m.z)
+  let n = nextMan()
+  if n >= 0 {
+    show3d curNext, 1
+    move3d curNext, number(men[n].x), number(226.0 - bob), number(men[n].z)
+  }
+  if n < 0 {
+    show3d curNext, 0
+  }
+  // in first person your own marker would sit in the lens
+  if camMode == 2 {
+    show3d curMine, 0
+  }
+  if camMode != 2 {
+    show3d curMine, 1
+  }
+  return 0
+}
+
 fn cycleCam() {
   if held("c") {
     if camHeld == false {
@@ -765,8 +831,8 @@ fn scoreboard() {
 // This is the one HUD element that genuinely changes how you play, because
 // it is the only way to see a run behind you.
 fn radar() {
-  let rx = 12.0
-  let ry = 206.0
+  let rx = 188.0
+  let ry = 212.0
   let rw = 104.0
   let rh = 52.0
   box number(rx), number(ry), number(rw), number(rh) color TURF
@@ -807,18 +873,51 @@ fn powerGauge() {
 // Who you are controlling, and whether you have the ball. The real games
 // put a cursor in the 3D scene; a name plate is the honest 2D version.
 fn playerPlate() {
-  box 376, 206, 92, 52 color INK
-  write camNames[camMode] at 422, 214 color "#8e9aa6" centered
+  // top-right, clear of the duel plates along the bottom
+  box 356, 10, 112, 40 color INK
+  write camNames[camMode] at 412, 17 color "#8e9aa6" centered
   let state = "CHASING"
   if ballOwner == you { state = "ON THE BALL" }
-  write state at 422, 230 color LINE centered
-  // stamina stands in as how fresh your legs are: it drains as you sprint
-  box 388, 246, 68, 5 color "#232a33"
-  box 388, 246, number(68.0 * stamina / 100.0), 5 color MINE
+  write state at 412, 30 color LINE centered
+  box 368, 42, 88, 4 color "#232a33"
+  box 368, 42, number(88.0 * stamina / 100.0), 4 color MINE
+}
+
+// The two players in the duel: you, and whoever is closest to you from the
+// other side. Named plates at the bottom corners, the way a broadcast
+// captions the two players contesting a ball.
+fn duelPlates() {
+  let m = men[you]
+  box 12, 240, 150, 22 color INK
+  box 12, 240, 4, 22 color MINE
+  write text(m.num) at 30, 247 color MINE
+  write m.name at 48, 247 color LINE
+
+  let foe = 0 - 1
+  let bestD = 99999.0
+  let i = 0
+  while i < length(men) {
+    if men[i].side == 2 {
+      let d = dist(number(m.x), number(m.z), number(men[i].x), number(men[i].z))
+      if d < bestD {
+        bestD = d
+        foe = i
+      }
+    }
+    i = i + 1
+  }
+  if foe >= 0 {
+    box 318, 240, 150, 22 color INK
+    box 464, 240, 4, 22 color THEM
+    write men[foe].name at 388, 247 color LINE centered
+    write text(men[foe].num) at 446, 247 color THEM
+  }
+  return 0
 }
 
 fn hud() {
   scoreboard()
+  duelPlates()
   radar()
   powerGauge()
   playerPlate()
@@ -837,6 +936,14 @@ buildPitch()
 ball = ball3d(0, 40, 0, 12, "#f7f9fb")
 phys3d ball, 52, 42
 buildTeams()
+curMine = cyl3d(0, 230, 0, 30, 16, "#f0a830")
+curNext = cyl3d(0, 220, 0, 24, 12, "#aab6c2")
+solid3d curMine, 0
+solid3d curNext, 0
+// A marker has to read against grass under floodlights, so light it from
+// within rather than relying on the scene to hit it.
+glow3d curMine, "#f0a830"
+glow3d curNext, "#8e9dab"
 resetBall()
 
 every frame {
@@ -881,6 +988,7 @@ every frame {
   outOfPlay()
 
   cycleCam()
+  placeCursors()
   placeCamera()
 
   render3d
