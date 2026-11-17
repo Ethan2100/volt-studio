@@ -134,6 +134,7 @@ fn spawn(side, keeper, hx, hz, female) {
   if female { m = body2 }
   let rid = put3d(m, hx, 0, hz, 0, 95)
   solid3d rid, 0
+  clips3d rid, moves          // the characters carry no clips of their own
   anim3d rid, "Idle_Loop"
   add Man { rig: rid, x: hx, z: hz, yaw: 0.0, side: side, keeper: keeper, hx: hx, hz: hz, speed: 0.0, kickT: 0.0, foot: 0.0, cool: 0.0 } to men
   return length(men) - 1
