@@ -198,7 +198,7 @@ const PIN_MODES = ['input', 'output', 'analog', 'pwm', 'servo', 'stepper'];
 const PAGE_WORDS = ['button', 'title', 'html'];
 // Game commands (#html canvas games) and list commands. Like the page words they
 // aren't keywords, so 'let box = 3' or 'fn draw()' in older programs still work.
-const GAME_WORDS = ['canvas', 'image', 'sprite', 'draw', 'paint', 'box', 'card', 'ring', 'sweep', 'write', 'camera', 'touchpad', 'music', 'save', 'audio', 'sound', 'volume',
+const GAME_WORDS = ['canvas', 'image', 'sprite', 'draw', 'paint', 'box', 'card', 'ring', 'sweep', 'grad', 'edge', 'tri', 'clip', 'unclip', 'alpha', 'glow', 'write', 'camera', 'touchpad', 'music', 'save', 'audio', 'sound', 'volume',
   'world3d', 'clear3d', 'camera3d', 'render3d', 'move3d', 'turn3d', 'show3d', 'glow3d', 'torch3d', 'model3d', 'anim3d', 'fx3d', 'shine3d', 'burst3d', 'look3d',
   'toon3d', 'shot3d', 'lookat3d', 'shake3d', 'slowmo3d', 'hitstop3d', 'bars3d', 'sky3d', 'join3d',
   'solid3d', 'blend3d', 'once3d', 'socket3d',
@@ -736,6 +736,60 @@ function parse(tokens) {
         if (isWord('color')) { next(); color = expression(); }
         return { kind: 'Card', x, y, w, h, radius, color, line };
       }
+      // alpha 60        everything after this is 60% opaque
+      case 'alpha': return { kind: 'Alpha', value: expression(), line };
+      // glow "#7fe3ff", 14      glow "", 0 turns it off
+      case 'glow': {
+        const color = expression();
+        expect(',', "','");
+        const size = expression();
+        return { kind: 'Glow', color, size, line };
+      }
+      // grad 10, 10, 60, 24, 12, "#2a3550", "#141c2c"
+      case 'grad': {
+        const [x, y] = pair();
+        expect(',', "','");
+        const [w, h] = pair();
+        expect(',', "','");
+        const radius = expression();
+        expect(',', "','");
+        const c1 = expression();
+        expect(',', "','");
+        const c2 = expression();
+        return { kind: 'Grad', x, y, w, h, radius, c1, c2, line };
+      }
+      // edge 10, 10, 60, 24, 12, 1 color "#3a4658"
+      case 'edge': {
+        const [x, y] = pair();
+        expect(',', "','");
+        const [w, h] = pair();
+        expect(',', "','");
+        const [radius, thick] = pair();
+        let color = null;
+        if (isWord('color')) { next(); color = expression(); }
+        return { kind: 'Edge', x, y, w, h, radius, thick, color, line };
+      }
+      // tri 10, 10, 20, 30, 0, 30 color "#fff"
+      case 'tri': {
+        const [ax, ay] = pair();
+        expect(',', "','");
+        const [bx, by] = pair();
+        expect(',', "','");
+        const [cx, cy] = pair();
+        let color = null;
+        if (isWord('color')) { next(); color = expression(); }
+        return { kind: 'Tri', ax, ay, bx, by, cx, cy, color, line };
+      }
+      // clip 10, 10, 60, 24, 12  ...draws...  unclip
+      case 'clip': {
+        const [x, y] = pair();
+        expect(',', "','");
+        const [w, h] = pair();
+        expect(',', "','");
+        const radius = expression();
+        return { kind: 'Clip', x, y, w, h, radius, line };
+      }
+      case 'unclip': return { kind: 'Unclip', line };
       // ring 40, 40, 16, 3 color "#7fe3ff"
       case 'ring': {
         const [x, y] = pair();
@@ -1074,6 +1128,8 @@ const BUILTINS = {
   block3d: 7, ball3d: 5, cyl3d: 6, lamp3d: 6, put3d: 6, group3d: 3, mousedx: 0, mousedy: 0, locked3d: 0, clicked3d: 0, hot3d: 4, sky3d: 1, crisp: 1, sin3: 1, cos3: 1, atan2: 2,
   // collision and ray questions - see the 3D section of the reference
   bump3d: 4, ground3d: 3, hit3d: 7, hitid3d: 0, aim3d: 1,
+  // how wide a string will draw, so a panel can be sized to its contents
+  textw: 2,
   // reading a moving object back out of the world
   where3d: 2, vel3d: 2, rest3d: 1,
   // everyday math (decimal sin/cos in degrees)
@@ -1269,22 +1325,82 @@ const GAME_RUNTIME = [
   "function __need() { if (!__cx) throw new Error('Make a screen first, like: canvas 320, 180'); }",
   "function __paint(c) { __need(); __cx.fillStyle = String(c); __cx.fillRect(0, 0, __W, __H); }",
   "function __camera(x, y) { __camX = Math.round(x); __camY = Math.round(y); }",
+  // ---- the pieces a HUD needs beyond flat rectangles -------------------
+  // Shared path builder, so card, grad, edge and clip all round corners the
+  // same way and a fill lines up exactly with its own outline.
+  "function __rpath(X, Y, W, H, R) {",
+  "  const r = Math.max(0, Math.min(R == null ? 8 : R, Math.min(W, H) / 2));",
+  "  __cx.beginPath();",
+  "  if (__cx.roundRect) { __cx.roundRect(X, Y, W, H, r); return; }",
+  "  __cx.moveTo(X + r, Y); __cx.lineTo(X + W - r, Y); __cx.quadraticCurveTo(X + W, Y, X + W, Y + r);",
+  "  __cx.lineTo(X + W, Y + H - r); __cx.quadraticCurveTo(X + W, Y + H, X + W - r, Y + H);",
+  "  __cx.lineTo(X + r, Y + H); __cx.quadraticCurveTo(X, Y + H, X, Y + H - r);",
+  "  __cx.lineTo(X, Y + r); __cx.quadraticCurveTo(X, Y, X + r, Y);",
+  "}",
+  // alpha 60 - everything drawn after this is 60% opaque, until alpha 100.
+  // This is what lets a panel sit over the game without hiding it.
+  "function __alpha(v) { __need(); __cx.globalAlpha = Math.max(0, Math.min(100, v == null ? 100 : v)) / 100; }",
+  // glow \"#7fe3ff\", 14 - a soft light around whatever is drawn next.
+  // glow \"\", 0 turns it off again.
+  "function __glow(c, size) {",
+  "  __need();",
+  "  if (!c || !size) { __cx.shadowBlur = 0; __cx.shadowColor = 'transparent'; return; }",
+  "  __cx.shadowBlur = size; __cx.shadowColor = String(c);",
+  "}",
+  // grad x, y, w, h, radius, top, bottom - a rounded panel that is not one
+  // flat colour. A single flat fill is the thing that reads as unfinished.
+  "function __grad(x, y, w, h, r, c1, c2) {",
+  "  __need();",
+  "  const X = Math.round(x) - __camX, Y = Math.round(y) - __camY, W = Math.round(w), H = Math.round(h);",
+  "  const g = __cx.createLinearGradient(X, Y, X, Y + H);",
+  "  g.addColorStop(0, String(c1 == null ? '#fff' : c1));",
+  "  g.addColorStop(1, String(c2 == null ? '#000' : c2));",
+  "  __cx.fillStyle = g; __rpath(X, Y, W, H, r); __cx.fill();",
+  "}",
+  // edge x, y, w, h, radius, thickness color - a rounded outline. A one
+  // pixel lighter edge along a panel is most of what makes it read as a
+  // surface rather than a hole.
+  "function __edge(x, y, w, h, r, th, c) {",
+  "  __need(); __cx.strokeStyle = c == null ? '#fff' : String(c);",
+  "  __cx.lineWidth = Math.max(0.5, th == null ? 1 : th);",
+  "  const o = __cx.lineWidth / 2;",
+  "  __rpath(Math.round(x) - __camX + o, Math.round(y) - __camY + o, Math.round(w) - __cx.lineWidth, Math.round(h) - __cx.lineWidth, r);",
+  "  __cx.stroke();",
+  "}",
+  // tri - three points. Arrows, chevrons, diamonds: the shapes a HUD needs
+  // that are not boxes and not circles.
+  "function __tri(ax, ay, bx, by, cx2, cy2, c) {",
+  "  __need(); __cx.fillStyle = c == null ? '#fff' : String(c);",
+  "  __cx.beginPath();",
+  "  __cx.moveTo(Math.round(ax) - __camX, Math.round(ay) - __camY);",
+  "  __cx.lineTo(Math.round(bx) - __camX, Math.round(by) - __camY);",
+  "  __cx.lineTo(Math.round(cx2) - __camX, Math.round(cy2) - __camY);",
+  "  __cx.closePath(); __cx.fill();",
+  "}",
+  // clip x, y, w, h, radius ... unclip - confine the next draws to a
+  // rounded shape, so a bar fill takes the rounded ends of its own track
+  // instead of poking square corners out of it.
+  "function __clipcard(x, y, w, h, r) {",
+  "  __need(); __cx.save();",
+  "  __rpath(Math.round(x) - __camX, Math.round(y) - __camY, Math.round(w), Math.round(h), r);",
+  "  __cx.clip();",
+  "}",
+  "function __unclip() { __need(); try { __cx.restore(); } catch (e) {} }",
+  // textw(\"hello\") - how wide that text will be, so a panel can be sized
+  // to its contents instead of to a number somebody guessed.
+  "function __textw(t, size) {",
+  "  __need();",
+  "  const sz = Math.max(1, size == null ? 1 : size);",
+  "  __cx.font = (6 * sz) + 'px monospace';",
+  "  return Math.round(__cx.measureText(String(t)).width);",
+  "}",
   // card x, y, w, h, 12 color "#..."   a rounded panel, which is the
   // difference between a modern HUD and a 2000s one. Radius is clamped so
   // it cannot swallow a short box.
   "function __card(x, y, w, h, r, c) {",
   "  __need(); __cx.fillStyle = c == null ? '#fff' : String(c);",
   "  const X = Math.round(x) - __camX, Y = Math.round(y) - __camY, W = Math.round(w), H = Math.round(h);",
-  "  const R = Math.max(0, Math.min(r == null ? 8 : r, Math.min(W, H) / 2));",
-  "  __cx.beginPath();",
-  "  if (__cx.roundRect) { __cx.roundRect(X, Y, W, H, R); }",
-  "  else {",
-  "    __cx.moveTo(X + R, Y); __cx.lineTo(X + W - R, Y); __cx.quadraticCurveTo(X + W, Y, X + W, Y + R);",
-  "    __cx.lineTo(X + W, Y + H - R); __cx.quadraticCurveTo(X + W, Y + H, X + W - R, Y + H);",
-  "    __cx.lineTo(X + R, Y + H); __cx.quadraticCurveTo(X, Y + H, X, Y + H - R);",
-  "    __cx.lineTo(X, Y + R); __cx.quadraticCurveTo(X, Y, X + R, Y);",
-  "  }",
-  "  __cx.fill();",
+  "  __rpath(X, Y, W, H, r); __cx.fill();",
   "}",
   // ring x, y, radius, thickness color "#..."
   "function __ring(x, y, rad, th, c) {",
@@ -2494,6 +2610,7 @@ function generate(ast, target = 'cpp', options = {}) {
         case 'where3d':
         case 'vel3d':
         case 'rest3d':
+        case 'textw':
           gameOnly(`'${e.name}'`, e.line);
           uses3d = true;
           return { code: `__${e.name}(${c.join(', ')})`, type: 'num' };
@@ -3206,6 +3323,47 @@ function generate(ast, target = 'cpp', options = {}) {
         const n = (e) => bare(genNumber(e, "'card'"));
         const color = s.color ? bare(genExpr(s.color).code) : '"#fff"';
         return [`${p}__card(${n(s.x)}, ${n(s.y)}, ${n(s.w)}, ${n(s.h)}, ${n(s.radius)}, ${color});`];
+      }
+
+      case 'Alpha': {
+        gameOnly("'alpha'", s.line);
+        return [`${p}__alpha(${bare(genNumber(s.value, "'alpha'"))});`];
+      }
+
+      case 'Glow': {
+        gameOnly("'glow'", s.line);
+        return [`${p}__glow(${bare(genExpr(s.color).code)}, ${bare(genNumber(s.size, "'glow'"))});`];
+      }
+
+      case 'Grad': {
+        gameOnly("'grad'", s.line);
+        const n = (e) => bare(genNumber(e, "'grad'"));
+        return [`${p}__grad(${n(s.x)}, ${n(s.y)}, ${n(s.w)}, ${n(s.h)}, ${n(s.radius)}, ${bare(genExpr(s.c1).code)}, ${bare(genExpr(s.c2).code)});`];
+      }
+
+      case 'Edge': {
+        gameOnly("'edge'", s.line);
+        const n = (e) => bare(genNumber(e, "'edge'"));
+        const color = s.color ? bare(genExpr(s.color).code) : '"#fff"';
+        return [`${p}__edge(${n(s.x)}, ${n(s.y)}, ${n(s.w)}, ${n(s.h)}, ${n(s.radius)}, ${n(s.thick)}, ${color});`];
+      }
+
+      case 'Tri': {
+        gameOnly("'tri'", s.line);
+        const n = (e) => bare(genNumber(e, "'tri'"));
+        const color = s.color ? bare(genExpr(s.color).code) : '"#fff"';
+        return [`${p}__tri(${n(s.ax)}, ${n(s.ay)}, ${n(s.bx)}, ${n(s.by)}, ${n(s.cx)}, ${n(s.cy)}, ${color});`];
+      }
+
+      case 'Clip': {
+        gameOnly("'clip'", s.line);
+        const n = (e) => bare(genNumber(e, "'clip'"));
+        return [`${p}__clipcard(${n(s.x)}, ${n(s.y)}, ${n(s.w)}, ${n(s.h)}, ${n(s.radius)});`];
+      }
+
+      case 'Unclip': {
+        gameOnly("'unclip'", s.line);
+        return [`${p}__unclip();`];
       }
 
       case 'Ring': {

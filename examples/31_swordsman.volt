@@ -601,62 +601,61 @@ fn legs() {
 
 // =====================================================================
 // HUD
-// =====================================================================
-// =====================================================================
-// HUD
 //
-// Palette comes off the arena itself - cold steel, brazier orange, stone
-// and the gold on the sword - rather than from a UI kit. Everything is
-// drawn with card, ring and sweep, so there is not a hard rectangle in it.
+// Built from Volt's UI layer: gradients rather than flat fills, a lit
+// edge on every panel, glow on what is live, and fills clipped to their
+// own rounded tracks. Palette is taken off the arena - cold steel,
+// brazier orange, stone and the gold on the sword - not a UI kit.
 // =====================================================================
-let SLOTX = 120.0
 let SLOTY = 203.0
 let SLOTW = 40.0
 let SLOTGAP = 50.0
+let SLOTX = 120.0
 
-// One hotbar slot: a rounded tile, a key cap, a glyph, and a dial that
-// wipes round as the ability comes back.
 fn slot(n, key, glyph, cd, cdMax, tint) {
   let x = SLOTX + n * SLOTGAP
   let ready = cd <= 0.0
-
-  // the tile, with a brighter face when the ability is up
-  card number(x), SLOTY, number(SLOTW), number(SLOTW), 13 color "#121823"
-  if ready {
-    card number(x + 2.0), number(SLOTY + 2.0), number(SLOTW - 4.0), number(SLOTW - 4.0), 11 color "#1d2736"
-  }
-  if ready == false {
-    card number(x + 2.0), number(SLOTY + 2.0), number(SLOTW - 4.0), number(SLOTW - 4.0), 11 color "#161d28"
-  }
-
   let cx = x + SLOTW / 2.0
   let cy = SLOTY + SLOTW / 2.0
 
-  // the glyph, dimmed while the ability is away
+  // the tile: a gradient face with a lit top edge, brighter when live
+  if ready {
+    grad number(x), SLOTY, number(SLOTW), number(SLOTW), 13, "#263447", "#131b27"
+    edge number(x), SLOTY, number(SLOTW), number(SLOTW), 13, 1 color "#3f5068"
+  }
+  if ready == false {
+    grad number(x), SLOTY, number(SLOTW), number(SLOTW), 13, "#161e2a", "#0e141d"
+    edge number(x), SLOTY, number(SLOTW), number(SLOTW), 13, 1 color "#222c3a"
+  }
+
+  // the glyph
   let ink = tint
-  if ready == false { ink = "#49566a" }
+  if ready == false { ink = "#44505f" }
   write glyph at number(cx), number(cy - 8.0) color ink centered size 2
 
-  // the dial: a faint track always, and the live arc only while it counts
-  ring number(cx), number(cy), 15, 2 color "#232e3e"
-  if ready == false {
-    let left = cd / cdMax * 100.0
-    sweep number(cx), number(cy), 15, number(left), 3 color tint
-  }
+  // the dial: a dark track, then either a lit ready ring or the arc left
+  ring number(cx), number(cy), 15, 2 color "#1b2432"
   if ready {
+    glow tint, 9
     ring number(cx), number(cy), 15, 2 color tint
+    glow "", 0
+  }
+  if ready == false {
+    sweep number(cx), number(cy), 15, number(cd / cdMax * 100.0), 3 color tint
   }
 
-  // key cap under the tile
-  card number(cx - 10.0), number(SLOTY + SLOTW + 4.0), 20, 13, 6 color "#182130"
+  // key cap
+  grad number(cx - 10.0), number(SLOTY + SLOTW + 4.0), 20, 13, 6, "#1d2634", "#121923"
   write key at number(cx), number(SLOTY + SLOTW + 7.0) color "#8294aa" centered
   return 0
 }
 
 fn hotbar() {
-  // a single rounded tray behind the slots, which is what stops five
-  // separate tiles reading as five separate things
-  card 110, 196, 260, 64, 20 color "#0b1119"
+  // the tray sits over the game, so it is translucent rather than solid
+  alpha 82
+  grad 110, 196, 260, 64, 20, "#141c28", "#080d14"
+  alpha 100
+  edge 110, 196, 260, 64, 20, 1 color "#263040"
   slot(0, "J", "/", cdSlash, CD_SLASH, "#7fe3ff")
   slot(1, "K", "V", cdHeavy, CD_HEAVY, "#ff8a3c")
   slot(2, "L", "-", cdThrust, CD_THRUST, "#eaf2f8")
@@ -666,36 +665,50 @@ fn hotbar() {
 }
 
 fn healthBar() {
-  // a rounded capsule, inset, with the fill tucked inside it
-  card 14, 14, 164, 16, 8 color "#0b1119"
-  card 17, 17, 158, 10, 5 color "#1d2736"
-  let w = 158.0 * hp / 100.0
-  if w > 2.0 {
-    card 17, 17, number(w), 10, 5 color "#d2503f"
-    card 17, 17, number(w), 4, 2 color "#e8755f"
-  }
-  write "BLADE" at 20, 33 color "#6f8095"
+  grad 14, 14, 168, 18, 9, "#121a26", "#080d14"
+  edge 14, 14, 168, 18, 9, 1 color "#28344a"
+  // the fill is clipped to its own track, so it keeps the rounded ends
+  // instead of poking square corners out of the capsule
+  clip 18, 18, 160, 10, 5
+  let w = 160.0 * hp / 100.0
+  grad 18, 18, number(w), 10, 5, "#e8755f", "#b43a2c"
+  box 18, 18, number(w), 3 color "#f2a08f"
+  unclip
+  write "BLADE" at 20, 35 color "#6f8095"
   return 0
 }
 
 fn chargeDial() {
   if charge <= 0.02 { return 0 }
   let cx = 240.0
-  let cy = 150.0
-  ring number(cx), number(cy), 26, 3 color "#1a2433"
+  let cy = 148.0
   let tint = EDGE
   if charge > 0.82 { tint = HEAT }
+  ring number(cx), number(cy), 26, 3 color "#141c28"
+  glow tint, 14
   sweep number(cx), number(cy), 26, number(charge * 100.0), 4 color tint
+  glow "", 0
   write "HEAVY" at number(cx), number(cy - 4.0) color tint centered
+  // a chevron that points up as it fills, so the eye has something moving
+  if charge > 0.82 {
+    tri number(cx), number(cy - 38.0), number(cx + 7.0), number(cy - 30.0), number(cx - 7.0), number(cy - 30.0) color tint
+  }
   return 0
 }
 
 fn comboTag() {
   if comboT <= 0.0 { return 0 }
   if combo < 2 { return 0 }
-  card 376, 60, 86, 34, 14 color "#0b1119"
-  write text(combo) at 400, 68 color GOLD centered size 2
-  write "HIT" at 432, 74 color "#8294aa"
+  let label = text(combo) + " HIT"
+  let w = number(textw(label, 1)) + 34.0
+  alpha 88
+  grad number(466.0 - w), 58, number(w), 30, 13, "#1d2432", "#0c1118"
+  alpha 100
+  edge number(466.0 - w), 58, number(w), 30, 13, 1 color "#3a465a"
+  glow GOLD, 10
+  write text(combo) at number(474.0 - w), 66 color GOLD size 2
+  glow "", 0
+  write "HIT" at number(496.0 - w), 70 color "#8294aa"
   return 0
 }
 
