@@ -224,6 +224,21 @@ let camFollowX = 0.0
 let camFollowZ = 0.0
 let camLag = 0.0
 
+// Cooldowns, one per slot. A hotbar with nothing to count down is just a
+// row of pictures, so every ability costs time.
+let cdSlash = 0.0
+let cdHeavy = 0.0
+let cdThrust = 0.0
+let cdDash = 0.0
+let cdSpin = 0.0
+let CD_SLASH = 0.42
+let CD_HEAVY = 1.5
+let CD_THRUST = 0.7
+let CD_DASH = 0.9
+let CD_SPIN = 2.4
+let airT = 0.0
+let airY = 0.0
+
 // =====================================================================
 // DAMAGE
 // =====================================================================
@@ -324,6 +339,25 @@ fn thrust() {
   return 0
 }
 
+// A full turn with the blade out: the move that clears a crowd, and the
+// one that earns the longest cooldown.
+fn spin() {
+  beginAct(5, 0.72, 120.0)
+  once3d hero, "Sword_Attack"
+  trail3d blade, GOLD, 96, 460
+  shake3d 30, 220
+  cdSpin = CD_SPIN
+  return 0
+}
+
+fn jump() {
+  if airT > 0.0 { return 0 }
+  airT = 0.72
+  once3d hero, "Jump_Start"
+  burst3d number(hx), 20, number(hz), "#9fb4c8", 16, 160
+  return 0
+}
+
 fn dash() {
   beginAct(4, 0.40, 700.0)
   once3d hero, "Roll"
@@ -369,6 +403,13 @@ fn poseAct() {
     }
     return 0
   }
+  if actKind == 5 {
+    // spin: lean out of the turn and let the arm trail the body
+    let whirl = t * 3600.0
+    bone3d hero, "spine_02", number(0 - 60.0 + 120.0 * t), number(whirl), number(180.0 - 360.0 * t)
+    bone3d hero, "upperarm_r", 620, 0, 0
+    return 0
+  }
   if actKind == 3 {
     // thrust: short coil, long reach, slow recovery
     if t < 0.3 {
@@ -406,6 +447,12 @@ fn checkStrike() {
   if actKind == 3 and t > 0.36 {
     got = strikeArc(255.0, 0.75, 24, false)
     swung = true
+  }
+  // the spin sweeps the whole circle, so it has no facing test at all
+  if actKind == 5 and t > 0.3 {
+    got = strikeArc(215.0, 0.0 - 1.1, 28, true)
+    swung = true
+    flash3d "#ffe9bf", 40
   }
 
   if got == 1 {
@@ -510,15 +557,27 @@ fn control(dt) {
   if hz < 0 - 900.0 { hz = 0 - 900.0 }
 
   if busy == false {
-    if held("j") { slash() }
-    if held("l") { thrust() }
-    if held("space") { dash() }
-    if held("k") {
+    if held("j") and cdSlash <= 0.0 {
+      slash()
+      cdSlash = CD_SLASH
+    }
+    if held("l") and cdThrust <= 0.0 {
+      thrust()
+      cdThrust = CD_THRUST
+    }
+    if held("u") and cdSpin <= 0.0 { spin() }
+    if held("shift") == false and held("space") and cdDash <= 0.0 {
+      dash()
+      cdDash = CD_DASH
+    }
+    if held("space") and held("shift") { jump() }
+    if held("k") and cdHeavy <= 0.0 {
       charge = charge + dt
       if charge > 1.0 { charge = 1.0 }
     }
-    if held("k") == false and charge > 0.08 {
+    if held("k") == false and charge > 0.08 and cdHeavy <= 0.0 {
       heavy(charge)
+      cdHeavy = CD_HEAVY
       charge = 0.0
     }
   }
@@ -543,25 +602,108 @@ fn legs() {
 // =====================================================================
 // HUD
 // =====================================================================
+// =====================================================================
+// HUD
+//
+// Palette comes off the arena itself - cold steel, brazier orange, stone
+// and the gold on the sword - rather than from a UI kit. Everything is
+// drawn with card, ring and sweep, so there is not a hard rectangle in it.
+// =====================================================================
+let SLOTX = 120.0
+let SLOTY = 203.0
+let SLOTW = 40.0
+let SLOTGAP = 50.0
+
+// One hotbar slot: a rounded tile, a key cap, a glyph, and a dial that
+// wipes round as the ability comes back.
+fn slot(n, key, glyph, cd, cdMax, tint) {
+  let x = SLOTX + n * SLOTGAP
+  let ready = cd <= 0.0
+
+  // the tile, with a brighter face when the ability is up
+  card number(x), SLOTY, number(SLOTW), number(SLOTW), 13 color "#121823"
+  if ready {
+    card number(x + 2.0), number(SLOTY + 2.0), number(SLOTW - 4.0), number(SLOTW - 4.0), 11 color "#1d2736"
+  }
+  if ready == false {
+    card number(x + 2.0), number(SLOTY + 2.0), number(SLOTW - 4.0), number(SLOTW - 4.0), 11 color "#161d28"
+  }
+
+  let cx = x + SLOTW / 2.0
+  let cy = SLOTY + SLOTW / 2.0
+
+  // the glyph, dimmed while the ability is away
+  let ink = tint
+  if ready == false { ink = "#49566a" }
+  write glyph at number(cx), number(cy - 8.0) color ink centered size 2
+
+  // the dial: a faint track always, and the live arc only while it counts
+  ring number(cx), number(cy), 15, 2 color "#232e3e"
+  if ready == false {
+    let left = cd / cdMax * 100.0
+    sweep number(cx), number(cy), 15, number(left), 3 color tint
+  }
+  if ready {
+    ring number(cx), number(cy), 15, 2 color tint
+  }
+
+  // key cap under the tile
+  card number(cx - 10.0), number(SLOTY + SLOTW + 4.0), 20, 13, 6 color "#182130"
+  write key at number(cx), number(SLOTY + SLOTW + 7.0) color "#8294aa" centered
+  return 0
+}
+
+fn hotbar() {
+  // a single rounded tray behind the slots, which is what stops five
+  // separate tiles reading as five separate things
+  card 110, 196, 260, 64, 20 color "#0b1119"
+  slot(0, "J", "/", cdSlash, CD_SLASH, "#7fe3ff")
+  slot(1, "K", "V", cdHeavy, CD_HEAVY, "#ff8a3c")
+  slot(2, "L", "-", cdThrust, CD_THRUST, "#eaf2f8")
+  slot(3, "U", "O", cdSpin, CD_SPIN, "#f3c762")
+  slot(4, "SP", ">", cdDash, CD_DASH, "#9ad7a0")
+  return 0
+}
+
+fn healthBar() {
+  // a rounded capsule, inset, with the fill tucked inside it
+  card 14, 14, 164, 16, 8 color "#0b1119"
+  card 17, 17, 158, 10, 5 color "#1d2736"
+  let w = 158.0 * hp / 100.0
+  if w > 2.0 {
+    card 17, 17, number(w), 10, 5 color "#d2503f"
+    card 17, 17, number(w), 4, 2 color "#e8755f"
+  }
+  write "BLADE" at 20, 33 color "#6f8095"
+  return 0
+}
+
+fn chargeDial() {
+  if charge <= 0.02 { return 0 }
+  let cx = 240.0
+  let cy = 150.0
+  ring number(cx), number(cy), 26, 3 color "#1a2433"
+  let tint = EDGE
+  if charge > 0.82 { tint = HEAT }
+  sweep number(cx), number(cy), 26, number(charge * 100.0), 4 color tint
+  write "HEAVY" at number(cx), number(cy - 4.0) color tint centered
+  return 0
+}
+
+fn comboTag() {
+  if comboT <= 0.0 { return 0 }
+  if combo < 2 { return 0 }
+  card 376, 60, 86, 34, 14 color "#0b1119"
+  write text(combo) at 400, 68 color GOLD centered size 2
+  write "HIT" at 432, 74 color "#8294aa"
+  return 0
+}
+
 fn hud() {
-  // health, as a slab rather than a rounded bar
-  box 14, 14, 160, 10 color INK
-  box 16, 16, number(156.0 * hp / 100.0), 6 color "#cf4a3c"
-  write "BLADE" at 14, 30 color "#7f8da0"
-
-  if charge > 0.02 {
-    box 165, 246, 150, 10 color INK
-    let hex = EDGE
-    if charge > 0.82 { hex = HEAT }
-    box 167, 248, number(146.0 * charge), 6 color hex
-    write "HEAVY" at 240, 234 color hex centered
-  }
-
-  if comboT > 0.0 and combo > 1 {
-    write text(combo) + " HIT" at 240, 56 color GOLD centered
-  }
-
-  write "J slash   K heavy   L thrust   SPACE dash" at 240, 258 color "#55657a" centered
+  healthBar()
+  hotbar()
+  chargeDial()
+  comboTag()
 }
 
 // =====================================================================
@@ -587,13 +729,31 @@ every frame {
     if comboT <= 0.0 { combo = 0 }
   }
   if camShake > 0.0 { camShake = camShake - dt }
+  if cdSlash > 0.0 { cdSlash = cdSlash - dt }
+  if cdHeavy > 0.0 { cdHeavy = cdHeavy - dt }
+  if cdThrust > 0.0 { cdThrust = cdThrust - dt }
+  if cdDash > 0.0 { cdDash = cdDash - dt }
+  if cdSpin > 0.0 { cdSpin = cdSpin - dt }
+
+  // the jump arc: up fast, hang, down. Volt's physics is for loose objects,
+  // so a character's hop is just a curve over its own timer.
+  if airT > 0.0 {
+    airT = airT - dt
+    let k = 1.0 - airT / 0.72
+    airY = 150.0 * sin3(number(k * 1800.0)) / 1000.0
+    if airT <= 0.0 {
+      airY = 0.0
+      once3d hero, "Jump_Land"
+      burst3d number(hx), 16, number(hz), "#9fb4c8", 14, 180
+    }
+  }
 
   checkStrike()
   poseAct()
   legs()
   stepFoes(dt)
 
-  move3d hero, number(hx), 0, number(hz)
+  move3d hero, number(hx), number(airY), number(hz)
   turn3d hero, number(hyaw * 10.0)
 
   // The camera chases a point that itself chases the character, so it

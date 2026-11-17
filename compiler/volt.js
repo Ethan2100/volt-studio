@@ -198,7 +198,7 @@ const PIN_MODES = ['input', 'output', 'analog', 'pwm', 'servo', 'stepper'];
 const PAGE_WORDS = ['button', 'title', 'html'];
 // Game commands (#html canvas games) and list commands. Like the page words they
 // aren't keywords, so 'let box = 3' or 'fn draw()' in older programs still work.
-const GAME_WORDS = ['canvas', 'image', 'sprite', 'draw', 'paint', 'box', 'write', 'camera', 'touchpad', 'music', 'save', 'audio', 'sound', 'volume',
+const GAME_WORDS = ['canvas', 'image', 'sprite', 'draw', 'paint', 'box', 'card', 'ring', 'sweep', 'write', 'camera', 'touchpad', 'music', 'save', 'audio', 'sound', 'volume',
   'world3d', 'clear3d', 'camera3d', 'render3d', 'move3d', 'turn3d', 'show3d', 'glow3d', 'torch3d', 'model3d', 'anim3d', 'fx3d', 'shine3d', 'burst3d', 'look3d',
   'toon3d', 'shot3d', 'lookat3d', 'shake3d', 'slowmo3d', 'hitstop3d', 'bars3d', 'sky3d', 'join3d',
   'solid3d', 'blend3d', 'once3d', 'socket3d',
@@ -725,6 +725,37 @@ function parse(tokens) {
         if (isWord('color')) { next(); color = expression(); }
         return { kind: 'Box', x, y, w, h, color, line };
       }
+      // card 10, 10, 60, 24, 12 color "#1b2330"   a rounded panel
+      case 'card': {
+        const [x, y] = pair();
+        expect(',', "','");
+        const [w, h] = pair();
+        expect(',', "','");
+        const radius = expression();
+        let color = null;
+        if (isWord('color')) { next(); color = expression(); }
+        return { kind: 'Card', x, y, w, h, radius, color, line };
+      }
+      // ring 40, 40, 16, 3 color "#7fe3ff"
+      case 'ring': {
+        const [x, y] = pair();
+        expect(',', "','");
+        const [radius, thick] = pair();
+        let color = null;
+        if (isWord('color')) { next(); color = expression(); }
+        return { kind: 'Ring', x, y, radius, thick, color, line };
+      }
+      // sweep 40, 40, 16, 70, 3 color "#7fe3ff"   a cooldown dial, 0-100
+      case 'sweep': {
+        const [x, y] = pair();
+        expect(',', "','");
+        const [radius, amount] = pair();
+        expect(',', "','");
+        const thick = expression();
+        let color = null;
+        if (isWord('color')) { next(); color = expression(); }
+        return { kind: 'Sweep', x, y, radius, amount, thick, color, line };
+      }
       // write "Hello" at 10, 10 color "#ffd23f" size 2 centered shadow
       case 'write': {
         const value = expression();
@@ -1238,6 +1269,43 @@ const GAME_RUNTIME = [
   "function __need() { if (!__cx) throw new Error('Make a screen first, like: canvas 320, 180'); }",
   "function __paint(c) { __need(); __cx.fillStyle = String(c); __cx.fillRect(0, 0, __W, __H); }",
   "function __camera(x, y) { __camX = Math.round(x); __camY = Math.round(y); }",
+  // card x, y, w, h, 12 color "#..."   a rounded panel, which is the
+  // difference between a modern HUD and a 2000s one. Radius is clamped so
+  // it cannot swallow a short box.
+  "function __card(x, y, w, h, r, c) {",
+  "  __need(); __cx.fillStyle = c == null ? '#fff' : String(c);",
+  "  const X = Math.round(x) - __camX, Y = Math.round(y) - __camY, W = Math.round(w), H = Math.round(h);",
+  "  const R = Math.max(0, Math.min(r == null ? 8 : r, Math.min(W, H) / 2));",
+  "  __cx.beginPath();",
+  "  if (__cx.roundRect) { __cx.roundRect(X, Y, W, H, R); }",
+  "  else {",
+  "    __cx.moveTo(X + R, Y); __cx.lineTo(X + W - R, Y); __cx.quadraticCurveTo(X + W, Y, X + W, Y + R);",
+  "    __cx.lineTo(X + W, Y + H - R); __cx.quadraticCurveTo(X + W, Y + H, X + W - R, Y + H);",
+  "    __cx.lineTo(X + R, Y + H); __cx.quadraticCurveTo(X, Y + H, X, Y + H - R);",
+  "    __cx.lineTo(X, Y + R); __cx.quadraticCurveTo(X, Y, X + R, Y);",
+  "  }",
+  "  __cx.fill();",
+  "}",
+  // ring x, y, radius, thickness color "#..."
+  "function __ring(x, y, rad, th, c) {",
+  "  __need(); __cx.strokeStyle = c == null ? '#fff' : String(c);",
+  "  __cx.lineWidth = Math.max(1, th == null ? 2 : th);",
+  "  __cx.beginPath();",
+  "  __cx.arc(Math.round(x) - __camX, Math.round(y) - __camY, Math.max(0.5, rad), 0, Math.PI * 2);",
+  "  __cx.stroke();",
+  "}",
+  // sweep x, y, radius, amount, thickness color - a cooldown dial, filling
+  // clockwise from twelve o'clock. amount runs 0 to 100.
+  "function __sweep(x, y, rad, amt, th, c) {",
+  "  __need(); __cx.strokeStyle = c == null ? '#fff' : String(c);",
+  "  __cx.lineWidth = Math.max(1, th == null ? 3 : th);",
+  "  __cx.lineCap = 'round';",
+  "  const k = Math.max(0, Math.min(100, amt == null ? 0 : amt)) / 100;",
+  "  if (k <= 0) return;",
+  "  __cx.beginPath();",
+  "  __cx.arc(Math.round(x) - __camX, Math.round(y) - __camY, Math.max(0.5, rad), -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k);",
+  "  __cx.stroke(); __cx.lineCap = 'butt';",
+  "}",
   "function __box(x, y, w, h, c) {",
   "  __need(); __cx.fillStyle = c == null ? '#fff' : String(c);",
   "  __cx.fillRect(Math.round(x) - __camX, Math.round(y) - __camY, Math.round(w), Math.round(h));",
@@ -3131,6 +3199,27 @@ function generate(ast, target = 'cpp', options = {}) {
         const n = (e) => bare(genNumber(e, "'box'"));
         const color = s.color ? bare(genExpr(s.color).code) : '"#fff"';
         return [`${p}__box(${n(s.x)}, ${n(s.y)}, ${n(s.w)}, ${n(s.h)}, ${color});`];
+      }
+
+      case 'Card': {
+        gameOnly("'card'", s.line);
+        const n = (e) => bare(genNumber(e, "'card'"));
+        const color = s.color ? bare(genExpr(s.color).code) : '"#fff"';
+        return [`${p}__card(${n(s.x)}, ${n(s.y)}, ${n(s.w)}, ${n(s.h)}, ${n(s.radius)}, ${color});`];
+      }
+
+      case 'Ring': {
+        gameOnly("'ring'", s.line);
+        const n = (e) => bare(genNumber(e, "'ring'"));
+        const color = s.color ? bare(genExpr(s.color).code) : '"#fff"';
+        return [`${p}__ring(${n(s.x)}, ${n(s.y)}, ${n(s.radius)}, ${n(s.thick)}, ${color});`];
+      }
+
+      case 'Sweep': {
+        gameOnly("'sweep'", s.line);
+        const n = (e) => bare(genNumber(e, "'sweep'"));
+        const color = s.color ? bare(genExpr(s.color).code) : '"#fff"';
+        return [`${p}__sweep(${n(s.x)}, ${n(s.y)}, ${n(s.radius)}, ${n(s.amount)}, ${n(s.thick)}, ${color});`];
       }
 
       case 'WriteText': {
