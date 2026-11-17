@@ -1,0 +1,68 @@
+Volt's built-in 3D models
+=========================
+
+Use them from any Volt program by putting @ in front of the name:
+
+    model3d player = "@male"
+    model3d keeper = "@female"
+    model3d moves  = "@animations"
+
+No file needs to sit next to your .volt file - Volt finds these itself.
+
+
+What's here
+-----------
+
+male.glb                  rigged full-body character, 65 bones
+female.glb                rigged full-body character, same 65 bones
+animations.glb            43 clips, root motion removed
+animations-rootmotion.glb  the same 43 clips with root motion baked in
+
+Both characters and both animation files share one skeleton, so any clip
+plays on either character with nothing to set up:
+
+    let p = put3d(player, 0, 0, 0, 0, 100)
+    blend3d p, "Idle_Loop", "Jog_Fwd_Loop", speed
+
+The clips: A_TPose, Crouch_Fwd_Loop, Crouch_Idle_Loop, Dance_Loop, Death01,
+Driving_Loop, Fixing_Kneeling, Hit_Chest, Hit_Head, Idle_Loop,
+Idle_Talking_Loop, Idle_Torch_Loop, Interact, Jog_Fwd_Loop, Jump_Land,
+Jump_Loop, Jump_Start, PickUp_Table, Pistol_Aim_Down, Pistol_Aim_Neutral,
+Pistol_Aim_Up, Pistol_Idle_Loop, Pistol_Reload, Pistol_Shoot, Punch_Cross,
+Punch_Jab, Push_Loop, Roll, Sitting_Enter, Sitting_Exit, Sitting_Idle_Loop,
+Sitting_Talking_Loop, Spell_Simple_Enter, Spell_Simple_Exit,
+Spell_Simple_Idle_Loop, Spell_Simple_Shoot, Sprint_Loop, Swim_Fwd_Loop,
+Swim_Idle_Loop, Sword_Attack, Sword_Idle, Walk_Formal_Loop, Walk_Loop.
+
+A partial name is enough: anim3d p, "jog" finds Jog_Fwd_Loop.
+
+
+Licence
+-------
+
+CC0 1.0 Universal (Public Domain Dedication)
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Models and animations by Quaternius - https://quaternius.com
+Support the author: https://www.patreon.com/quaternius
+
+CC0 means these carry no conditions: use them in anything, commercial or
+not, with no attribution required. The credit above is courtesy, not an
+obligation Volt passes on to you.
+
+
+How these differ from the files you download from Quaternius
+------------------------------------------------------------
+
+- Packed from .gltf + .bin + loose textures into single .glb files, which
+  is the one model format Volt loads.
+- Textures resized from 2048x2048 to 512x512 and the characters re-packed,
+  taking them from about 16 MB each to about 2 MB. Volt embeds a model into
+  the page as base64, so texture weight is page weight. For characters seen
+  at a distance 512 is plenty; re-pack from the originals if you want more.
+- Two texture references in the original .gltf files pointed at filenames
+  that do not exist in the download (T_Eye_Normal_png.png, and for the male
+  T_Hair_1_Normal_png.png). Those are corrected here.
+
+Not Draco-compressed: Volt's loader has no Draco decoder, so a compressed
+model would fail to load.

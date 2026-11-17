@@ -200,7 +200,9 @@ const PAGE_WORDS = ['button', 'title', 'html'];
 // aren't keywords, so 'let box = 3' or 'fn draw()' in older programs still work.
 const GAME_WORDS = ['canvas', 'image', 'sprite', 'draw', 'paint', 'box', 'write', 'camera', 'touchpad', 'music', 'save', 'audio', 'sound', 'volume',
   'world3d', 'clear3d', 'camera3d', 'render3d', 'move3d', 'turn3d', 'show3d', 'glow3d', 'torch3d', 'model3d', 'anim3d', 'fx3d', 'shine3d', 'burst3d', 'look3d',
-  'toon3d', 'shot3d', 'lookat3d', 'shake3d', 'slowmo3d', 'hitstop3d', 'bars3d', 'sky3d', 'join3d'];
+  'toon3d', 'shot3d', 'lookat3d', 'shake3d', 'slowmo3d', 'hitstop3d', 'bars3d', 'sky3d', 'join3d',
+  'solid3d', 'blend3d', 'once3d', 'socket3d',
+  'phys3d', 'kick3d', 'spin3d', 'blend4d', 'layer3d'];
 const LIST_WORDS = ['add', 'remove'];
 const NOT_A_COMMAND = ['=', '(', '[', '+=', '-=', '*=', '/=', 'eof'];
 
@@ -766,9 +768,17 @@ function parse(tokens) {
       // toon3d bands, outline, rim      shot3d x, y, z, atx, aty, atz, ms      lookat3d x, y, z
       // shake3d power, ms      slowmo3d percent, ms      hitstop3d ms      bars3d on
       case 'camera3d': case 'move3d': case 'turn3d': case 'show3d': case 'glow3d': case 'torch3d': case 'anim3d': case 'fx3d': case 'shine3d': case 'burst3d': case 'look3d':
-      case 'toon3d': case 'shot3d': case 'lookat3d': case 'shake3d': case 'slowmo3d': case 'hitstop3d': case 'bars3d': case 'sky3d': case 'join3d': {
+      // solid3d id, 0        blend3d id, "walk", "run", amount
+      // once3d id, "swing"   socket3d id, "hand.R", heldId
+      case 'toon3d': case 'shot3d': case 'lookat3d': case 'shake3d': case 'slowmo3d': case 'hitstop3d': case 'bars3d': case 'sky3d': case 'join3d':
+      // phys3d id, bounce, friction     kick3d id, vx, vy, vz     spin3d id, sx, sy, sz
+      // blend4d id, "fwd", "back", "left", "right", dx, dy     layer3d id, "aim", weight
+      case 'solid3d': case 'blend3d': case 'once3d': case 'socket3d':
+      case 'phys3d': case 'kick3d': case 'spin3d': case 'blend4d': case 'layer3d': {
         const need = { camera3d: 5, move3d: 4, turn3d: 2, show3d: 2, glow3d: 2, torch3d: 2, anim3d: 2, fx3d: 3, shine3d: 3, burst3d: 6, look3d: 2,
-          toon3d: 3, shot3d: 7, lookat3d: 3, shake3d: 2, slowmo3d: 2, hitstop3d: 1, bars3d: 1, sky3d: 1, join3d: 2 }[t.value];
+          toon3d: 3, shot3d: 7, lookat3d: 3, shake3d: 2, slowmo3d: 2, hitstop3d: 1, bars3d: 1, sky3d: 1, join3d: 2,
+          solid3d: 2, blend3d: 4, once3d: 2, socket3d: 3,
+          phys3d: 3, kick3d: 4, spin3d: 4, blend4d: 7, layer3d: 3 }[t.value];
         const args = [expression()];
         while (match(',')) args.push(expression());
         if (args.length !== need) {
@@ -1028,6 +1038,10 @@ const BUILTINS = {
   random: 2, abs: 1, min: 2, max: 2, constrain: 3, map: 5, number: 1, text: 1, length: 1, upper: 1, lower: 1, contains: 2, part: 3, sign: 1, held: 1, saved: 2, touchscreen: 0,
   // 3D and engine helpers (sin3/cos3/atan2 use tenths of a degree and thousandths - see the 3D section of the reference)
   block3d: 7, ball3d: 5, cyl3d: 6, lamp3d: 6, put3d: 6, group3d: 3, mousedx: 0, mousedy: 0, locked3d: 0, clicked3d: 0, hot3d: 4, sky3d: 1, crisp: 1, sin3: 1, cos3: 1, atan2: 2,
+  // collision and ray questions - see the 3D section of the reference
+  bump3d: 4, ground3d: 3, hit3d: 7, hitid3d: 0, aim3d: 1,
+  // reading a moving object back out of the world
+  where3d: 2, vel3d: 2, rest3d: 1,
   // everyday math (decimal sin/cos in degrees)
   sqrt: 1, sin: 1, cos: 1,
   // small gamedev helpers - plain math, so they work on every target
@@ -1802,6 +1816,20 @@ function generate(ast, target = 'cpp', options = {}) {
   function soundSource(f, line) { return embedFile(f, line, SOUND_MIME, "a sound", '.mp3, .ogg, .wav or .m4a'); }
   function embedFile(f, line, types, what, list) {
     if (/^(https?:|data:)/.test(f)) return f;
+    // "@male" and friends are the models that ship with Volt, in lib/models.
+    // They work from any folder, because there is no file to go looking for.
+    if (f.charAt(0) === '@') {
+      const want = f.slice(1).replace(/\.glb$/i, '').toLowerCase();
+      const dir = path.join(__dirname, '..', 'lib', 'models');
+      const builtin = path.join(dir, want + '.glb');
+      if (!fs.existsSync(builtin)) {
+        const have = fs.existsSync(dir)
+          ? fs.readdirSync(dir).filter((x) => x.endsWith('.glb')).map((x) => '@' + x.replace(/\.glb$/, '')).join(', ')
+          : 'none';
+        throw new VoltError(`Volt has no built-in model called '${f}'. It has: ${have}`, line);
+      }
+      return `data:model/gltf-binary;base64,${fs.readFileSync(builtin).toString('base64')}`;
+    }
     const ext = (f.split('.').pop() || '').toLowerCase();
     if (!types[ext]) throw new VoltError(`'${f}' isn't ${what} Volt knows. Use a ${list} file`, line);
     // options.baseDir is the .volt file's folder; options.extraDirs are other places to look
@@ -2375,6 +2403,22 @@ function generate(ast, target = 'cpp', options = {}) {
         case 'clicked3d':
         case 'hot3d':
         case 'sky3d':
+        // bump3d(x, y, z, r) -> 1 when a ball that size there is inside something solid
+        // ground3d(x, z, drop) -> the floor height under that spot, or -99999 for no floor
+        // hit3d(x, y, z, dx, dy, dz, range) -> how far along the ray the first solid is, or -1
+        // hitid3d() -> which object the last hit3d/bump3d/aim3d found
+        // aim3d(range) -> what the camera is looking at, or -1
+        case 'bump3d':
+        case 'ground3d':
+        case 'hit3d':
+        case 'hitid3d':
+        case 'aim3d':
+        // where3d(id, axis) -> where it is now, in cm: axis 0 is x, 1 is y, 2 is z
+        // vel3d(id, axis) -> how fast it is going along that axis, in cm per second
+        // rest3d(id) -> 1 once a physical object has settled and stopped
+        case 'where3d':
+        case 'vel3d':
+        case 'rest3d':
           gameOnly(`'${e.name}'`, e.line);
           uses3d = true;
           return { code: `__${e.name}(${c.join(', ')})`, type: 'num' };
@@ -3105,6 +3149,12 @@ function generate(ast, target = 'cpp', options = {}) {
           case 'show3d': return [`${p}__show3d(${n(a[0])}, ${genCond(a[1])});`];
           case 'glow3d': return [`${p}__glow3d(${n(a[0])}, ${str(a[1])});`];
           case 'anim3d': return [`${p}__anim3d(${n(a[0])}, ${str(a[1])});`];
+          case 'once3d': return [`${p}__once3d(${n(a[0])}, ${str(a[1])});`];
+          case 'blend3d': return [`${p}__blend3d(${n(a[0])}, ${str(a[1])}, ${str(a[2])}, ${n(a[3])});`];
+          case 'socket3d': return [`${p}__socket3d(${n(a[0])}, ${str(a[1])}, ${n(a[2])});`];
+          case 'solid3d': return [`${p}__solid3d(${n(a[0])}, ${genCond(a[1])});`];
+          case 'layer3d': return [`${p}__layer3d(${n(a[0])}, ${str(a[1])}, ${n(a[2])});`];
+          case 'blend4d': return [`${p}__blend4d(${n(a[0])}, ${str(a[1])}, ${str(a[2])}, ${str(a[3])}, ${str(a[4])}, ${n(a[5])}, ${n(a[6])});`];
           case 'look3d': return [`${p}__look3d(${n(a[0])}, ${str(a[1])});`];
           case 'burst3d': return [`${p}__burst3d(${n(a[0])}, ${n(a[1])}, ${n(a[2])}, ${str(a[3])}, ${n(a[4])}, ${n(a[5])});`];
           default: return [`${p}__${s.cmd}(${a.map(n).join(', ')});`];
