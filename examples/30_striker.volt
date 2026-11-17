@@ -21,6 +21,7 @@
 // =====================================================================
 #html
 
+title "Striker"
 canvas 480, 270
 world3d "#6f8fb8" fog 14000 ambient 42 fov 72 shadows
 fx3d 28, 26, 5

@@ -1196,6 +1196,9 @@ const HTML_CSS = `  :root { color-scheme: light dark; }
 
 // 3D games bundle Three.js (lib/three.min.js, MIT) and our small 3D runtime into the page
 const THREE_SRC = () => fs.readFileSync(path.join(__dirname, '..', 'lib', 'three.min.js'), 'utf8').replace(/<\/script/gi, '<\\/script');
+function __escTitle(t) {
+  return String(t).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+}
 const VOLT3D_SRC = () => fs.readFileSync(path.join(__dirname, '..', 'lib', 'volt3d.js'), 'utf8');
 // The anime layer wraps functions from volt3d.js, so it must be concatenated after it.
 const VOLT3D_ANIME_SRC = () => fs.readFileSync(path.join(__dirname, '..', 'lib', 'volt3d-anime.js'), 'utf8');
@@ -1729,6 +1732,7 @@ function generate(ast, target = 'cpp', options = {}) {
   let usesForever = false;
   let usesGame = false;         // canvas, sprites, held keys ... (#html)
   let uses3d = false;           // world3d, block3d ... (#html): adds Three.js
+  let pageTitle = null;         // from `title "..."`, used for the browser tab
   const models = new Map();     // name -> Model3d node (.glb files)
   const images = new Map();     // name -> Image node
   const sprites = new Map();    // name -> Sprite node
@@ -2845,6 +2849,11 @@ function generate(ast, target = 'cpp', options = {}) {
       case 'Title':
       case 'Html': {
         htmlOnly(`'${s.kind.toLowerCase()}'`, s.line);
+        // A literal title also names the browser tab, instead of every Volt
+        // page in the world shipping as "Volt page".
+        if (s.kind === 'Title' && pageTitle === null && s.value && s.value.kind === 'String') {
+          pageTitle = String(s.value.value);
+        }
         return [`${p}__${s.kind.toLowerCase()}(${bare(genExpr(s.value).code)});`];
       }
 
@@ -3429,7 +3438,7 @@ function generate(ast, target = 'cpp', options = {}) {
     '<head>',
     '<meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
-    '<title>Volt page</title>',
+    `<title>${__escTitle(pageTitle || (options.filename || '').replace(/\.volt$/i, '') || 'Volt page')}</title>`,
     '<style>',
     HTML_CSS,
     ...(usesGame ? [GAME_CSS] : []),
