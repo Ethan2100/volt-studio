@@ -202,7 +202,7 @@ const GAME_WORDS = ['canvas', 'image', 'sprite', 'draw', 'paint', 'box', 'write'
   'world3d', 'clear3d', 'camera3d', 'render3d', 'move3d', 'turn3d', 'show3d', 'glow3d', 'torch3d', 'model3d', 'anim3d', 'fx3d', 'shine3d', 'burst3d', 'look3d',
   'toon3d', 'shot3d', 'lookat3d', 'shake3d', 'slowmo3d', 'hitstop3d', 'bars3d', 'sky3d', 'join3d',
   'solid3d', 'blend3d', 'once3d', 'socket3d',
-  'phys3d', 'kick3d', 'spin3d', 'blend4d', 'layer3d', 'bone3d', 'clips3d'];
+  'phys3d', 'kick3d', 'spin3d', 'blend4d', 'layer3d', 'bone3d', 'clips3d', 'trail3d', 'flash3d'];
 const LIST_WORDS = ['add', 'remove'];
 const NOT_A_COMMAND = ['=', '(', '[', '+=', '-=', '*=', '/=', 'eof'];
 
@@ -774,11 +774,14 @@ function parse(tokens) {
       // phys3d id, bounce, friction     kick3d id, vx, vy, vz     spin3d id, sx, sy, sz
       // blend4d id, "fwd", "back", "left", "right", dx, dy     layer3d id, "aim", weight
       case 'solid3d': case 'blend3d': case 'once3d': case 'socket3d':
-      case 'phys3d': case 'kick3d': case 'spin3d': case 'blend4d': case 'layer3d': case 'bone3d': case 'clips3d': {
+      case 'phys3d': case 'kick3d': case 'spin3d': case 'blend4d': case 'layer3d': case 'bone3d': case 'clips3d':
+      // trail3d id, "#6fd6ff", width, life   flash3d "#fff", ms
+      case 'trail3d': case 'flash3d': {
         const need = { camera3d: 5, move3d: 4, turn3d: 2, show3d: 2, glow3d: 2, torch3d: 2, anim3d: 2, fx3d: 3, shine3d: 3, burst3d: 6, look3d: 2,
           toon3d: 3, shot3d: 7, lookat3d: 3, shake3d: 2, slowmo3d: 2, hitstop3d: 1, bars3d: 1, sky3d: 1, join3d: 2,
           solid3d: 2, blend3d: 4, once3d: 2, socket3d: 3,
-          phys3d: 3, kick3d: 4, spin3d: 4, blend4d: 7, layer3d: 3, bone3d: 5, clips3d: 2 }[t.value];
+          phys3d: 3, kick3d: 4, spin3d: 4, blend4d: 7, layer3d: 3, bone3d: 5, clips3d: 2,
+          trail3d: 4, flash3d: 2 }[t.value];
         const args = [expression()];
         while (match(',')) args.push(expression());
         if (args.length !== need) {
@@ -3165,6 +3168,8 @@ function generate(ast, target = 'cpp', options = {}) {
           case 'layer3d': return [`${p}__layer3d(${n(a[0])}, ${str(a[1])}, ${n(a[2])});`];
           case 'bone3d': return [`${p}__bone3d(${n(a[0])}, ${str(a[1])}, ${n(a[2])}, ${n(a[3])}, ${n(a[4])});`];
           case 'clips3d': return [`${p}__clips3d(${n(a[0])}, ${str(a[1])});`];
+          case 'trail3d': return [`${p}__trail3d(${n(a[0])}, ${str(a[1])}, ${n(a[2])}, ${n(a[3])});`];
+          case 'flash3d': return [`${p}__flash3d(${str(a[0])}, ${n(a[1])});`];
           case 'blend4d': return [`${p}__blend4d(${n(a[0])}, ${str(a[1])}, ${str(a[2])}, ${str(a[3])}, ${str(a[4])}, ${n(a[5])}, ${n(a[6])});`];
           case 'look3d': return [`${p}__look3d(${n(a[0])}, ${str(a[1])});`];
           case 'burst3d': return [`${p}__burst3d(${n(a[0])}, ${n(a[1])}, ${n(a[2])}, ${str(a[3])}, ${n(a[4])}, ${n(a[5])});`];

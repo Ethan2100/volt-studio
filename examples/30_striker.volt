@@ -670,23 +670,23 @@ fn placeCamera() {
     // which is the view every televised match is shot from.
     let tx = bx * 0.35
     let tz = bz * 0.85
-    camera3d number(tx), 1450, number(tz - 1900.0), 0, 0 - 240
+    camera3d number(tx), 1450, number(tz - 1900.0), 1800, 0 - 240
     return 0
   }
   if camMode == 1 {
     let cx = m.x - sin3(number(camYaw * 10.0)) / 1000.0 * 620.0
     let cz = m.z - cos3(number(camYaw * 10.0)) / 1000.0 * 620.0
-    camera3d number(cx), 390, number(cz), number(camYaw * 10.0), 0 - number(camPitch * 10.0)
+    camera3d number(cx), 390, number(cz), number(1800.0 - camYaw * 10.0), 0 - number(camPitch * 10.0)
     return 0
   }
   if camMode == 2 {
     // First person: at the player's own eyeline, just ahead of the head so
     // the camera is not inside their own skull.
-    camera3d number(m.x + fx * 26.0), 168, number(m.z + fz * 26.0), number(m.yaw * 10.0), 0
+    camera3d number(m.x + fx * 26.0), 168, number(m.z + fz * 26.0), number(1800.0 - m.yaw * 10.0), 0
     return 0
   }
   // Tactical: straight down over the ball.
-  camera3d number(bx * 0.6), 3400, number(bz * 0.6 - 1100.0), 0, 0 - 680
+  camera3d number(bx * 0.6), 3400, number(bz * 0.6 - 1100.0), 1800, 0 - 680
   return 0
 }
 

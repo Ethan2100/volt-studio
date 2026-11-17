@@ -1,289 +1,435 @@
 // =====================================================================
-// BLADE — a swordsman and four abilities, written in Volt.
+// BLADE — a swordsman, built properly.
 //
-// Everything here runs through Volt's own engine. The character and all
-// 43 clips ship with Volt ("@male", "@animations", CC0 by Quaternius), so
-// this file needs no assets beside it.
+// Everything runs through Volt's own engine. The character and all 43
+// clips ship with Volt ("@male", "@animations", CC0 by Quaternius), so
+// this file needs nothing beside it.
 //
-// The abilities are built from the pieces the engine actually has:
-//   once3d     fires a clip once and can re-fire it mid-swing
-//   bone3d     poses a bone on top of the clip, for the lunge and the
-//              recoil, because the library has no combat follow-through
-//   socket3d   keeps the blade in his right hand through every frame
-//   burst3d    the spark and dust
-//   hitstop3d  freezes everything for a beat on contact
-//   slowmo3d   drops the whole world into slow motion for the heavy
-//   shake3d    kicks the camera
+// What the engine does here:
+//   socket3d   armour and sword ride the skeleton, bone by bone
+//   clips3d    lends the shared animation library to the rig
+//   blend3d    locomotion mixed by actual speed, not switched
+//   bone3d     the wind-up and follow-through no clip contains
+//   trail3d    the arc the blade leaves through a swing
+//   flash3d    one frame of flat colour on heavy contact
+//   hitstop3d  the beat of nothing that makes a hit land
+//   slowmo3d   the whole world slowed for the heavy
 //
-//   WASD   move        SHIFT  sprint
-//   J      slash       K      heavy (hold to charge)
-//   L      thrust      SPACE  dash
+//   WASD move   SHIFT sprint   J slash   K hold heavy   L thrust
+//   SPACE dash  mouse look
 // =====================================================================
 #html
 
 title "Blade"
 canvas 480, 270
-world3d "#1a2230" fog 5200 ambient 62 fov 74 shadows
-look3d 1, "#2a3a52"
-toon3d 4, 5, 52
-fx3d 26, 26, 5
+world3d "#1b2634" fog 7000 ambient 120 fov 72 shadows
+look3d 1, "#2e4258"
+toon3d 4, 4, 58
+fx3d 30, 26, 4
 
 model3d body = "@male"
 model3d moves = "@animations"
 
-let INK = "#0a0d13"
-let LINE = "#eef3f8"
-let EDGE = "#6fd6ff"
+let INK = "#080b11"
+let LINE = "#eaf2f8"
+let EDGE = "#7fe3ff"
 let HEAT = "#ff8a3c"
+let GOLD = "#f3c762"
 
-// ---------------------------------------------------------------------
-// The arena: a stone platform ringed by pillars, lit cold from above and
-// warm from the braziers, so the blade reads bright against the floor.
-// ---------------------------------------------------------------------
+// =====================================================================
+// THE ARENA
+//
+// A sunken stone ring under a cold sky, ringed by eight pillars with
+// braziers between them. Lit cold from above and warm from the ground so
+// the character has a rim on one side and a glow on the other, which is
+// what makes a figure read against a dark floor.
+// =====================================================================
 fn pillar(ang, r, lit) {
   let x = sin3(ang) / 1000.0 * r
   let z = cos3(ang) / 1000.0 * r
-  cyl3d(number(x), 190, number(z), 46, 380, "#39414f")
-  block3d(number(x), 390, number(z), 130, 36, 130, "#454e5e")
+  cyl3d(number(x), 210, number(z), 44, 420, "#7884a0")
+  cyl3d(number(x), 424, number(z), 52, 28, "#4a5466")
+  block3d(number(x), 448, number(z), 128, 26, 128, "#424c5d")
   if lit {
-    lamp3d(number(x * 0.82), 260, number(z * 0.82), "#ff8e42", 26, 1150)
+    // a brazier bowl on a short stand, between the pillars
+    let bx = sin3(number(ang + 225)) / 1000.0 * (r - 150.0)
+    let bz = cos3(number(ang + 225)) / 1000.0 * (r - 150.0)
+    cyl3d(number(bx), 55, number(bz), 16, 110, "#2a303c")
+    cyl3d(number(bx), 118, number(bz), 38, 30, "#4d3426")
+    ball3d(number(bx), 132, number(bz), 24, "#ff7a2a")
+    lamp3d(number(bx), 150, number(bz), "#ff9448", 56, 1500)
   }
 }
 
 fn buildArena() {
-  block3d(0, 0 - 20, 0, 2600, 40, 2600, "#2b3340")
-  block3d(0, 2, 0, 1700, 6, 1700, "#353e4d")
-  block3d(0, 5, 0, 1180, 6, 1180, "#3d4759")
+  // floor, in three stepped rings so the eye has something to read
+  block3d(0, 0 - 24, 0, 3000, 48, 3000, "#55617a")
+  block3d(0, 2, 0, 1900, 8, 1900, "#616e89")
+  block3d(0, 7, 0, 1320, 6, 1320, "#6d7b98")
+  block3d(0, 11, 0, 620, 4, 620, "#7987a6")
+
   let n = 0
   while n < 8 {
-    pillar(number(n * 450), 1120.0, n % 2 == 0)
+    pillar(number(n * 450), 1180.0, n % 2 == 0)
     n = n + 1
   }
-  // only the four corner braziers are lit; eight point lights on one toon
-  // surface is enough to saturate its brightest band everywhere
-  lamp3d(0, 720, 0, "#bfe2ff", 52, 3000)
+  // cold key from above, so every figure gets a cool rim
+  lamp3d(0, 820, 0, "#cfe7ff", 120, 3600)
+  lamp3d(0, 340, 0 - 950, "#9fc4ea", 60, 2400)
 }
 
-// ---------------------------------------------------------------------
-// Him.
-// ---------------------------------------------------------------------
+// =====================================================================
+// THE CHARACTER
+//
+// The base mesh is a bare torso, so the armour is geometry socketed to
+// the skeleton. Each piece rides its bone through every frame of every
+// clip: rigid, but at this distance it reads as a figure rather than a
+// mannequin with blocks on.
+// =====================================================================
 let hero = 0
 let blade = 0
-let hx = 0.0
-let hz = 0.0
-let hyaw = 0.0
-let speed = 0.0
 
-// One timer per ability. While any is above zero he is committed to it,
-// which is what stops you cancelling a swing by walking away.
-let actT = 0.0
-let actKind = 0        // 1 slash  2 heavy  3 thrust  4 dash
-let lunge = 0.0
-let charge = 0.0
-let combo = 0
-let comboT = 0.0
-let facing = 0.0
+fn armour(rig, main, trim, skirt) {
+  // chest, with a raised plate so the silhouette is not a flat slab
+  let chest = block3d(0, 0, 0, 34, 46, 22, main)
+  solid3d chest, 0
+  socket3d rig, "spine_02", chest
+  let plate = block3d(0, 0, 0, 22, 20, 24, trim)
+  solid3d plate, 0
+  socket3d rig, "spine_03", plate
+  // shoulders: the piece that does most of the work for a warrior outline
+  let shL = block3d(0, 0, 0, 15, 13, 17, trim)
+  solid3d shL, 0
+  socket3d rig, "upperarm_l", shL
+  let shR = block3d(0, 0, 0, 15, 13, 17, trim)
+  solid3d shR, 0
+  socket3d rig, "upperarm_r", shR
+  // bracers
+  let brL = block3d(0, 0, 0, 11, 18, 12, main)
+  solid3d brL, 0
+  socket3d rig, "lowerarm_l", brL
+  let brR = block3d(0, 0, 0, 11, 18, 12, main)
+  solid3d brR, 0
+  socket3d rig, "lowerarm_r", brR
+  // belt and a hanging skirt plate
+  let belt = block3d(0, 0, 0, 30, 10, 22, trim)
+  solid3d belt, 0
+  socket3d rig, "pelvis", belt
+  let tass = block3d(0, 0 - 18, 0, 26, 26, 19, skirt)
+  solid3d tass, 0
+  socket3d rig, "pelvis", tass
+  // greaves
+  let gL = block3d(0, 0, 0, 12, 20, 14, main)
+  solid3d gL, 0
+  socket3d rig, "calf_l", gL
+  let gR = block3d(0, 0, 0, 12, 20, 14, main)
+  solid3d gR, 0
+  socket3d rig, "calf_r", gR
+  return 0
+}
 
 fn buildHero() {
   hero = put3d(body, 0, 0, 0, 0, 100)
   solid3d hero, 0
   clips3d hero, moves
   anim3d hero, "Sword_Idle"
+  armour(hero, "#5a6c8c", "#c3cede", "#b35344")
 
-  // a plain dark tunic, so he is not a bare mannequin
-  let shirt = block3d(0, 0, 0, 42, 56, 26, "#2f3b4e")
-  solid3d shirt, 0
-  socket3d hero, "spine_02", shirt
-  let belt = block3d(0, 0, 0, 38, 20, 26, "#1d242f")
-  solid3d belt, 0
-  socket3d hero, "pelvis", belt
-
-  // the blade itself: a long thin slab plus a crossguard, hung off the
-  // right hand so it follows every frame of every clip
-  blade = block3d(0, 0, 0, 7, 150, 20, "#cfe6f5")
+  // The sword: a tapered blade, a crossguard and a pommel, all hung off
+  // the right hand so the whole thing swings as one.
+  blade = block3d(0, 0, 0, 5, 96, 11, "#dceaf5")
   solid3d blade, 0
   socket3d hero, "hand_r", blade
-  glow3d blade, "#1d3a4d"
+  glow3d blade, "#1b3d52"
+
+  let guard = block3d(0, 0 - 46, 0, 7, 7, 30, GOLD)
+  solid3d guard, 0
+  socket3d hero, "hand_r", guard
+  let grip = block3d(0, 0 - 62, 0, 6, 24, 8, "#4a3425")
+  solid3d grip, 0
+  socket3d hero, "hand_r", grip
+  return 0
 }
 
-// ---------------------------------------------------------------------
-// Dummies to hit. They flash, get knocked back, and fall over.
-// ---------------------------------------------------------------------
-Dummy = type { rig: int, x: float, z: float, hp: int, hurt: float, down: float, kx: float, kz: float }
-let dummies = []
+// =====================================================================
+// THE OPPOSITION
+// =====================================================================
+Foe = type { rig: int, x: float, z: float, hp: int, hurt: float, down: float, kx: float, kz: float, think: float }
+let foes = []
 
-fn spawnDummy(x, z) {
-  let r = put3d(body, x, 0, z, 0, 98)
+fn spawnFoe(x, z) {
+  let r = put3d(body, x, 0, z, 0, 97)
   solid3d r, 0
   clips3d r, moves
   anim3d r, "Idle_Loop"
-  let coat = block3d(0, 0, 0, 42, 56, 26, "#5a2730")
-  solid3d coat, 0
-  socket3d r, "spine_02", coat
-  add Dummy { rig: r, x: x, z: z, hp: 100, hurt: 0.0, down: 0.0, kx: 0.0, kz: 0.0 } to dummies
+  armour(r, "#4a2b31", "#7c5560", "#32202a")
+  add Foe { rig: r, x: x, z: z, hp: 100, hurt: 0.0, down: 0.0, kx: 0.0, kz: 0.0, think: 0.0 } to foes
   return 0
 }
 
-fn hurtDummy(i, damage, px, pz) {
-  let d = dummies[i]
-  if d.down > 0.0 { return 0 }
-  dummies[i].hp = d.hp - damage
-  dummies[i].hurt = 0.25
-  // knock them back along the line from the blow
-  let dx = d.x - px
-  let dz = d.z - pz
+// =====================================================================
+// STATE
+// =====================================================================
+let hx = 0.0
+let hz = 0.0
+let hyaw = 0.0
+let speed = 0.0
+let hp = 100.0
+
+let actT = 0.0
+let actMax = 0.42
+let actKind = 0        // 1 slash  2 heavy  3 thrust  4 dash
+let lunge = 0.0
+let charge = 0.0
+let combo = 0
+let comboT = 0.0
+let swung = false      // has this swing already looked for a target
+let camYaw = 0.0
+let camShake = 0.0
+
+// =====================================================================
+// DAMAGE
+// =====================================================================
+fn hurtFoe(i, damage, heavyHit) {
+  let f = foes[i]
+  if f.down > 0.0 { return 0 }
+  foes[i].hp = f.hp - damage
+  foes[i].hurt = 0.3
+
+  let dx = f.x - hx
+  let dz = f.z - hz
   let mag = sqrt(number(dx * dx + dz * dz))
   if mag > 1.0 {
-    dummies[i].kx = dx / mag * 260.0
-    dummies[i].kz = dz / mag * 260.0
+    let kick = 240.0
+    if heavyHit { kick = 520.0 }
+    foes[i].kx = dx / mag * kick
+    foes[i].kz = dz / mag * kick
   }
-  burst3d number(d.x), 110, number(d.z), EDGE, 26, 320
-  once3d d.rig, "Hit_Chest"
+
+  burst3d number(f.x), 115, number(f.z), EDGE, 30, 360
+  burst3d number(f.x), 95, number(f.z), "#ffffff", 12, 180
+  once3d f.rig, "Hit_Chest"
   combo = combo + 1
-  comboT = 1.6
-  if dummies[i].hp <= 0 {
-    dummies[i].down = 2.6
-    once3d d.rig, "Death01"
-    burst3d number(d.x), 90, number(d.z), HEAT, 40, 420
-    shake3d 50, 180
+  comboT = 1.8
+
+  if foes[i].hp <= 0 {
+    foes[i].down = 3.0
+    once3d f.rig, "Death01"
+    burst3d number(f.x), 90, number(f.z), HEAT, 52, 480
+    shake3d 62, 220
+    flash3d "#ffd9a0", 45
   }
   return 0
 }
 
-// Everything within reach of a swing, in an arc in front of him.
-fn strikeArc(reach, arc, damage) {
+// Everything in an arc in front of him. Returns 1 if anything was hit.
+fn strikeArc(reach, arc, damage, heavyHit) {
   let fx = sin3(number(hyaw * 10.0)) / 1000.0
   let fz = cos3(number(hyaw * 10.0)) / 1000.0
-  let hitAny = 0
+  let got = 0
   let i = 0
-  while i < length(dummies) {
-    let d = dummies[i]
-    if d.down <= 0.0 {
-      let dx = d.x - hx
-      let dz = d.z - hz
+  while i < length(foes) {
+    let f = foes[i]
+    if f.down <= 0.0 {
+      let dx = f.x - hx
+      let dz = f.z - hz
       let mag = sqrt(number(dx * dx + dz * dz))
       if mag < reach and mag > 1.0 {
-        // dot product of the way he faces against the way the target lies
         let dot = (dx / mag) * fx + (dz / mag) * fz
         if dot > arc {
-          hurtDummy(i, damage, hx, hz)
-          hitAny = 1
+          hurtFoe(i, damage, heavyHit)
+          got = 1
         }
       }
     }
     i = i + 1
   }
-  return hitAny
+  return got
 }
 
-// ---------------------------------------------------------------------
-// Abilities.
+// =====================================================================
+// ABILITIES
 //
-// Each one is the same shape: commit a timer, fire a clip, and let the
-// per-frame pose function add the part the clip does not have.
-// ---------------------------------------------------------------------
+// Each sets a timer and a shape. The pose function below reads the timer
+// and adds the wind-up and follow-through, because the shared clip
+// library has no combat follow-through in it.
+// =====================================================================
+fn beginAct(kind, dur, push) {
+  actKind = kind
+  actT = dur
+  actMax = dur
+  lunge = push
+  swung = false
+  return 0
+}
+
 fn slash() {
-  actKind = 1
-  actT = 0.42
-  lunge = 150.0
+  beginAct(1, 0.40, 170.0)
   once3d hero, "Sword_Attack"
-  burst3d number(hx + sin3(number(hyaw * 10.0)) / 1000.0 * 90.0), 120, number(hz + cos3(number(hyaw * 10.0)) / 1000.0 * 90.0), EDGE, 16, 260
+  trail3d blade, EDGE, 52, 230
   return 0
 }
 
 fn heavy(power) {
-  actKind = 2
-  actT = 0.78
-  lunge = 90.0 + power * 180.0
+  beginAct(2, 0.82, 110.0 + power * 220.0)
   once3d hero, "Sword_Attack"
-  // the whole world drops into slow motion for a beat - this is the one
-  // ability that is worth the interruption
-  slowmo3d 34, 320
+  trail3d blade, HEAT, 74, 380
+  slowmo3d 32, 340
   bars3d 1
-  shake3d number(40 + power * 50.0), 260
+  shake3d number(36 + power * 46.0), 280
   return 0
 }
 
 fn thrust() {
-  actKind = 3
-  actT = 0.34
-  lunge = 260.0
+  beginAct(3, 0.32, 300.0)
   once3d hero, "Punch_Cross"
+  trail3d blade, "#ffffff", 40, 170
   return 0
 }
 
 fn dash() {
-  actKind = 4
-  actT = 0.42
-  lunge = 620.0
+  beginAct(4, 0.40, 700.0)
   once3d hero, "Roll"
-  burst3d number(hx), 40, number(hz), "#8ea6bd", 22, 200
+  burst3d number(hx), 36, number(hz), "#9fb4c8", 24, 220
   return 0
 }
 
-// The follow-through the clip library does not contain: a lean into the
-// swing, and the blade angle through the arc.
-fn poseAction() {
-  if actT <= 0.0 {
-    bone3d hero, "spine_02", 0, 0, 0
-    bone3d hero, "upperarm_r", 0, 0, 0
+fn endAct() {
+  trail3d blade, "", 0, 0
+  bars3d 0
+  bone3d hero, "spine_02", 0, 0, 0
+  bone3d hero, "spine_03", 0, 0, 0
+  bone3d hero, "upperarm_r", 0, 0, 0
+  bone3d hero, "upperarm_l", 0, 0, 0
+  return 0
+}
+
+// The curve every swing follows: wind up against the swing, snap through,
+// settle. t runs 0 to 1 across the action.
+fn poseAct() {
+  if actT <= 0.0 { return 0 }
+  let t = 1.0 - actT / actMax
+
+  if actKind == 1 {
+    // slash: coil right, then open across the body
+    let coil = 1.0 - t
+    bone3d hero, "spine_02", number(0 - 150.0 * coil + 210.0 * t), number(240.0 * coil - 300.0 * t), 0
+    bone3d hero, "upperarm_r", number(0 - 500.0 * coil + 1020.0 * t), 0, number(200.0 * coil)
+    bone3d hero, "upperarm_l", number(180.0 * coil), 0, 0
     return 0
   }
-  if actKind == 1 {
-    let t = 1.0 - actT / 0.42
-    bone3d hero, "spine_02", number(0 - 120.0 + t * 300.0), 0, 0
-    bone3d hero, "upperarm_r", number(0 - 420.0 + t * 980.0), 0, 0
-  }
   if actKind == 2 {
-    let t = 1.0 - actT / 0.78
-    bone3d hero, "spine_02", number(0 - 260.0 + t * 520.0), 0, number(140.0 - t * 280.0)
-    bone3d hero, "upperarm_r", number(0 - 620.0 + t * 1400.0), 0, 0
+    // heavy: a long wind-up over the shoulder, then straight down
+    let coil = 1.0 - t
+    if t < 0.42 {
+      bone3d hero, "spine_02", number(0 - 300.0 * coil), number(180.0 * coil), number(130.0 * coil)
+      bone3d hero, "upperarm_r", number(0 - 760.0 * coil), 0, 0
+    }
+    if t >= 0.42 {
+      let k = (t - 0.42) / 0.58
+      bone3d hero, "spine_02", number(0 - 174.0 + 560.0 * k), number(104.0 - 200.0 * k), 0
+      bone3d hero, "upperarm_r", number(0 - 441.0 + 1500.0 * k), 0, 0
+    }
+    return 0
   }
   if actKind == 3 {
-    let t = 1.0 - actT / 0.34
-    bone3d hero, "spine_02", number(0 - 60.0 + t * 160.0), 0, 0
-    bone3d hero, "upperarm_r", number(700.0 - t * 260.0), 0, 0
-  }
-  if actKind == 4 {
-    bone3d hero, "spine_02", 0, 0, 0
-    bone3d hero, "upperarm_r", 0, 0, 0
+    // thrust: short coil, long reach, slow recovery
+    if t < 0.3 {
+      let k = t / 0.3
+      bone3d hero, "spine_02", number(0 - 90.0 * k), 0, 0
+      bone3d hero, "upperarm_r", number(360.0 - 220.0 * k), 0, 0
+    }
+    if t >= 0.3 {
+      let k = (t - 0.3) / 0.7
+      bone3d hero, "spine_02", number(0 - 90.0 + 170.0 * k), 0, 0
+      bone3d hero, "upperarm_r", number(140.0 + 620.0 * k), 0, 0
+    }
+    return 0
   }
   return 0
 }
 
-// The moment in each swing where the blade is actually out in front.
-fn checkStrike(dt) {
+// The window in each swing where the blade is actually out in front.
+fn checkStrike() {
   if actT <= 0.0 { return 0 }
-  let hitNow = 0
-  if actKind == 1 {
-    let t = 1.0 - actT / 0.42
-    if t > 0.38 and t < 0.56 { hitNow = strikeArc(170.0, 0.35, 14) }
+  if swung { return 0 }
+  let t = 1.0 - actT / actMax
+  let got = 0
+
+  if actKind == 1 and t > 0.42 {
+    got = strikeArc(185.0, 0.3, 15, false)
+    swung = true
   }
-  if actKind == 2 {
-    let t = 1.0 - actT / 0.78
-    if t > 0.44 and t < 0.66 { hitNow = strikeArc(210.0, 0.0 - 0.2, 42) }
+  if actKind == 2 and t > 0.58 {
+    got = strikeArc(225.0, 0.0 - 0.25, 46, true)
+    swung = true
+    // the heavy earns a frame of white whether or not it connects
+    flash3d "#ffffff", 55
   }
-  if actKind == 3 {
-    let t = 1.0 - actT / 0.34
-    if t > 0.3 and t < 0.5 { hitNow = strikeArc(230.0, 0.72, 22) }
+  if actKind == 3 and t > 0.36 {
+    got = strikeArc(255.0, 0.75, 24, false)
+    swung = true
   }
-  if hitNow == 1 {
-    // the beat of nothing that makes a hit feel like contact
-    hitstop3d 70
-    shake3d 34, 140
+
+  if got == 1 {
+    hitstop3d 80
+    shake3d 38, 150
+    camShake = 0.12
   }
   return 0
 }
 
-// ---------------------------------------------------------------------
-// Input and movement.
-// ---------------------------------------------------------------------
-let camYaw = 0.0
-let kHeld = false
-let busy = false
+// =====================================================================
+// FOES
+// =====================================================================
+fn stepFoes(dt) {
+  let i = 0
+  while i < length(foes) {
+    let f = foes[i]
+    if f.hurt > 0.0 { foes[i].hurt = f.hurt - dt }
 
+    if f.down > 0.0 {
+      foes[i].down = f.down - dt
+      if foes[i].down <= 0.0 {
+        foes[i].hp = 100
+        anim3d f.rig, "Idle_Loop"
+        burst3d number(f.x), 90, number(f.z), "#6f8aa8", 20, 240
+      }
+    }
+
+    if f.down <= 0.0 and f.hurt <= 0.0 {
+      // close on him, but stop at sword length
+      let dx = hx - f.x
+      let dz = hz - f.z
+      let mag = sqrt(number(dx * dx + dz * dz))
+      if mag > 200.0 {
+        foes[i].x = f.x + dx / mag * 150.0 * dt
+        foes[i].z = f.z + dz / mag * 150.0 * dt
+        blend3d f.rig, "Idle_Loop", "Walk_Loop", 100
+      }
+      if mag <= 200.0 {
+        blend3d f.rig, "Idle_Loop", "Walk_Loop", 0
+      }
+    }
+
+    foes[i].x = foes[i].x + f.kx * dt
+    foes[i].z = foes[i].z + f.kz * dt
+    foes[i].kx = f.kx * 0.84
+    foes[i].kz = f.kz * 0.84
+
+    move3d f.rig, number(foes[i].x), 0, number(foes[i].z)
+    let ang = atan2(number((hx - foes[i].x) * 1000.0), number((hz - foes[i].z) * 1000.0))
+    turn3d f.rig, number(ang)
+    i = i + 1
+  }
+  return 0
+}
+
+// =====================================================================
+// CONTROL
+// =====================================================================
 fn control(dt) {
-  busy = actT > 0.0
+  let busy = actT > 0.0
 
   let fx = 0.0
   let fz = 0.0
@@ -292,17 +438,16 @@ fn control(dt) {
   if held("a") { fx = 0 - 1.0 }
   if held("d") { fx = 1.0 }
 
-  let top = 300.0
-  if held("shift") { top = 520.0 }
-  if busy { top = 0.0 }
+  let top = 320.0
+  if held("shift") { top = 560.0 }
 
   if fx != 0.0 or fz != 0.0 {
     let c = cos3(number(camYaw * 10.0)) / 1000.0
-    let s = sin3(number(camYaw * 10.0)) / 1000.0
-    let wx = fx * c + fz * s
-    let wz = fz * c - fx * s
+    let sn = sin3(number(camYaw * 10.0)) / 1000.0
+    let wx = fx * c + fz * sn
+    let wz = fz * c - fx * sn
     let mag = sqrt(number(wx * wx + wz * wz))
-    speed = speed + 1100.0 * dt
+    speed = speed + 1300.0 * dt
     if speed > top { speed = top }
     if busy == false {
       hx = hx + wx / mag * speed * dt
@@ -311,23 +456,21 @@ fn control(dt) {
     }
   }
   if fx == 0.0 and fz == 0.0 {
-    speed = speed * 0.8
+    speed = speed * 0.78
   }
 
-  // the lunge each ability carries him forward by
   if lunge > 0.0 {
     let push = lunge * dt * 4.0
     hx = hx + sin3(number(hyaw * 10.0)) / 1000.0 * push
     hz = hz + cos3(number(hyaw * 10.0)) / 1000.0 * push
-    lunge = lunge * 0.86
+    lunge = lunge * 0.85
     if lunge < 4.0 { lunge = 0.0 }
   }
 
-  // stay on the platform
-  if hx > 820.0 { hx = 820.0 }
-  if hx < 0 - 820.0 { hx = 0 - 820.0 }
-  if hz > 820.0 { hz = 820.0 }
-  if hz < 0 - 820.0 { hz = 0 - 820.0 }
+  if hx > 900.0 { hx = 900.0 }
+  if hx < 0 - 900.0 { hx = 0 - 900.0 }
+  if hz > 900.0 { hz = 900.0 }
+  if hz < 0 - 900.0 { hz = 0 - 900.0 }
 
   if busy == false {
     if held("j") { slash() }
@@ -345,76 +488,51 @@ fn control(dt) {
   return 0
 }
 
-// Locomotion, only while he is not committed to a swing.
+// Locomotion, only while he is free to move.
 fn legs() {
   if actT > 0.0 { return 0 }
-  if speed < 20.0 {
+  if speed < 24.0 {
     blend3d hero, "Sword_Idle", "Walk_Loop", 0
     return 0
   }
-  if speed < 300.0 {
-    blend3d hero, "Walk_Loop", "Jog_Fwd_Loop", number(speed / 300.0 * 100.0)
+  if speed < 320.0 {
+    blend3d hero, "Walk_Loop", "Jog_Fwd_Loop", number(speed / 320.0 * 100.0)
     return 0
   }
-  blend3d hero, "Jog_Fwd_Loop", "Sprint_Loop", number((speed - 300.0) / 220.0 * 100.0)
+  blend3d hero, "Jog_Fwd_Loop", "Sprint_Loop", number((speed - 320.0) / 240.0 * 100.0)
   return 0
 }
 
-fn stepDummies(dt) {
-  let i = 0
-  while i < length(dummies) {
-    let d = dummies[i]
-    if d.hurt > 0.0 { dummies[i].hurt = d.hurt - dt }
-    if d.down > 0.0 {
-      dummies[i].down = d.down - dt
-      if dummies[i].down <= 0.0 {
-        // back on their feet for another round
-        dummies[i].hp = 100
-        move3d d.rig, number(d.x), 0, number(d.z)
-        anim3d d.rig, "Idle_Loop"
-      }
-    }
-    // slide out from the knockback
-    dummies[i].x = d.x + d.kx * dt
-    dummies[i].z = d.z + d.kz * dt
-    dummies[i].kx = d.kx * 0.86
-    dummies[i].kz = d.kz * 0.86
-    move3d d.rig, number(dummies[i].x), 0, number(dummies[i].z)
-    // always face him
-    let ang = atan2(number((hx - dummies[i].x) * 1000.0), number((hz - dummies[i].z) * 1000.0))
-    turn3d d.rig, number(ang)
-    i = i + 1
-  }
-  return 0
-}
-
-// ---------------------------------------------------------------------
+// =====================================================================
 // HUD
-// ---------------------------------------------------------------------
+// =====================================================================
 fn hud() {
-  write "BLADE" at 16, 12 color LINE
+  // health, as a slab rather than a rounded bar
+  box 14, 14, 160, 10 color INK
+  box 16, 16, number(156.0 * hp / 100.0), 6 color "#cf4a3c"
+  write "BLADE" at 14, 30 color "#7f8da0"
 
   if charge > 0.02 {
-    box 165, 248, 150, 9 color INK
+    box 165, 246, 150, 10 color INK
     let hex = EDGE
-    if charge > 0.8 { hex = HEAT }
-    box 167, 250, number(146.0 * charge), 5 color hex
-    write "HEAVY" at 240, 236 color hex centered
+    if charge > 0.82 { hex = HEAT }
+    box 167, 248, number(146.0 * charge), 6 color hex
+    write "HEAVY" at 240, 234 color hex centered
   }
 
   if comboT > 0.0 and combo > 1 {
-    write text(combo) + " HIT" at 240, 60 color HEAT centered
+    write text(combo) + " HIT" at 240, 56 color GOLD centered
   }
 
-  write "J slash   K heavy   L thrust   SPACE dash" at 240, 258 color "#5d6b7c" centered
+  write "J slash   K heavy   L thrust   SPACE dash" at 240, 258 color "#55657a" centered
 }
 
-// ---------------------------------------------------------------------
+// =====================================================================
 buildArena()
 buildHero()
-spawnDummy(420.0, 520.0)
-spawnDummy(0 - 460.0, 430.0)
-spawnDummy(120.0, 0 - 520.0)
+spawnFoe(460.0, 540.0)
+spawnFoe(0 - 500.0, 420.0)
+spawnFoe(80.0, 0 - 560.0)
 
 every frame {
   let dt = 0.016
@@ -422,23 +540,30 @@ every frame {
   camYaw = camYaw + number(mousedx()) / 6.0
 
   control(dt)
-  if actT > 0.0 { actT = actT - dt }
+
+  if actT > 0.0 {
+    actT = actT - dt
+    if actT <= 0.0 { endAct() }
+  }
   if comboT > 0.0 {
     comboT = comboT - dt
     if comboT <= 0.0 { combo = 0 }
   }
+  if camShake > 0.0 { camShake = camShake - dt }
 
-  checkStrike(dt)
-  poseAction()
+  checkStrike()
+  poseAct()
   legs()
-  stepDummies(dt)
+  stepFoes(dt)
 
   move3d hero, number(hx), 0, number(hz)
   turn3d hero, number(hyaw * 10.0)
 
-  let cx = hx - sin3(number(camYaw * 10.0)) / 1000.0 * 400.0
-  let cz = hz - cos3(number(camYaw * 10.0)) / 1000.0 * 400.0
-  camera3d number(cx), 260, number(cz), number(camYaw * 10.0), 0 - 110
+  // camera sits behind and a little above, and drops lower while he runs
+  let back = 380.0 + speed * 0.18
+  let cx = hx - sin3(number(camYaw * 10.0)) / 1000.0 * back
+  let cz = hz - cos3(number(camYaw * 10.0)) / 1000.0 * back
+  camera3d number(cx), 250, number(cz), number(1800.0 - camYaw * 10.0), 0 - 95
 
   render3d
   hud()
