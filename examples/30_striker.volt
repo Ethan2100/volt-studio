@@ -203,6 +203,31 @@ Man = type { rig: int, x: float, z: float, yaw: float, side: int, keeper: bool, 
 let men = []
 let you = 0
 
+// ---------------------------------------------------------------------
+// Kits. The base characters are bare torsos with painted-on shorts, so a
+// shirt has to be geometry. Each piece is socketed to a bone, which means
+// it rides the skeleton through every animation without being skinned to
+// it - rigid, but at match distance it reads as a kit.
+//
+// Four pieces per player: shirt, two sleeves, shorts. Ten players is 40
+// extra draw calls on top of the stadium, which is the most this can cost
+// before the HD 520 budget starts to hurt.
+// ---------------------------------------------------------------------
+fn kitPiece(rig, bone, w, h, d, hex) {
+  let piece = block3d(0, 0, 0, w, h, d, hex)
+  solid3d piece, 0
+  socket3d rig, bone, piece
+  return piece
+}
+
+fn dress(rig, shirt, trim) {
+  kitPiece(rig, "spine_02", 52, 64, 32, shirt)
+  kitPiece(rig, "upperarm_l", 22, 34, 22, trim)
+  kitPiece(rig, "upperarm_r", 22, 34, 22, trim)
+  kitPiece(rig, "pelvis", 46, 30, 32, trim)
+  return 0
+}
+
 fn spawn(side, keeper, hx, hz, female) {
   let m = body
   if female { m = body2 }
@@ -210,6 +235,19 @@ fn spawn(side, keeper, hx, hz, female) {
   solid3d rid, 0
   clips3d rid, moves          // the characters carry no clips of their own
   anim3d rid, "Idle_Loop"
+  // home side in deep red, away in white, keepers in a colour neither
+  // outfield team wears so they read instantly
+  if keeper {
+    dress(rid, "#2fbf71", "#1c1f24")
+  }
+  if keeper == false {
+    if side == 1 {
+      dress(rid, "#c2322a", "#f2f4f6")
+    }
+    if side == 2 {
+      dress(rid, "#eef1f4", "#1b2a52")
+    }
+  }
   add Man { rig: rid, x: hx, z: hz, yaw: 0.0, side: side, keeper: keeper, hx: hx, hz: hz, speed: 0.0, kickT: 0.0, foot: 0.0, cool: 0.0 } to men
   return length(men) - 1
 }
