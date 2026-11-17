@@ -71,9 +71,76 @@ fn goalFrame(z, facing) {
   block3d(post, GOAL_H / 2, z + facing * 45, 10, GOAL_H, 90, "#c8d4dd")
 }
 
-fn stands(z, h) {
-  block3d(0 - PITCH_X - 900, h / 2, z, 700, h, 2600, "#3b4654")
-  block3d(PITCH_X + 900, h / 2, z, 700, h, 2600, "#3b4654")
+// ---------------------------------------------------------------------
+// The stadium. Every shape here is one draw call - Volt has no instancing
+// yet - so the whole bowl is kept near 120 blocks. That is the budget an
+// Intel HD 520 can carry alongside ten animated players.
+//
+// Colours come off a floodlit pitch at night: turf green, floodlight
+// white, concrete grey, and one warm seat colour so the bowl reads as
+// occupied rather than empty.
+// ---------------------------------------------------------------------
+let SEAT_A = "#c2412f"
+let SEAT_B = "#e0e4e8"
+
+// One bank of seating: three tiers stepping back and up from the pitch.
+fn standSide(side, span) {
+  let tier = 0
+  while tier < 3 {
+    let h = 260.0 + tier * 240.0
+    let out = PITCH_X + 520.0 + tier * 300.0
+    let y = h / 2 + tier * 90.0
+    block3d(side * out, y, 0, 300, h, span, "#5c646e")
+    // the seated crowd, as a band of colour along the front of each tier
+    let seat = SEAT_A
+    if tier % 2 == 1 { seat = SEAT_B }
+    block3d(side * (out - 170.0), y + h / 2 - 40.0, 0, 60, 90, span - 100, seat)
+    tier = tier + 1
+  }
+  // roof over the top tier
+  block3d(side * (PITCH_X + 1100.0), 1180, 0, 1500, 40, span + 200, "#39404a")
+  block3d(side * (PITCH_X + 1820.0), 640, 0, 70, 1120, span + 200, "#2d343c")
+}
+
+// Behind each goal: shallower, so it does not wall off the view down the pitch.
+fn standEnd(dir, wide) {
+  let tier = 0
+  while tier < 2 {
+    let h = 240.0 + tier * 220.0
+    let out = PITCH_Z + 520.0 + tier * 300.0
+    let y = h / 2 + tier * 80.0
+    block3d(0, y, dir * out, wide, h, 300, "#5c646e")
+    let seat = SEAT_B
+    if tier % 2 == 1 { seat = SEAT_A }
+    block3d(0, y + h / 2 - 40.0, dir * (out - 170.0), wide - 100, 90, 60, seat)
+    tier = tier + 1
+  }
+  block3d(0, 1000, dir * (PITCH_Z + 1050.0), wide + 200, 40, 1400, "#39404a")
+}
+
+// Floodlight pylon: a lattice mast with a lamp head, one at each corner.
+fn pylon(sx, sz) {
+  let x = sx * (PITCH_X + 1500.0)
+  let z = sz * (PITCH_Z + 1200.0)
+  cyl3d(x, 1100, z, 40, 2200, "#4a515b")
+  block3d(x, 2280, z, 420, 150, 120, "#2a3038")
+  let n = 0
+  while n < 3 {
+    block3d(x - 140.0 + n * 140.0, 2280, z - 70.0, 110, 110, 20, "#fdf6dd")
+    n = n + 1
+  }
+  lamp3d(number(x * 0.55), 2100, number(z * 0.55), "#fff4d6", 85, 7000)
+}
+
+fn buildStadium() {
+  standSide(0 - 1, PITCH_Z * 2 + 900)
+  standSide(1, PITCH_Z * 2 + 900)
+  standEnd(0 - 1, PITCH_X * 2 + 700)
+  standEnd(1, PITCH_X * 2 + 700)
+  pylon(0 - 1, 0 - 1)
+  pylon(1, 0 - 1)
+  pylon(0 - 1, 1)
+  pylon(1, 1)
 }
 
 fn buildPitch() {
@@ -104,7 +171,7 @@ fn buildPitch() {
 
   goalFrame(0 - PITCH_Z, 0 - 1)
   goalFrame(PITCH_Z, 1)
-  stands(0, 600)
+  buildStadium()
   lamp3d(0 - 1800, 1400, 0 - 2200, "#fff6e0", 70, 5200)
   lamp3d(1800, 1400, 2200, "#fff6e0", 70, 5200)
 }
@@ -451,7 +518,73 @@ fn aiThink(i, dt) {
 // YOU
 // =====================================================================
 let charge = 0.0
+let stamina = 100.0
 let camYaw = 0.0
+let camPitch = 12.0
+
+// Camera modes, cycled with C. eFootball ships a dozen presets; these are
+// the four that actually change how you play rather than how it looks.
+//   0 broadcast  high and wide, tracking the ball - the default to watch
+//   1 third      behind your player, the one to dribble with
+//   2 first      at head height, looking where the player faces
+//   3 tactical   straight down, for reading the shape
+let camMode = 0
+let camNames = ["BROADCAST", "THIRD", "FIRST", "TACTICAL"]
+let camHeld = false
+
+fn cycleCam() {
+  if held("c") {
+    if camHeld == false {
+      camHeld = true
+      camMode = camMode + 1
+      if camMode > 3 { camMode = 0 }
+      msg = camNames[camMode]
+      msgT = 1.0
+    }
+  }
+  if held("c") == false { camHeld = false }
+  return 0
+}
+
+fn placeCamera() {
+  let m = men[you]
+  // In first person the camera sits inside your own skull, so your head
+  // fills the bottom of the frame. Hide your model while that view is on.
+  if camMode == 2 {
+    show3d m.rig, 0
+  }
+  if camMode != 2 {
+    show3d m.rig, 1
+  }
+  let bx = ballX()
+  let bz = ballZ()
+  let fx = sin3(number(m.yaw * 10.0)) / 1000.0
+  let fz = cos3(number(m.yaw * 10.0)) / 1000.0
+
+  if camMode == 0 {
+    // Broadcast: sits off to the side at height and slides along with play,
+    // which is the view every televised match is shot from.
+    let tx = bx * 0.35
+    let tz = bz * 0.85
+    camera3d number(tx), 1450, number(tz - 1900.0), 0, 0 - 240
+    return 0
+  }
+  if camMode == 1 {
+    let cx = m.x - sin3(number(camYaw * 10.0)) / 1000.0 * 620.0
+    let cz = m.z - cos3(number(camYaw * 10.0)) / 1000.0 * 620.0
+    camera3d number(cx), 390, number(cz), number(camYaw * 10.0), 0 - number(camPitch * 10.0)
+    return 0
+  }
+  if camMode == 2 {
+    // First person: at the player's own eyeline, just ahead of the head so
+    // the camera is not inside their own skull.
+    camera3d number(m.x + fx * 26.0), 168, number(m.z + fz * 26.0), number(m.yaw * 10.0), 0
+    return 0
+  }
+  // Tactical: straight down over the ball.
+  camera3d number(bx * 0.6), 3400, number(bz * 0.6 - 1100.0), 0, 0 - 680
+  return 0
+}
 
 fn playerThink(dt) {
   let m = men[you]
@@ -463,7 +596,15 @@ fn playerThink(dt) {
   if held("d") { fx = 1.0 }
 
   let top = 560.0
-  if held("shift") { top = 760.0 }
+  if held("shift") and stamina > 1.0 {
+    top = 760.0
+    stamina = stamina - dt * 14.0
+  }
+  if held("shift") == false {
+    stamina = stamina + dt * 7.0
+  }
+  if stamina > 100.0 { stamina = 100.0 }
+  if stamina < 0.0 { stamina = 0.0 }
 
   if fx != 0.0 or fz != 0.0 {
     // move relative to where the camera is looking
@@ -555,27 +696,100 @@ fn outOfPlay() {
 // =====================================================================
 // HUD
 // =====================================================================
-fn hud() {
-  box 0, 0, 480, 26 color "#0d1420"
-  write "YOU " + text(score1) + "  -  " + text(score2) + " CPU" at 240, 8 centered
+// The match HUD. Same job as a football game's: who is winning, how long
+// is left, where everyone is, and how hard you are about to hit it.
+// Drawn on the 2D layer over the 3D, at the canvas size of 480x270.
+//
+// Palette is taken off the pitch itself rather than a UI kit: floodlight
+// white on a near-black slate, turf green for the radar, and one warm
+// amber that only ever means "this is you".
+let INK = "#0b0f14"
+let LINE = "#f2f6f8"
+let MINE = "#f0a830"
+let THEM = "#4aa3df"
+let TURF = "#17351d"
+
+fn scoreboard() {
+  // One slab, left-aligned like a broadcast bug rather than centred.
+  box 12, 10, 196, 26 color INK
+  box 12, 10, 5, 26 color MINE
+  write "YOU" at 26, 18 color LINE
+  write text(score1) + " - " + text(score2) at 104, 18 color LINE centered
+  write "CPU" at 170, 18 color LINE
+
   let ss = text(secs)
   if secs < 10 { ss = "0" + text(secs) }
-  write text(mins) + ":" + ss at 40, 8
+  box 208, 10, 54, 26 color INK
+  write text(mins) + ":" + ss at 235, 18 color LINE centered
+}
 
-  // power bar, only while you are winding one up
-  if charge > 0.02 {
-    box 180, 248, 120, 10 color "#0d1420"
-    box 182, 250, number(116.0 * charge), 6 color "#f5c243"
-    write "POWER" at 240, 236 centered
+// Radar: the whole pitch squashed into a corner box, every player a dot.
+// This is the one HUD element that genuinely changes how you play, because
+// it is the only way to see a run behind you.
+fn radar() {
+  let rx = 12.0
+  let ry = 206.0
+  let rw = 104.0
+  let rh = 52.0
+  box number(rx), number(ry), number(rw), number(rh) color TURF
+  box number(rx + rw / 2.0 - 1.0), number(ry), 1, number(rh) color "#2c5c36"
+
+  let i = 0
+  while i < length(men) {
+    let m = men[i]
+    // pitch runs -PITCH_X..PITCH_X across and -PITCH_Z..PITCH_Z down
+    let px = rx + (m.z + PITCH_Z) / (PITCH_Z * 2.0) * rw
+    let py = ry + rh - (m.x + PITCH_X) / (PITCH_X * 2.0) * rh
+    let hex = THEM
+    if m.side == 1 { hex = "#d8dde2" }
+    if i == you { hex = MINE }
+    let sz = 3.0
+    if i == you { sz = 5.0 }
+    box number(px - sz / 2.0), number(py - sz / 2.0), number(sz), number(sz) color hex
+    i = i + 1
   }
+  let bpx = rx + (ballZ() + PITCH_Z) / (PITCH_Z * 2.0) * rw
+  let bpy = ry + rh - (ballX() + PITCH_X) / (PITCH_X * 2.0) * rh
+  box number(bpx - 1.0), number(bpy - 1.0), 3, 3 color "#ffffff"
+}
+
+// Power gauge, at the bottom edge where your eyes already are when you are
+// lining a shot up. Only ever on screen while you are actually charging.
+fn powerGauge() {
+  if charge <= 0.02 { return 0 }
+  let w = 150.0
+  let x = 240.0 - w / 2.0
+  box number(x), 250, number(w), 9 color INK
+  let hex = MINE
+  if charge > 0.85 { hex = "#e8513c" }
+  box number(x + 2.0), 252, number((w - 4.0) * charge), 5 color hex
+  return 0
+}
+
+// Who you are controlling, and whether you have the ball. The real games
+// put a cursor in the 3D scene; a name plate is the honest 2D version.
+fn playerPlate() {
+  box 376, 206, 92, 52 color INK
+  write camNames[camMode] at 422, 214 color "#8e9aa6" centered
+  let state = "CHASING"
+  if ballOwner == you { state = "ON THE BALL" }
+  write state at 422, 230 color LINE centered
+  // stamina stands in as how fresh your legs are: it drains as you sprint
+  box 388, 246, 68, 5 color "#232a33"
+  box 388, 246, number(68.0 * stamina / 100.0), 5 color MINE
+}
+
+fn hud() {
+  scoreboard()
+  radar()
+  powerGauge()
+  playerPlate()
 
   if msgT > 0.0 {
-    write msg at 240, 110 centered
+    write msg at 240, 96 color LINE centered
   }
 
-  if ballOwner == you {
-    write "SPACE shoot    E pass" at 240, 256 centered
-  }
+  write "C camera   SPACE shoot   E pass   SHIFT sprint" at 240, 264 color "#6f7b87" centered
 }
 
 // =====================================================================
@@ -617,7 +831,7 @@ every frame {
     if men[i].z > PITCH_Z + 100 { men[i].z = PITCH_Z + 100 }
     if men[i].z < 0 - PITCH_Z - 100 { men[i].z = 0 - PITCH_Z - 100 }
     move3d men[i].rig, number(men[i].x), 0, number(men[i].z)
-    turn3d men[i].rig, number(men[i].yaw)
+    turn3d men[i].rig, number(men[i].yaw * 10.0)
     legs(i)
     swingLeg(i)
     i = i + 1
@@ -628,11 +842,8 @@ every frame {
   checkGoal()
   outOfPlay()
 
-  // broadcast camera: behind you, looking down the pitch
-  let m = men[you]
-  let cx = m.x - sin3(number(camYaw * 10.0)) / 1000.0 * 620.0
-  let cz = m.z - cos3(number(camYaw * 10.0)) / 1000.0 * 620.0
-  camera3d number(cx), 390, number(cz), number(camYaw), 14
+  cycleCam()
+  placeCamera()
 
   render3d
   hud()
