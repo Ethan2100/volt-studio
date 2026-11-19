@@ -50,6 +50,8 @@ contextBridge.exposeInMainWorld('volt', {
   pluginsList: () => ipcRenderer.invoke('plugins:list'),
   pluginsRescan: () => ipcRenderer.invoke('plugins:rescan'),
   pluginsReadFile: (opts) => ipcRenderer.invoke('plugins:readFile', opts),
+  pluginsReadAsset: (opts) => ipcRenderer.invoke('plugins:readAsset', opts),
+  pluginsListAssets: (opts) => ipcRenderer.invoke('plugins:listAssets', opts),
   pluginsOpenFolder: () => ipcRenderer.invoke('plugins:openFolder'),
   pluginsPanelUrl: (opts) => ipcRenderer.invoke('plugins:panelUrl', opts),
 

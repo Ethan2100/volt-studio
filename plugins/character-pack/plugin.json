@@ -1,0 +1,13 @@
+{
+  "name": "character-pack",
+  "type": "library",
+  "version": "1.0.0",
+  "description": "The characters World Studio can place: coworker_cyan, coworker_gold, coworker_red, hunter, raider, raider2 and ninja - Kenney's CC0 Blocky Characters, recoloured for The Nightshift and 99 Nights, each with 27 animations (idle, walk, sprint, attack-melee-right, holding-right-shoot, die, pick-up, emote-yes ...) - plus box animals (wolf, bear, deer) with no animations. The .glb files live in this plugin folder, so `model3d hunter = \"hunter.glb\"` finds them from any program without copying anything, and any other .glb dropped in here shows up in World Studio's Character list. See README.md.",
+  "snippets": [
+    {
+      "file": "characters.volt",
+      "label": "Characters (walk, turn, animate)",
+      "description": "Normally used as `import \"characters.volt\"`. Turns a placed model into an actor that walks to a point, turns to face the way it's going, and plays idle / walk / sprint to match."
+    }
+  ]
+}

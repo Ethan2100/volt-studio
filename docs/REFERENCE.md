@@ -17,6 +17,7 @@ every 500ms {
 1. [Scripts and web pages](#scripts-and-web-pages)
 1. [Lists](#lists)
 1. [Games: canvas, sprites and keys](#games-canvas-sprites-and-keys)
+1. [3D game files: the player and World Studio](#3d-game-files-the-player-and-world-studio)
 1. [Game types (structs)](#game-types-structs)
 2. [How a Volt program runs](#how-a-volt-program-runs)
 3. [Comments](#comments)
@@ -409,6 +410,10 @@ In your program **1 unit = 1 cm** (a 2 m corridor is 200) and **y is up**. **Ang
 | `shine3d id, rough, metal` | Makes a surface glossy or metal. Both 0-100: rough 0 is a mirror and 100 is chalk, metal 100 is solid metal. Works on blocks, balls, cylinders and models |
 | `fx3d bloom, vignette, grain` | The cinematic look. Bloom makes bright things glow (try 60), vignette darkens the edges (40), grain adds film noise (10). It also turns on film tone-mapping and soft shadows. All 0 turns it off |
 | `burst3d x, y, z, "#ff8844", count, speed` | A burst of glowing sparks that fly out and fall. Count up to 300, speed in cm per second. With `fx3d` bloom on they really glow |
+| `slash3d x, y, z, yaw, size, "#colour"` | A curved blade arc that sweeps and fades - the anime slash. `yaw` is tenths of a degree (which way it faces), `size` is how big it is across, in cm |
+| `magic3d x, y, z, size, "#colour", ms` | A magic circle lying on the ground: two rings turning opposite ways with ticks round the rim, for `ms` milliseconds |
+| `shock3d x, y, z, size, "#colour"` | A ring that races outwards and fades - an impact, a landing, a blast |
+| `beam3d x1, y1, z1, x2, y2, z2, thick, "#colour"` | A glowing beam from one point to another, thinning as it fades |
 | `render3d` | Draws the 3D world and clears the 2D layer. Call it once per frame |
 | `mousedx()` `mousedy()` | How far the mouse moved since last asked. The first click on the page captures the mouse (Esc lets go) |
 | `locked3d()` | 1 while the mouse is captured |
@@ -429,6 +434,28 @@ In your program **1 unit = 1 cm** (a 2 m corridor is 200) and **y is up**. **Ang
 | `anim3d id, "walk"` | Plays one of the model's animations on a loop. Part of the name is enough. |
 
 `move3d`, `turn3d`, `show3d` and `glow3d` work on models too.
+
+### The anime effects: slash3d, magic3d, shock3d, beam3d
+
+These four are one-shot: fire one and forget it. Each makes a glowing
+shape that grows, turns or races outwards, fades, and tidies itself away -
+nothing to keep hold of, nothing to clean up.
+
+```volt
+if held("q") {
+  slash3d px, 120, pz, yaw, 240, "#dff3ff"      // a sword arc, facing where you look
+}
+if held("e") {
+  magic3d px, 0, pz, 340, "#9d6bff", 1600       // a circle on the ground for 1.6s
+}
+```
+
+They are drawn as light rather than as solid things, so `fx3d` bloom makes
+them glow properly - try `fx3d 70, 30, 6`. Sizes are in cm like everything
+else in 3D, and `yaw` is tenths of a degree, so a value you already keep
+for the camera or a character can be passed straight in.
+
+`examples/32_anime_effects.volt` puts all four on one key each.
 
 ### Mouse look, distances and angles
 
@@ -557,6 +584,226 @@ bars3d 0
 ```
 
 `shake3d` deliberately ignores slow motion, so a slow-motion impact still hits hard.
+
+## 3D game files: the player and World Studio
+
+Everything above builds a 3D world. This part is about the person walking
+around in it - and about the shape of file World Studio writes, so that
+building the world in the editor and writing the game by hand don't fight
+over the same file.
+
+### The three parts of a game file
+
+```volt
+#html
+title "Cell Run"
+canvas 320, 180
+
+import "game.volt"      // 1. the player
+
+// ---- 2. settings: change any of these ----
+WALK_SPEED = 420
+JUMP_POWER = 460
+
+// >>> world-studio
+world3d "#05060a" fog 1800 ambient 10 shadows
+let Floor = block3d(0, -5, 0, 1600, 10, 1600, "#5d626b")
+clearSolids()
+solid(0, 0, 800, 800, -10, 0)
+playerStart(0, 600, 0)
+// <<< world-studio
+
+// ---- 3. your game ----
+every frame {
+  playerStep()
+  render3d
+  write "Hello" at 10, 10 shadow
+}
+```
+
+The two marker lines matter: **World Studio rewrites only what is between
+them.** Press *Save world* in the World Studio tab as often as you like -
+your settings above and your game below are left exactly as you wrote
+them. A file with no markers is left alone, and World Studio offers to
+start a game file instead.
+
+`examples/30_world_studio_game.volt` is a small finished game in this
+shape: collect three cells, one of which is up a stack of crates and one
+behind a beam you have to crouch under.
+
+### The player: import "game.volt"
+
+`import "game.volt"` brings in the **game kit**, the library plugin that
+holds the first-person player. Volt Studio finds it on its own (library
+plugins are searched after your own folder), so there's nothing to copy.
+For a `.volt` file that has to compile somewhere else - the command line,
+someone else's machine - open the Library tab, paste the *Game kit*
+snippet into the file and delete the import line.
+
+| Function | What it does |
+|---|---|
+| `playerStep()` | One frame of being a person: mouse look, walking, jumping, falling, and the camera. Call it first in `every frame`, before `render3d` |
+| `playerStart(x, z, yaw)` | Puts the player somewhere, facing a direction (yaw in tenths of a degree). Call it once, after the world is built |
+| `solid(x, z, halfWidth, halfDepth, bottom, top)` | Adds one box the player bumps into. Knowing the `top` means they can stand on it; knowing the `bottom` means a ceiling is something they walk *under* |
+| `clearSolids()` | Forgets every solid box - call it before building a new level |
+| `playerNear(x, z, howClose)` | True when the player is within `howClose` cm of a point on the ground |
+| `playerFacing(x, z, spread)` | True when they're looking at a point, within `spread` tenths of a degree |
+| `blocked(x, z, feet)` / `groundHeight(x, z, feet)` | The two questions the player asks every frame, if you want to ask them yourself (for an enemy, say) |
+
+The player's own state is there to read - and to change, for a teleport
+or a cutscene:
+
+| Variable | What it is |
+|---|---|
+| `PLAYER_X` `PLAYER_Y` `PLAYER_Z` | Where they are. `PLAYER_Y` is their **feet**, not their eyes |
+| `PLAYER_YAW` `PLAYER_PITCH` | Where they're looking, in tenths of a degree |
+| `PLAYER_FALL` | How fast they're moving up (+) or down (-) |
+| `PLAYER_GROUNDED` | True while they're standing on something |
+| `PLAYER_MOVING` `PLAYER_RUNNING` `PLAYER_CROUCHING` | What they're doing right now - handy for footstep sounds and stamina |
+
+### Settings
+
+Every setting is a plain variable, so change it with one line **after**
+the import (no `let` - it already exists). Change one in the middle of the
+game and it takes effect straight away, which is how you do a speed
+power-up or a cutscene.
+
+| Setting | Default | What it does |
+|---|---|---|
+| `WALK_SPEED` | 400 | How fast you walk, in cm a second |
+| `RUN_SPEED` | 750 | ... while holding Shift |
+| `CROUCH_SPEED` | 180 | ... while holding Ctrl |
+| `MOUSE_SPEED` | 3 | How fast the mouse turns the camera |
+| `INVERT_LOOK` | false | true = pushing the mouse up looks down |
+| `LOOK_LIMIT` | 850 | How far up and down you can look (850 = 85°) |
+| `EYE_HEIGHT` | 165 | How tall the player is, in cm |
+| `CROUCH_HEIGHT` | 95 | ... while crouching |
+| `JUMP_POWER` | 430 | How hard they jump, in cm a second (about 60 cm high) |
+| `GRAVITY` | 1500 | How hard they fall, in cm a second per second |
+| `STEP_HEIGHT` | 45 | Anything this low is a step, not a wall |
+| `PLAYER_WIDTH` | 25 | Half the player's width, in cm |
+| `HEAD_BOB` | 3 | How much the view bounces as they walk (0 = off) |
+| `CAN_RUN` `CAN_JUMP` `CAN_CROUCH` | true | Turn a move off for this game |
+| `CAN_MOVE` | true | false freezes the player, for a cutscene or a menu |
+
+The controls that come with it: **W A S D** (or the arrow keys) to walk,
+**mouse** to look, **Shift** to run, **Space** to jump, **Ctrl** to crouch.
+Clicking the page captures the mouse and Escape lets it go.
+
+### Characters
+
+Volt Studio comes with rigged characters - the **character pack** plugin -
+so a game can have people in it without finding models first. They live in
+the plugin's own folder, which `model3d` searches after your own, so this
+works from any `.volt` file with nothing to copy:
+
+```volt
+model3d hunter_model = "hunter.glb"
+let guard = put3d(hunter_model, 0, 0, -400, 0, 100)
+anim3d guard, "sprint"
+```
+
+The people are `coworker_cyan`, `coworker_gold`, `coworker_red`, `hunter`,
+`raider`, `raider2` and `ninja`. Each one has the same 27 animations:
+static, idle, walk, sprint, sit, drive, die, pick-up, emote-yes, emote-no,
+holding-right, holding-left, holding-both, holding-right-shoot,
+holding-left-shoot, holding-both-shoot, attack-melee-right,
+attack-melee-left, attack-kick-right, attack-kick-left, interact-right,
+interact-left, and five wheelchair ones.
+
+There are also three animals - `wolf`, `bear` and `deer` - box models
+with no animations. The people are Kenney's *Blocky Characters*, recoloured
+(CC0); the animals were built in Blender for 99 Nights. (The detailed
+trees and rocks in that game are a different thing: Quaternius's *Stylized
+Nature MegaKit*, which lives with the example, not here.)
+
+Any other `.glb` dropped into the `character-pack` plugin's folder joins
+the list - World Studio reads the folder for the **Who** dropdown and reads
+the animation names out of the model itself for **Doing**, so a pack with
+its own naming (`Idle`, `Run`, `Attack`) works with nothing to change.
+
+`import "characters.volt"` adds the part that makes them look alive: an
+**actor** walks to a point, turns to face the way it's going, and plays
+idle / walk / sprint to match, instead of sliding about in a T-pose.
+
+| Function | What it does |
+|---|---|
+| `actor(model, x, z, yaw)` | Starts looking after a model you placed with `put3d`. Gives back its actor number |
+| `actorWalkTo(i, x, z, speed)` | Sends it to a point at that speed (cm a second). Pass the player's position every frame for a chase |
+| `actorStop(i)` | Stops it where it stands |
+| `actorStep(i)` / `actorsStep()` | One frame for one actor, or for all of them. Call it in `every frame` |
+| `actorPlay(i, "attack-melee-right")` | Plays an animation, and doesn't restart it while it is already playing |
+| `actorNear(i, x, z, howClose)` | True when it has reached a point - "has it caught me yet" |
+
+`ACTOR_WALK` (260) is the speed it starts sprinting at, and `ACTOR_TURN`
+(90) is how fast it turns, in degrees a second.
+
+`examples/31_characters_and_scripts.volt` is a small game built this way:
+a guard chases you, a campfire burns, and standing by the fire sends the
+guard back to its post.
+
+### World Studio
+
+The **World Studio** tab is the 3D editor: a viewport with the parts you
+can place down the left, the things in your world and their properties
+down the right, and *Play* to walk around what you've built with the same
+walking, jumping and crouching the finished game has.
+
+- **Parts** - click one to drop it in front of the camera, or drag it into the world. A part marked *Solid* stops the player, can be stood on, and gets a `solid(...)` line; one that isn't is scenery.
+- **Grid** rounds everything off so walls line up (and turning snaps to 15°).
+- **Save world** writes the world into the `.volt` file in the editor, between the markers.
+- The **⋯** menu has game lighting, reading a world back out of a file, the raw Volt code, starting over, and a short *How do I...?* page.
+
+### Things inside things, scripts and effects
+
+The **Things** list is a tree, like Roblox's Explorer: drag a row onto
+another row to put it inside. Move or turn the outer thing and everything
+inside comes along, and the saved world does the same with a group:
+
+```volt
+let Sword_group = group3d(100, 90, -200)
+join3d Sword, Sword_group
+join3d Gem, Sword_group
+```
+
+Two kinds of thing go *inside* a part and have no body of their own:
+
+- A **Script** is plain Volt. It becomes a function named after it, like
+  `fn script_Swing()`, and runs when you choose: at the start, every frame,
+  when the player is close, or when they press **E** close by. The part it
+  sits in is available by name - a Script inside `Sword` can use `Sword`,
+  which is that part's number in the game. A variable you invent needs its
+  own `let` line in the game part of the file first.
+- An **Effect** is one of the glowing things above: a burst of specks, a
+  sword **slash**, a **magic circle**, a **shockwave** or a **beam**. Each
+  kind has a colour and the few numbers it needs, and a slash or a beam
+  fires the way the part it sits in is turned. It becomes `fn vfx_Flames()`
+  and runs on the same choices - including *only when something else calls
+  it*, so a script can set it off with `vfx_Slash()`. A repeating effect
+  has a beat: every 6 frames, say. Presets are small `.voltfx` files, so
+  one can be imported, copied and shared between projects.
+
+World Studio writes two functions to drive them, and the game file it makes
+calls both:
+
+```volt
+worldStart()           // once, when the game starts
+every frame {
+  playerStep()
+  worldStep()          // the scripts and effects in the world above
+  render3d
+}
+```
+
+Scripts and effects run in the finished game, not in the panel's **Play** -
+Play is for walking the world and checking that it fits together.
+
+A world is stored in the file as one `// world-studio: {...}` line inside
+the markers - that's how the editor reads it back with everything it knows
+(names, colours, what's hidden) intact. Even without that line, World
+Studio can read a world out of plain `block3d` / `ball3d` / `cyl3d` /
+`lamp3d` / `put3d` lines, which is how it opens a game someone wrote by
+hand.
 
 ## Game types (structs)
 
@@ -1012,8 +1259,8 @@ import "mathlib.volt"
 print "5 squared is " + square(5)
 ```
 
-- `import "..."` must be its own line, written exactly like that (a literal file name in quotes - no variables).
-- The file is found the same way a `draw`/`image`/`audio` file is: in the same folder as the importing `.volt` file.
+- `import "..."` must be its own line, written exactly like that (a literal file name in quotes - no variables). A `// comment` after it is fine.
+- The file is found the same way a `draw`/`image`/`audio` file is: in the same folder as the importing `.volt` file - and then in every library plugin's folder, so a kit a plugin ships (like the game kit's `game.volt`) can be imported without copying it anywhere. Your own folder always wins, so a local copy of the same name replaces the plugin's.
 - Importing the same file more than once (directly, or through two other imports) is fine - the repeat is skipped, so two files that both import a shared library don't collide.
 - An imported file should be plain code (functions, types, raw `#`/`##` lines) with no `#target` line of its own - like a library plugin's snippet, it's meant to be pasted into a program that already picked its target.
 - Error messages after an import point at the merged program, so a mistake inside an imported file may report a line number that doesn't match that file directly - if a message looks off by a few lines, check the imported file too.

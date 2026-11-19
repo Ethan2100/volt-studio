@@ -1,0 +1,13 @@
+{
+  "name": "game-kit",
+  "type": "library",
+  "version": "1.0.0",
+  "description": "The first-person player for Volt 3D games: mouse look, walking, running, crouching, jumping, gravity, head bob, and solid boxes that stop you or that you can climb onto. Written for `import \"game.volt\"` - World Studio adds that line for you, and every setting (speed, jump height, how tall the player is) is a plain variable you change with one line. Paste the snippet in instead if you want a .volt file that works outside Volt Studio.",
+  "snippets": [
+    {
+      "file": "game.volt",
+      "label": "Game kit (player, gravity, collision)",
+      "description": "Normally used as `import \"game.volt\"`. Paste it in only when the file has to stand on its own - the settings at the top are the same either way."
+    }
+  ]
+}
