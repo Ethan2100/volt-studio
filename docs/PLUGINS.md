@@ -32,9 +32,23 @@ There are three plugin `type`s. Pick exactly one per plugin folder.
 
 Each `snippets` entry is a `.volt` file (relative to the plugin folder)
 shown as a card in the **Library** tab. Clicking a card inserts that
-file's contents at the cursor - it's a paste, not an import, so write the
-snippet as something a person can drop into their own program (functions,
-raw-code blocks, `##` top-of-file code), not a program on its own.
+file's contents at the cursor, so write the snippet as something a person
+can drop into their own program (functions, raw-code blocks, `##`
+top-of-file code), not a program on its own.
+
+A library plugin's folder is also searched by `import "name.volt"`, after
+the program's own folder. So the same file can be used either way: pasted
+in from the Library tab, or imported with one line and left where it is.
+`plugins/game-kit/game.volt` is the kit World Studio writes an import for
+- the first-person player, with its settings at the top. Keep snippet file
+names distinctive (`game.volt`, not `kit.volt`) so one plugin's import
+can't be answered by another's file.
+
+Besides `.volt` snippets, a library plugin can ship assets its code refers
+to - the `character-pack` plugin keeps the rigged `.glb` characters that
+`model3d hunter = "hunter.glb"` picks up. A sandboxed panel can ask the
+editor for one of those models with the `asset` message below, so a panel
+can show a character without any filesystem access of its own.
 
 See `plugins/vfx-engine/engine.volt` for a real example: a canvas particle
 engine written with Volt's `#` raw-code escape hatch, plus a small set of
@@ -87,9 +101,11 @@ parent.postMessage({ voltPanel: 1, type: 'insert',  code }, '*');             //
 parent.postMessage({ voltPanel: 1, type: 'replace', code, run: false }, '*'); // replaces the whole file (Ctrl+Z undoes it); run: true also runs it
 parent.postMessage({ voltPanel: 1, type: 'toast', text: 'Saved', error: false }, '*');
 parent.postMessage({ voltPanel: 1, type: 'wide', on: true }, '*');            // asks for a much wider side pane (on: false gives it back)
+parent.postMessage({ voltPanel: 1, type: 'asset', req: 2, plugin: 'character-pack', file: 'hunter.glb' }, '*');
+                                                                             // replies { voltHost: 1, type: 'asset', req: 2, base64 } - .glb only, from that plugin's own folder
 
 // Volt Studio -> panel
-addEventListener('message', (e) => { if (e.data && e.data.voltHost === 1) { /* hello / source */ } });
+addEventListener('message', (e) => { if (e.data && e.data.voltHost === 1) { /* hello / source / asset */ } });
 ```
 
 If a panel gets no `hello` reply it is running in an older Volt Studio (or

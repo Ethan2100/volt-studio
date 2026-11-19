@@ -200,7 +200,8 @@ const PAGE_WORDS = ['button', 'title', 'html'];
 // aren't keywords, so 'let box = 3' or 'fn draw()' in older programs still work.
 const GAME_WORDS = ['canvas', 'image', 'sprite', 'draw', 'paint', 'box', 'write', 'camera', 'touchpad', 'music', 'save', 'audio', 'sound', 'volume',
   'world3d', 'clear3d', 'camera3d', 'render3d', 'move3d', 'turn3d', 'show3d', 'glow3d', 'torch3d', 'model3d', 'anim3d', 'fx3d', 'shine3d', 'burst3d', 'look3d',
-  'toon3d', 'shot3d', 'lookat3d', 'shake3d', 'slowmo3d', 'hitstop3d', 'bars3d', 'sky3d', 'join3d'];
+  'toon3d', 'shot3d', 'lookat3d', 'shake3d', 'slowmo3d', 'hitstop3d', 'bars3d', 'sky3d', 'join3d',
+  'slash3d', 'magic3d', 'shock3d', 'beam3d'];
 const LIST_WORDS = ['add', 'remove'];
 const NOT_A_COMMAND = ['=', '(', '[', '+=', '-=', '*=', '/=', 'eof'];
 
@@ -766,9 +767,11 @@ function parse(tokens) {
       // toon3d bands, outline, rim      shot3d x, y, z, atx, aty, atz, ms      lookat3d x, y, z
       // shake3d power, ms      slowmo3d percent, ms      hitstop3d ms      bars3d on
       case 'camera3d': case 'move3d': case 'turn3d': case 'show3d': case 'glow3d': case 'torch3d': case 'anim3d': case 'fx3d': case 'shine3d': case 'burst3d': case 'look3d':
-      case 'toon3d': case 'shot3d': case 'lookat3d': case 'shake3d': case 'slowmo3d': case 'hitstop3d': case 'bars3d': case 'sky3d': case 'join3d': {
+      case 'toon3d': case 'shot3d': case 'lookat3d': case 'shake3d': case 'slowmo3d': case 'hitstop3d': case 'bars3d': case 'sky3d': case 'join3d':
+      case 'slash3d': case 'magic3d': case 'shock3d': case 'beam3d': {
         const need = { camera3d: 5, move3d: 4, turn3d: 2, show3d: 2, glow3d: 2, torch3d: 2, anim3d: 2, fx3d: 3, shine3d: 3, burst3d: 6, look3d: 2,
-          toon3d: 3, shot3d: 7, lookat3d: 3, shake3d: 2, slowmo3d: 2, hitstop3d: 1, bars3d: 1, sky3d: 1, join3d: 2 }[t.value];
+          toon3d: 3, shot3d: 7, lookat3d: 3, shake3d: 2, slowmo3d: 2, hitstop3d: 1, bars3d: 1, sky3d: 1, join3d: 2,
+          slash3d: 6, magic3d: 6, shock3d: 5, beam3d: 8 }[t.value];
         const args = [expression()];
         while (match(',')) args.push(expression());
         if (args.length !== need) {
@@ -3107,6 +3110,10 @@ function generate(ast, target = 'cpp', options = {}) {
           case 'anim3d': return [`${p}__anim3d(${n(a[0])}, ${str(a[1])});`];
           case 'look3d': return [`${p}__look3d(${n(a[0])}, ${str(a[1])});`];
           case 'burst3d': return [`${p}__burst3d(${n(a[0])}, ${n(a[1])}, ${n(a[2])}, ${str(a[3])}, ${n(a[4])}, ${n(a[5])});`];
+          case 'slash3d': return [`${p}__slash3d(${n(a[0])}, ${n(a[1])}, ${n(a[2])}, ${n(a[3])}, ${n(a[4])}, ${str(a[5])});`];
+          case 'magic3d': return [`${p}__magic3d(${n(a[0])}, ${n(a[1])}, ${n(a[2])}, ${n(a[3])}, ${str(a[4])}, ${n(a[5])});`];
+          case 'shock3d': return [`${p}__shock3d(${n(a[0])}, ${n(a[1])}, ${n(a[2])}, ${n(a[3])}, ${str(a[4])});`];
+          case 'beam3d': return [`${p}__beam3d(${n(a[0])}, ${n(a[1])}, ${n(a[2])}, ${n(a[3])}, ${n(a[4])}, ${n(a[5])}, ${n(a[6])}, ${str(a[7])});`];
           default: return [`${p}__${s.cmd}(${a.map(n).join(', ')});`];
         }
       }
@@ -3471,9 +3478,11 @@ function detectTarget(src) {
 // recursively, before anything is lexed - so a .volt file (or a library
 // plugin's snippet) can be reused from other .volt files instead of only
 // ever being copy-pasted in by hand. Must be its own unindented line,
-// written exactly as `import "name.volt"` (a literal path in quotes, no
-// expressions). The path resolves the same way 'image'/'audio' files do:
-// against options.baseDir, then options.extraDirs.
+// written as `import "name.volt"` (a literal path in quotes, no
+// expressions), optionally followed by a // comment. The path resolves
+// the same way 'image'/'audio' files do: against options.baseDir, then
+// options.extraDirs - which includes every library plugin's folder, so a
+// kit a plugin ships can be imported without copying it anywhere.
 // Importing the same file twice (directly, or via two other imports) is
 // fine - the second one is silently skipped, so shared libraries don't
 // produce "already a function called ..." errors.
@@ -3483,7 +3492,7 @@ function resolveImports(source, dirs, seen) {
   const lines = source.split('\n');
   const out = [];
   for (let i = 0; i < lines.length; i++) {
-    const m = /^import\s+"([^"]+)"\s*$/.exec(lines[i]);
+    const m = /^import\s+"([^"]+)"\s*(?:\/\/.*)?$/.exec(lines[i]);   // a trailing // comment is fine
     if (!m) { out.push(lines[i]); continue; }
     const name = m[1];
     if (!dirs.length) {

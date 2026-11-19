@@ -15,41 +15,48 @@
   button, input, select, textarea { font: inherit; color: inherit; }
   #app { display: flex; flex-direction: column; height: 100%; }
 
-  /* ---------- toolbar ---------- */
+  /* ---------- toolbar: four groups, then the three things you press ---------- */
   #toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 5px 7px;
     background: var(--panel); border-bottom: 1px solid var(--line); }
-  .grp { display: flex; align-items: center; gap: 2px; padding-right: 6px; margin-right: 2px; border-right: 1px solid var(--line); }
-  .grp:last-child { border-right: 0; }
-  .tb { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px;
-    cursor: pointer; white-space: nowrap; min-height: 26px; }
+  .grp { display: flex; align-items: center; gap: 2px; padding-right: 7px; margin-right: 3px; border-right: 1px solid var(--line); }
+  .grp:last-child { border-right: 0; padding-right: 0; margin-right: 0; }
+  .tb { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 9px;
+    cursor: pointer; white-space: nowrap; min-height: 27px; }
   .tb:hover:not(:disabled) { border-color: #46506a; background: #293046; }
-  .tb:disabled { opacity: .4; cursor: default; }
+  .tb:disabled { opacity: .35; cursor: default; }
   .tb.on { background: #3a3417; border-color: var(--accent); color: var(--accent); }
   .tb.primary { background: var(--accent); border-color: var(--accent); color: #1b1600; font-weight: 600; }
   .tb.primary:hover:not(:disabled) { background: #ffe074; }
   .tb.stop { background: var(--danger); border-color: var(--danger); color: #230000; font-weight: 600; }
-  .tb kbd { opacity: .55; font: inherit; font-size: 10.5px; margin-left: 4px; }
-  #toolbar select { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 3px 4px; min-height: 26px; }
-  #toolbar .lbl { color: var(--muted); margin: 0 3px 0 2px; }
+  .tb.icon { padding: 4px 8px; }
+  .tb kbd { opacity: .5; font: inherit; font-size: 10.5px; margin-left: 5px; }
+  #toolbar select { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 3px 4px; min-height: 27px; }
+  #toolbar .lbl { color: var(--muted); margin: 0 4px 0 2px; }
   .spacer { flex: 1; }
 
-  /* ---------- layout: wide = 3 columns, narrow = viewport + bottom dock ---------- */
+  /* ---------- layout: parts | viewport | explorer over properties ---------- */
   #main { flex: 1; min-height: 0; display: grid;
-    grid-template-columns: 200px minmax(0, 1fr) 244px; grid-template-rows: minmax(0, 1fr) 196px;
-    grid-template-areas: "explorer center props" "toolbox center props"; }
-  #dock { display: contents; }
-  #dockTabs { display: none; }
-  #pExplorer { grid-area: explorer; } #pToolbox { grid-area: toolbox; } #pProps { grid-area: props; }
+    grid-template-columns: 78px minmax(0, 1fr) 252px; grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: "parts center side"; }
+  #pParts { grid-area: parts; }
   #center { grid-area: center; }
-  .pane { background: var(--panel); min-height: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line); }
-  #pProps { border-right: 0; border-left: 1px solid var(--line); }
-  #pToolbox { border-top: 1px solid var(--line); }
+  #side { grid-area: side; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--line); }
+  #pExplorer { flex: 1 1 42%; }
+  #pProps { flex: 1 1 58%; border-top: 1px solid var(--line); }
+  #dockTabs { display: none; }
+  .pane { background: var(--panel); min-height: 0; display: flex; flex-direction: column; }
+  #pParts { border-right: 1px solid var(--line); }
   .pane > h3 { margin: 0; padding: 6px 9px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
     color: var(--muted); background: var(--panel2); border-bottom: 1px solid var(--line); display: flex; align-items: center; }
   .pane > h3 .spacer { flex: 1; }
-  .pane > h3 button { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0 3px; font-size: 13px; }
-  .pane > h3 button:hover { color: var(--text); }
   .scroll { overflow: auto; flex: 1; min-height: 0; }
+
+  /* ---------- the parts strip ---------- */
+  #tools { display: flex; flex-direction: column; gap: 4px; padding: 6px; }
+  .tool { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 2px;
+    font-size: 11px; cursor: grab; text-align: center; color: var(--muted); }
+  .tool:hover { border-color: var(--accent2); background: #263050; color: var(--text); }
+  .tool .g { display: block; font-size: 19px; line-height: 1.15; color: var(--accent2); }
 
   /* ---------- explorer ---------- */
   .row { display: flex; align-items: center; gap: 6px; padding: 3px 8px; cursor: pointer; border-left: 3px solid transparent; }
@@ -58,19 +65,15 @@
   .row .ic { width: 16px; text-align: center; color: var(--muted); }
   .row.sel .ic { color: var(--accent2); }
   .row .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .row .eye { opacity: .55; cursor: pointer; padding: 0 2px; }
+  .row .eye { opacity: .5; cursor: pointer; padding: 0 2px; }
   .row .eye:hover { opacity: 1; }
   .row.hidden .nm { opacity: .4; text-decoration: line-through; }
   .row.world { color: var(--accent); }
-  .empty { color: var(--muted); padding: 10px; }
-
-  /* ---------- toolbox ---------- */
-  #tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; padding: 7px; }
-  .tool { background: var(--panel2); border: 1px solid var(--line); border-radius: 7px; padding: 6px 2px; font-size: 11.5px; cursor: grab; text-align: center; }
-  .tool:hover { border-color: var(--accent2); background: #263050; }
-  .tool .g { display: block; font-size: 17px; line-height: 1.1; color: var(--accent2); }
-  .tool small { color: var(--muted); }
-  .hint { color: var(--muted); padding: 0 8px 8px; font-size: 11.5px; }
+  .row[draggable] { cursor: grab; }
+  .row.drop { outline: 1px dashed var(--accent2); outline-offset: -2px; background: #26304a; }
+  .row .kids { color: var(--muted); font-size: 10.5px; background: var(--panel2); border: 1px solid var(--line);
+    border-radius: 9px; padding: 0 5px; margin-left: 2px; }
+  .empty { color: var(--muted); padding: 10px; line-height: 1.5; }
 
   /* ---------- viewport ---------- */
   #center { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: #000; }
@@ -86,22 +89,31 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   /* ---------- properties ---------- */
-  #props { padding: 4px 0 12px; }
-  .sec { padding: 6px 10px 2px; color: var(--accent); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; }
+  #props { padding: 4px 0 14px; }
+  .sec { padding: 7px 10px 2px; color: var(--accent); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; }
+  .sec.adv { color: var(--muted); cursor: pointer; margin-top: 4px; border-top: 1px solid var(--line); padding-top: 8px; }
+  .sec.adv:hover { color: var(--text); }
   .f { display: flex; align-items: center; gap: 8px; padding: 2px 10px; }
-  .f > span:first-child { width: 78px; color: var(--muted); flex: none; }
+  .f > span:first-child { width: 96px; color: var(--muted); flex: none; }
   .f input[type=number], .f input[type=text] { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--line);
     border-radius: 5px; padding: 3px 6px; user-select: text; }
   .f input:focus { outline: 1px solid var(--accent2); border-color: var(--accent2); }
   .f input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); }
   .f input[type=color] { width: 30px; height: 24px; padding: 0; border: 1px solid var(--line); border-radius: 5px; background: none; cursor: pointer; flex: none; }
   .f input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; }
+  .f select { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 3px 5px; }
+  .f select:focus { outline: 1px solid var(--accent2); border-color: var(--accent2); }
+  .codewrap { padding: 2px 10px 4px; }
+  textarea.code { width: 100%; background: #0c0e14; border: 1px solid var(--line); border-radius: 7px; padding: 7px;
+    font: 11.5px/1.5 Consolas, "Courier New", monospace; color: #cfe3ff; user-select: text; resize: vertical; white-space: pre; }
+  textarea.code:focus { outline: 1px solid var(--accent2); border-color: var(--accent2); }
+  .btnrow { display: flex; flex-wrap: wrap; gap: 5px; padding: 2px 10px 6px; }
   .f .val { width: 34px; text-align: right; color: var(--text); flex: none; }
   .colorpair { display: flex; gap: 6px; flex: 1; min-width: 0; }
   .colorpair input[type=text] { width: 100%; font-family: Consolas, monospace; }
-  .note { color: var(--muted); padding: 2px 10px 6px; font-size: 11.5px; }
+  .note { color: var(--muted); padding: 3px 10px 6px; font-size: 11.5px; line-height: 1.45; }
 
-  /* ---------- modal ---------- */
+  /* ---------- modal, menu, help ---------- */
   #modal { position: fixed; inset: 0; background: rgba(5,7,12,.72); display: none; align-items: center; justify-content: center; padding: 12px; z-index: 50; }
   #modal.show { display: flex; }
   #dlg { background: var(--panel); border: 1px solid #3a4360; border-radius: 12px; width: min(720px, 100%); max-height: 100%;
@@ -109,88 +121,84 @@
   #dlg > header { padding: 12px 16px 8px; font-size: 15px; font-weight: 600; display: flex; align-items: center; }
   #dlg > header .spacer { flex: 1; }
   #dlg > header button { background: none; border: 0; color: var(--muted); font-size: 18px; cursor: pointer; }
-  #dlgBody { padding: 0 16px 8px; overflow: auto; min-height: 0; }
+  #dlgBody { padding: 0 16px 10px; overflow: auto; min-height: 0; }
+  #dlgBody p { line-height: 1.5; }
   #dlg footer { padding: 10px 16px 14px; display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+  #dlg footer:empty { padding: 0 0 8px; }
   #code { width: 100%; height: 230px; resize: vertical; background: #0c0e14; border: 1px solid var(--line); border-radius: 8px;
     padding: 8px; font: 11.5px/1.45 Consolas, "Courier New", monospace; color: #cfe3ff; user-select: text; white-space: pre; }
   .opts { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 4px 0 10px; }
   .opts label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
   .opts input { accent-color: var(--accent); }
+  .menu { display: flex; flex-direction: column; gap: 4px; margin: 2px 0 6px; }
+  .menuitem { display: block; width: 100%; text-align: left; background: var(--panel2); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 11px; cursor: pointer; }
+  .menuitem:hover { border-color: var(--accent2); background: #263050; }
+  .menuitem small { display: block; color: var(--muted); margin-top: 2px; }
+  .help p { margin: 0 0 10px; }
   #toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: #2a3350; border: 1px solid var(--accent2);
     padding: 7px 14px; border-radius: 8px; display: none; z-index: 60; max-width: 90%; }
   #toast.err { background: #4a1f25; border-color: var(--danger); }
 
-  /* ---------- narrow: viewport on top, tabbed dock underneath ---------- */
+  /* ---------- narrow: parts on top, viewport, then a tabbed dock ---------- */
   @media (max-width: 800px) {
     #main { display: flex; flex-direction: column; }
-    #center { flex: 1; min-height: 160px; order: 1; }
-    #dock { order: 2; }
-    #dock { display: flex; flex-direction: column; height: 236px; flex: none; border-top: 1px solid var(--line); background: var(--panel); }
+    #pParts { flex: none; border-right: 0; border-bottom: 1px solid var(--line); }
+    #pParts > h3 { display: none; }
+    #pParts .scroll { overflow-x: auto; overflow-y: hidden; }
+    #tools { flex-direction: row; }
+    .tool { flex: none; width: 62px; }
+    #center { flex: 1; min-height: 150px; }
+    #side { flex: none; height: 236px; border-left: 0; border-top: 1px solid var(--line); }
     #dockTabs { display: flex; background: var(--panel2); border-bottom: 1px solid var(--line); }
     #dockTabs button { flex: 1; background: none; border: 0; padding: 6px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; }
     #dockTabs button.on { color: var(--accent); border-bottom-color: var(--accent); }
-    .pane { border: 0 !important; flex: 1; display: none; }
-    #app[data-dock="explorer"] #pExplorer, #app[data-dock="toolbox"] #pToolbox, #app[data-dock="props"] #pProps { display: flex; }
-    .pane > h3 { display: none; }
+    #side .pane { display: none; flex: 1; border-top: 0; }
+    #app[data-dock="explorer"] #pExplorer, #app[data-dock="props"] #pProps { display: flex; }
+    #side .pane > h3 { display: none; }
   }
-  @media (max-width: 460px) { .tb kbd { display: none; } }
+  @media (max-width: 560px) { .tb kbd, .tb .word { display: none; } }
 </style>
 </head>
 <body>
 <div id="app" data-dock="props">
   <div id="toolbar">
+    <div class="grp">
+      <button class="tb icon" id="bUndo" title="Undo (Ctrl+Z)">↶</button>
+      <button class="tb icon" id="bRedo" title="Redo (Ctrl+Y)">↷</button>
+      <button class="tb icon" id="bDup" title="Make a copy (Ctrl+D)">⧉</button>
+      <button class="tb icon" id="bDel" title="Delete (Del)">✕</button>
+    </div>
     <div class="grp" id="gTools">
-      <button class="tb on" data-tool="select" title="Select (Q)">↖ Select</button>
-      <button class="tb" data-tool="move" title="Move (W)">✥ Move</button>
-      <button class="tb" data-tool="rotate" title="Rotate (E)">⟳ Rotate</button>
-      <button class="tb" data-tool="scale" title="Scale (R)">⤡ Scale</button>
+      <button class="tb on" data-tool="select" title="Pick things and slide them around">↖<span class="word"> Pick</span><kbd>Q</kbd></button>
+      <button class="tb" data-tool="move" title="Drag an arrow to move">✥<span class="word"> Move</span><kbd>W</kbd></button>
+      <button class="tb" data-tool="rotate" title="Drag the ring to turn">⟳<span class="word"> Turn</span><kbd>E</kbd></button>
+      <button class="tb" data-tool="scale" title="Drag a handle to resize">⤡<span class="word"> Size</span><kbd>R</kbd></button>
     </div>
     <div class="grp">
-      <span class="lbl">Snap</span>
-      <select id="snap" title="Grid snap in cm (rotation snaps to 15° when snap is on)">
+      <span class="lbl">Grid</span>
+      <select id="snap" title="Round everything off to this many cm, so walls line up (turning snaps to 15°)">
         <option value="0">Off</option><option value="5">5</option><option value="10">10</option>
         <option value="25">25</option><option value="50" selected>50</option><option value="100">100</option>
       </select>
     </div>
+    <div class="spacer"></div>
     <div class="grp">
-      <button class="tb" id="bUndo" title="Undo (Ctrl+Z)">↶</button>
-      <button class="tb" id="bRedo" title="Redo (Ctrl+Y)">↷</button>
-      <button class="tb" id="bDup" title="Duplicate (Ctrl+D)">⧉ Duplicate</button>
-      <button class="tb" id="bDel" title="Delete (Del)">✕ Delete</button>
-    </div>
-    <div class="grp">
-      <button class="tb" id="bPreview" title="See the world with its real in-game lighting, fog and flashlight">☀ Game lighting</button>
+      <button class="tb icon" id="bLight" title="Game lighting: see the real fog, darkness and flashlight">☀</button>
       <button class="tb primary" id="bPlay" title="Walk around your world (Esc to stop)">▶ Play</button>
     </div>
     <div class="grp">
-      <button class="tb" id="bLoad" title="Load the world saved inside the current .volt file">⭳ Load from file</button>
-      <button class="tb primary" id="bExport" title="Turn this world into Volt code">⭱ Export to Volt</button>
+      <button class="tb primary" id="bSave" title="Write this world into your .volt file (your own code is kept)">⭳ Save world</button>
+      <button class="tb icon" id="bSavePlay" title="Save it and run the game in Volt Studio">▶|</button>
+      <button class="tb icon" id="bMore" title="Everything else">⋯</button>
     </div>
-    <div class="spacer"></div>
-    <button class="tb" id="bWide" title="Make this panel wider">⤢ Wide</button>
   </div>
 
   <div id="main">
-    <div id="dock">
-      <div id="dockTabs">
-        <button data-dock="explorer">Explorer</button><button data-dock="toolbox">Toolbox</button><button data-dock="props" class="on">Properties</button>
-      </div>
-      <section class="pane" id="pExplorer">
-        <h3>Explorer <span class="spacer"></span></h3>
-        <div class="scroll" id="explorer"></div>
-      </section>
-      <section class="pane" id="pToolbox">
-        <h3>Toolbox</h3>
-        <div class="scroll">
-          <div id="tools"></div>
-          <div class="hint">Click to add in front of the camera, or drag one into the world.</div>
-        </div>
-      </section>
-      <section class="pane" id="pProps">
-        <h3>Properties</h3>
-        <div class="scroll"><div id="props"></div></div>
-      </section>
-    </div>
+    <section class="pane" id="pParts">
+      <h3>Parts</h3>
+      <div class="scroll"><div id="tools"></div></div>
+    </section>
 
     <div id="center">
       <div id="vp">
@@ -200,6 +208,20 @@
         <div id="badge">Edit</div>
       </div>
       <div id="status"></div>
+    </div>
+
+    <div id="side">
+      <div id="dockTabs">
+        <button data-dock="explorer">Things</button><button data-dock="props" class="on">Properties</button>
+      </div>
+      <section class="pane" id="pExplorer">
+        <h3>Things <span class="spacer"></span></h3>
+        <div class="scroll" id="explorer"></div>
+      </section>
+      <section class="pane" id="pProps">
+        <h3>Properties</h3>
+        <div class="scroll"><div id="props"></div></div>
+      </section>
     </div>
   </div>
 </div>

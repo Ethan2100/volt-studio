@@ -376,6 +376,31 @@ ipcMain.handle('plugins:readFile', (e, { id, file }) => {
   try { return pluginsLib.readPluginFile(p.dir, file); } catch (err) { return null; }
 });
 
+// What models a plugin ships, so a panel can offer them without a
+// hard-coded list - drop a new .glb in the folder and it shows up.
+ipcMain.handle('plugins:listAssets', (e, { id }) => {
+  const p = plugins.find((x) => x.id === id);
+  if (!p || p.broken) return [];
+  try {
+    return fs.readdirSync(p.dir, { withFileTypes: true })
+      .filter((f) => f.isFile() && /\.glb$/i.test(f.name))
+      .map((f) => f.name).sort();
+  } catch { return []; }
+});
+
+// A panel plugin can ask for an asset a library plugin ships (the character
+// models, say) so a sandboxed panel can show it. Models only, and only from
+// inside that plugin's own folder.
+ipcMain.handle('plugins:readAsset', (e, { id, file }) => {
+  const p = plugins.find((x) => x.id === id);
+  if (!p || p.broken) return null;
+  if (!/^[\w.-]+\.glb$/i.test(String(file || ''))) return null;
+  try {
+    const bytes = pluginsLib.readPluginAsset(p.dir, file);
+    return bytes.length > 24 * 1024 * 1024 ? null : bytes.toString('base64');
+  } catch { return null; }
+});
+
 ipcMain.handle('plugins:openFolder', () => { fs.mkdirSync(userPluginsDir, { recursive: true }); shell.openPath(userPluginsDir); });
 
 // A file:// URL for a panel plugin's own entry HTML, for the renderer to
@@ -407,7 +432,11 @@ ipcMain.handle('shell:openOutput', (e, filePath) => {
 // assetDir is an example's own folder, so examples with pictures run before they're saved
 function compileSource(source, filePath, assetDir) {
   try {
-    const opts = { baseDir: filePath ? path.dirname(filePath) : null, extraDirs: assetDir ? [assetDir] : [] };
+    // import "x.volt" looks in: the .volt file's own folder, the example's
+    // folder, then every library plugin's folder (so a kit like the game
+    // kit's game.volt can be imported without copying it anywhere).
+    const extraDirs = [assetDir, ...pluginsLib.libraryDirs(plugins)].filter(Boolean);
+    const opts = { baseDir: filePath ? path.dirname(filePath) : null, extraDirs };
     const { target, code } = volt.compile(source, opts);
     return { ok: true, target, code };
   } catch (e) {

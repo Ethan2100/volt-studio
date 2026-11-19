@@ -835,6 +835,16 @@ window.addEventListener('message', (ev) => {
       }
       break;
     case 'toast': if (typeof m.text === 'string') toast(m.text.slice(0, 200), !!m.error); break;
+    case 'assetList':   // which models a library plugin ships
+      api.pluginsListAssets({ id: String(m.plugin || '') })
+        .then((files) => reply({ type: 'assetList', req: m.req, files: files || [] }))
+        .catch(() => reply({ type: 'assetList', req: m.req, files: [] }));
+      break;
+    case 'asset':   // a model a library plugin ships, so the panel can show it
+      api.pluginsReadAsset({ id: String(m.plugin || ''), file: String(m.file || '') })
+        .then((base64) => reply({ type: 'asset', req: m.req, file: m.file, base64 }))
+        .catch(() => reply({ type: 'asset', req: m.req, file: m.file, base64: null }));
+      break;
     case 'wide': {   // a panel can ask for more room (and give it back)
       const root = document.documentElement.style;
       if (m.on) {
