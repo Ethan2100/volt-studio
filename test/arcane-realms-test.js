@@ -31,6 +31,24 @@ try {
   try { projectFiles.readVoltFile(temp, '../outside.volt'); } catch { rejected = true; }
   check('project helpers reject traversal outside a project', rejected);
   check('World Studio can create a nested script file', projectFiles.writeVoltFile(temp, 'Scripts/check.volt', 'fn check() {}').created);
+  const audioSource = path.join(temp, 'bell.wav');
+  const objSource = path.join(temp, 'mesh.obj');
+  const imageSource = path.join(temp, 'icon.png');
+  fs.writeFileSync(audioSource, Buffer.from([82, 73, 70, 70]));
+  fs.writeFileSync(objSource, 'v 0 0 0');
+  fs.writeFileSync(imageSource, Buffer.from([137, 80, 78, 71]));
+  const imported = projectFiles.importProjectAssets(temp, [audioSource]);
+  check('asset import copies supported audio into Assets', imported[0]?.file === 'Assets/bell.wav');
+  check('asset browser reports supported audio metadata', projectFiles.listProjectAssets(temp).some((asset) => asset.file === 'Assets/bell.wav' && asset.category === 'Audio' && asset.supported));
+  check('audio assets can be previewed as a data URL', projectFiles.readProjectAsset(temp, 'Assets/bell.wav').startsWith('data:audio/wav;base64,'));
+  projectFiles.importProjectAssets(temp, [imageSource]);
+  const assetGame = volt.compile('#html\ncanvas 320, 180\nimage ui_icon = "Assets/icon.png"\naudio bell = "Assets/bell.wav"\n', { baseDir: temp });
+  check('imported image and audio declarations compile', assetGame.code.includes('__image(') && assetGame.code.includes('__audio('));
+  check('asset paths reject traversal outside a project', (() => { try { projectFiles.readProjectAsset(temp, '../bell.wav'); return false; } catch { return true; } })());
+  let unsupportedMessage = '';
+  try { projectFiles.importProjectAssets(temp, [objSource]); } catch (err) { unsupportedMessage = err.message; }
+  check('unsupported OBJ import explains the GLB conversion path', /OBJ import is not available.*\.glb/i.test(unsupportedMessage));
+  check('importing a duplicate asset keeps the existing file', projectFiles.importProjectAssets(temp, [audioSource])[0]?.file === 'Assets/bell_2.wav');
 } finally { fs.rmSync(temp, { recursive: true, force: true }); }
 
 if (failed) process.exitCode = 1;

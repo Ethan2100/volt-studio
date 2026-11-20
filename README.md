@@ -71,6 +71,7 @@ This creates `dist\Volt Studio Setup <version>.exe` using `installer/installer.n
 | `renderer/` | The editor page: `index.html`, `styles.css`, `renderer.js`, `volt-mode.js` (syntax colours) |
 | `examples/` | Example programs shown in the Examples tab |
 | `docs/REFERENCE.md` | The full Volt reference (also shown in the app's Reference tab) |
+| `docs/ASSETS.md` | Project asset import formats, previews, and known limitations |
 | `installer/` | The Windows installer script, icon and pictures |
 | `test/` | Scripts used to test the app with fake boards |
 | `.github/workflows/release.yml` | Builds the installer on GitHub and publishes a release (see `RELEASING.md`) |

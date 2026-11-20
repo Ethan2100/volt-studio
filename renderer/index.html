@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-src 'self' file:">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' data: blob:; frame-src 'self' file:">
   <title>Volt Studio</title>
   <link rel="stylesheet" href="../node_modules/codemirror/lib/codemirror.css">
   <link rel="stylesheet" href="../node_modules/codemirror/addon/hint/show-hint.css">
@@ -96,6 +96,7 @@
     <section class="side-pane" id="side-pane">
       <nav class="tabs" data-group="side">
         <button data-tab="output" class="active">Output code</button>
+        <button data-tab="assets">Assets</button>
         <button data-tab="ai">AI</button>
       </nav>
 
@@ -108,6 +109,23 @@
           <button class="link-btn" id="btn-open-output">Open folder</button>
         </div>
         <div id="output"></div>
+      </div>
+
+      <div class="tab-body" data-panel="assets">
+        <div class="output-bar asset-toolbar">
+          <span class="muted">Project Assets</span>
+          <div class="spacer"></div>
+          <button class="link-btn" id="btn-assets-refresh">Refresh</button>
+          <button class="link-btn" id="btn-assets-import">Import files…</button>
+        </div>
+        <div class="asset-filters">
+          <input id="asset-search" type="search" placeholder="Search assets…" autocomplete="off">
+          <select id="asset-category" aria-label="Filter asset category">
+            <option value="all">All assets</option><option>Models</option><option>Textures</option><option>Audio</option><option>Unsupported</option>
+          </select>
+        </div>
+        <div id="asset-browser" class="asset-browser"><div class="project-empty">Open a project folder to browse and import assets.</div></div>
+        <div id="asset-preview" class="asset-preview" aria-live="polite"><span class="muted">Select an asset to preview it or insert its Volt declaration.</span></div>
       </div>
 
       <!-- Reference / Examples / Library have no tab of their own - they're

@@ -103,6 +103,7 @@ const state = {
   running: false,        // a script is running
   settings: {},
 };
+const assetState = { items: [], selected: null, previewToken: 0, renderToken: 0 };
 
 // ---------------------------------------------------------------------
 //  Editors
@@ -194,6 +195,7 @@ function showTab(group, name) {
   const container = nav.parentElement;
   container.querySelectorAll(':scope > .tab-body').forEach((p) => p.classList.toggle('active', p.dataset.panel === name));
   if (name === 'output') output.refresh();
+  if (group === 'side' && name === 'assets') loadAssetBrowser();
 }
 document.querySelectorAll('.tabs').forEach((nav) => {
   nav.addEventListener('click', (e) => {
@@ -268,11 +270,118 @@ function renderProjectTree() {
   }).join('');
 }
 
+function assetSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+function assetIcon(asset) {
+  if (!asset.supported) return '!';
+  if (asset.category === 'Models') return '◇';
+  if (asset.category === 'Textures') return '▧';
+  if (asset.category === 'Audio') return '♫';
+  return '•';
+}
+function visibleAssets() {
+  const query = $('asset-search').value.trim().toLowerCase(), category = $('asset-category').value;
+  return assetState.items.filter((asset) => (category === 'all' || asset.category === category) && (!query || `${asset.name} ${asset.file} ${asset.category}`.toLowerCase().includes(query)));
+}
+function renderAssetBrowser() {
+  const box = $('asset-browser');
+  if (!state.projectRoot) {
+    box.innerHTML = '<div class="project-empty">Open a project folder to browse and import assets.</div>';
+    $('btn-assets-import').disabled = true; $('btn-assets-refresh').disabled = true;
+    return;
+  }
+  $('btn-assets-import').disabled = false; $('btn-assets-refresh').disabled = false;
+  if (!assetState.items.length) {
+    box.innerHTML = '<div class="project-empty">No supported assets found. Import GLB models, PNG/JPEG images, or WAV/MP3/OGG/M4A audio.</div>';
+    return;
+  }
+  const shown = visibleAssets();
+  if (!shown.length) { box.innerHTML = '<div class="project-empty">No assets match this search.</div>'; return; }
+  box.innerHTML = shown.map((asset) => {
+    const selected = assetState.selected?.file === asset.file;
+    const image = asset.category === 'Textures' && asset.thumb ? `<img class="asset-thumb" alt="" src="${asset.thumb}">` : `<span class="asset-glyph">${assetIcon(asset)}</span>`;
+    return `<button class="asset-card${selected ? ' selected' : ''}${asset.supported ? '' : ' unsupported'}" data-asset-file="${escapeHtml(asset.file)}" title="${escapeHtml(asset.reason || asset.file)}">${image}<span class="asset-name">${escapeHtml(asset.name)}</span><span class="asset-meta">${escapeHtml(asset.label)} · ${assetSize(asset.size)}</span></button>`;
+  }).join('');
+  const token = ++assetState.renderToken;
+  const thumbs = shown.filter((a) => a.category === 'Textures' && a.size <= 2 * 1024 * 1024 && a.thumb === undefined).slice(0, 18);
+  if (thumbs.length) Promise.all(thumbs.map(async (asset) => {
+    try { asset.thumb = await api.readProjectAsset(state.projectRoot, asset.file); }
+    catch { asset.thumb = null; }
+  })).then(() => { if (token === assetState.renderToken) renderAssetBrowser(); });
+}
+
+async function loadAssetBrowser() {
+  if (!state.projectRoot) { assetState.items = []; renderAssetBrowser(); return; }
+  try {
+    assetState.items = await api.projectAssets(state.projectRoot);
+    if (assetState.selected && !assetState.items.some((a) => a.file === assetState.selected.file)) {
+      assetState.selected = null;
+      $('asset-preview').innerHTML = '<span class="muted">Select an asset to preview it or insert its Volt declaration.</span>';
+    }
+    renderAssetBrowser();
+  } catch (err) { toast(`Could not list project assets: ${err.message}`, true); }
+}
+
+function assetIdentifier(asset) {
+  const stem = asset.name.replace(/\.[^.]+$/, '').replace(/([a-z0-9])([A-Z])/g, '$1_$2').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').toLowerCase();
+  return `asset_${stem || 'file'}`;
+}
+function insertAssetDeclaration(asset) {
+  if (!asset?.supported) return;
+  if (state.target !== 'html') { toast('Asset declarations are available in #html Volt games.', true); return; }
+  const name = assetIdentifier(asset), file = asset.file.replace(/\\/g, '/');
+  const quotedFile = JSON.stringify(file);
+  const declaration = asset.category === 'Models' ? `model3d ${name} = ${quotedFile}`
+    : asset.category === 'Textures' ? `image ${name} = ${quotedFile}`
+      : `audio ${name} = ${quotedFile}`;
+  editor.replaceSelection(`${declaration}\n`);
+  setDirty(true); scheduleCompile(); editor.focus();
+}
+
+async function selectProjectAsset(file) {
+  const asset = assetState.items.find((item) => item.file === file);
+  if (!asset) return;
+  assetState.selected = asset; renderAssetBrowser();
+  const preview = $('asset-preview'), token = ++assetState.previewToken;
+  if (!asset.supported) {
+    preview.innerHTML = `<b>${escapeHtml(asset.name)}</b><p class="asset-reason">${escapeHtml(asset.reason)}</p>`;
+    return;
+  }
+  preview.innerHTML = `<b>${escapeHtml(asset.name)}</b><span> · ${escapeHtml(asset.label)} · ${assetSize(asset.size)}</span><div class="asset-preview-content muted">Loading preview…</div><div class="asset-actions"><button class="link-btn" id="btn-insert-asset">Insert Volt declaration</button><span class="muted">${escapeHtml(asset.file)}</span></div>`;
+  $('btn-insert-asset').onclick = () => insertAssetDeclaration(asset);
+  if (asset.category !== 'Textures' && asset.category !== 'Audio') {
+    preview.querySelector('.asset-preview-content').textContent = 'GLB model is ready to reference from a Volt game. Previewing models in the Asset Browser is not supported yet.';
+    return;
+  }
+  try {
+    const data = await api.readProjectAsset(state.projectRoot, asset.file);
+    if (token !== assetState.previewToken || assetState.selected?.file !== asset.file) return;
+    const content = preview.querySelector('.asset-preview-content');
+    if (asset.category === 'Textures') content.innerHTML = `<img alt="Preview of ${escapeHtml(asset.name)}" src="${data}">`;
+    else content.innerHTML = `<audio controls preload="none" src="${data}">Audio preview is not supported by this system.</audio>`;
+  } catch (err) {
+    if (token === assetState.previewToken) preview.querySelector('.asset-preview-content').textContent = err.message;
+  }
+}
+
+async function importProjectAssets() {
+  if (!state.projectRoot) { toast('Open a project folder before importing assets.', true); return; }
+  const result = await api.importProjectAssets(state.projectRoot);
+  if (!result) return;
+  if (!Array.isArray(result)) { toast(result.error || 'Could not import assets.', true); return; }
+  await loadAssetBrowser();
+  toast(`Imported ${result.length} asset${result.length === 1 ? '' : 's'} into Assets/`);
+}
+
 async function refreshProjectTree() {
-  if (!state.projectRoot) { state.projectFiles = []; renderProjectTree(); return; }
+  if (!state.projectRoot) { state.projectFiles = []; renderProjectTree(); await loadAssetBrowser(); return; }
   try { state.projectFiles = await api.projectFiles(state.projectRoot); }
   catch (err) { state.projectFiles = []; toast(`Could not read project files: ${err.message}`, true); }
   renderProjectTree();
+  await loadAssetBrowser();
 }
 
 function activateDocument(doc, compile = true) {
@@ -304,7 +413,13 @@ function loadDocument(content, filePath, options = {}) {
   state.activeDoc = null;
   state.entryDoc = null;
   state.filePath = filePath || null;
+  const oldProjectRoot = state.projectRoot;
   state.projectRoot = options.projectRoot || (filePath ? pathDir(filePath) : null);
+  if (oldProjectRoot !== state.projectRoot) {
+    assetState.items = []; assetState.selected = null;
+    assetState.previewToken++; assetState.renderToken++;
+    $('asset-preview').innerHTML = '<span class="muted">Select an asset to preview it or insert its Volt declaration.</span>';
+  }
   state.entryFile = options.entryFile || (filePath && state.projectRoot ? projectRelative(filePath, state.projectRoot) : null);
   state.assetDir = options.assetDir || null;
   state.suggestedName = options.suggestedName || (state.entryFile ? pathBase(state.entryFile) : 'my_program.volt');
@@ -1322,6 +1437,11 @@ $('btn-new').addEventListener('click', newFile);
 $('btn-open').addEventListener('click', openFile);
 $('btn-project').addEventListener('click', openProject);
 $('btn-project-refresh').addEventListener('click', refreshProjectTree);
+$('btn-assets-refresh').addEventListener('click', loadAssetBrowser);
+$('btn-assets-import').addEventListener('click', importProjectAssets);
+$('asset-search').addEventListener('input', renderAssetBrowser);
+$('asset-category').addEventListener('change', renderAssetBrowser);
+$('asset-browser').addEventListener('click', (e) => { const b = e.target.closest('[data-asset-file]'); if (b) selectProjectAsset(b.dataset.assetFile); });
 $('project-files').addEventListener('click', (e) => { const b = e.target.closest('[data-project-file]'); if (b) openProjectFile(b.dataset.projectFile); });
 $('document-tabs').addEventListener('click', (e) => {
   const close = e.target.closest('[data-close-doc]');

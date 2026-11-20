@@ -284,6 +284,22 @@ li.CodeMirror-hint-active { background: var(--accent-dim); color: var(--accent);
 .example h4 { margin: 0 0 4px; font-size: 14px; display: flex; align-items: center; gap: 8px; }
 .example p { margin: 0; color: var(--muted); }
 .example .lang-pill { font-size: 11px; }
+.asset-filters { display: flex; gap: 8px; padding: 10px; flex: none; border-bottom: 1px solid var(--border); }
+.asset-filters input { min-width: 0; flex: 1; }
+.asset-filters select { max-width: 150px; }
+.asset-browser { flex: 1; min-height: 0; overflow: auto; padding: 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); align-content: start; gap: 8px; }
+.asset-card { min-width: 0; text-align: left; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); color: var(--text); cursor: pointer; }
+.asset-card:hover, .asset-card.selected { border-color: var(--accent); background: var(--panel-3); }
+.asset-card.unsupported { opacity: .72; }
+.asset-thumb { width: 100%; height: 76px; object-fit: contain; border-radius: 5px; background: var(--bg); display: block; margin-bottom: 7px; }
+.asset-glyph { height: 76px; display: grid; place-items: center; margin-bottom: 7px; border-radius: 5px; background: var(--bg); font-size: 27px; color: var(--info); }
+.asset-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.asset-meta { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; }
+.asset-preview { flex: none; max-height: 245px; overflow: auto; padding: 10px 12px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+.asset-preview img { display: block; max-width: 100%; max-height: 155px; margin: 0 auto 8px; object-fit: contain; }
+.asset-preview audio { display: block; width: 100%; margin: 8px 0; }
+.asset-preview .asset-actions { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.asset-preview .asset-reason { color: var(--warning, #e8b663); }
 
 /* ---------- AI chat ---------- */
 .ai-chat { flex: 1; display: flex; flex-direction: column; min-height: 0; }

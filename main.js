@@ -269,6 +269,20 @@ ipcMain.handle('project:list', (e, { root }) => projectFiles.listVoltFiles(requi
 ipcMain.handle('project:readScript', (e, { root, file }) => projectFiles.readVoltFile(requireProjectRoot(root), file));
 ipcMain.handle('project:writeScript', (e, { root, file, content }) => projectFiles.writeVoltFile(requireProjectRoot(root), file, content));
 ipcMain.handle('project:createScript', (e, { root, file, content }) => projectFiles.writeVoltFile(requireProjectRoot(root), file, content, true));
+ipcMain.handle('project:listAssets', (e, { root }) => projectFiles.listProjectAssets(requireProjectRoot(root)));
+ipcMain.handle('project:readAsset', (e, { root, file }) => projectFiles.readProjectAsset(requireProjectRoot(root), file));
+ipcMain.handle('project:importAssets', async (e, { root }) => {
+  const selected = await dialog.showOpenDialog(win, {
+    properties: ['openFile', 'multiSelections'],
+    filters: [
+      { name: 'Volt assets', extensions: ['glb', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'wav', 'mp3', 'ogg', 'm4a'] },
+      { name: 'All files', extensions: ['*'] },
+    ],
+  });
+  if (selected.canceled) return null;
+  try { return projectFiles.importProjectAssets(requireProjectRoot(root), selected.filePaths); }
+  catch (err) { return { error: err.message }; }
+});
 
 ipcMain.handle('file:save', async (e, { filePath, content, saveAs, suggestedName }) => {
   let target = filePath;
