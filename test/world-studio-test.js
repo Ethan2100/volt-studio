@@ -14,6 +14,11 @@ const studio = fs.readFileSync(path.join(srcDir, 'studio.js'), 'utf8');
 
 let failed = 0;
 const check = (name, cond, extra = '') => { if (!cond) failed++; console.log(`${cond ? 'pass' : 'FAIL'}  ${name}${cond ? '' : '  ' + extra}`); };
+const shellSource = fs.readFileSync(path.join(srcDir, 'shell.html'), 'utf8');
+check('the editor has viewport framing and navigation controls', studio.includes('function frameAll()') && studio.includes('function sceneBounds()') && ['vFrame','vFocus','vGrid','vAxes','vZoomIn','vZoomOut'].every((id) => shellSource.includes('id="' + id + '"')));
+check('the first launch frames the current scene', studio.includes('resize();\n  frameAll();\n  requestAnimationFrame(frame);'));
+check('the viewport reports WebGL startup failures', studio.includes('3D viewport could not start') && studio.includes('new THREE.WebGLRenderer') && studio.includes('catch (error)'));
+check('grid and axes can be toggled independently', studio.includes('grid.visible = showGrid && !game; axisLines.visible = showAxes && !game;'));
 
 // ---- pull the pieces we want to test out of the panel's own source ----
 function grabFn(name) {
