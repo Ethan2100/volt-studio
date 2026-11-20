@@ -36,6 +36,10 @@ It installs just for you (no admin password needed) into `%LOCALAPPDATA%\Program
 - **Ruby** needs Ruby from rubyinstaller.org.
 - **HTML** pages open in a preview window; Sketch → Open Page in Browser opens them in your normal browser.
 
+## World Studio
+
+Watch the [captioned World Studio introduction](docs/world-studio-intro.webm) and read its [full code walkthrough and transcript](docs/world-studio-intro-transcript.md).
+
 ## Run from the source code
 
 You need Node.js (you already have it).

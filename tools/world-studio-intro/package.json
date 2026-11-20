@@ -1,0 +1,6 @@
+{
+  "name": "world-studio-intro-renderer",
+  "version": "1.0.0",
+  "private": true,
+  "main": "record.cjs"
+}

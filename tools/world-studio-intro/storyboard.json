@@ -1,0 +1,70 @@
+{
+  "title": "World Studio: Your First 3D World",
+  "subtitle": "A practical tour of the editor, saved scene, generated Volt code, scripts and effects",
+  "chapters": [
+    {
+      "title": "Build a world visually",
+      "tag": "01 · START HERE",
+      "narration": "Welcome to World Studio, Volt Studio's visual editor for building small three dimensional game worlds. You create and arrange things in the viewport, then save the world into a normal Volt game file. The editor turns that scene into Volt code, while leaving your own game logic outside the generated section. This walkthrough follows the path from the editor, to the saved file, to a running game.",
+      "caption": "Build and arrange a 3D scene visually. Save it into a regular Volt game file, where generated world code and your own gameplay code live side by side.",
+      "points": ["Edit a scene visually", "Save it into a .volt game", "Keep your own game code"],
+      "code": "World Studio  →  scene data  →  Volt game"
+    },
+    {
+      "title": "Read the editor",
+      "tag": "02 · THE WORKSPACE",
+      "narration": "The left strip holds things you can add, such as parts, walls, floors, lights, characters, scripts and effects. The center is the Three dot js viewport. The Things list shows the scene hierarchy, including children attached to a parent. Select an item to edit its values in Properties. The toolbar switches between picking, moving, turning and resizing. Use Frame to see the whole scene and Focus to center the selected thing.",
+      "caption": "Add objects from the palette. Select a scene item or its row, then edit its values in Properties. Frame fits the whole scene; Focus centers the selection.",
+      "points": ["Add things from the left", "Select in the scene or Things list", "Change values in Properties"],
+      "code": "Pick Q  ·  Move W  ·  Turn E  ·  Size R"
+    },
+    {
+      "title": "Navigate and place objects",
+      "tag": "03 · VIEWPORT & SELECTION",
+      "narration": "In the viewport, right drag turns the editor camera, middle drag pans, and the mouse wheel zooms. The view cube switches to top, front, back, left or right. Grid and Axes can be toggled independently. Click to select an object, then drag it with the active transform tool. Frame fits the whole scene; Focus centers the selected object. These controls change the editor camera or scene object, not the player camera in your game.",
+      "caption": "Right-drag to orbit, middle-drag to pan, and scroll to zoom. Grid and Axes are independent guides. View-cube buttons choose a fixed direction.",
+      "points": ["Right drag: orbit · Middle drag: pan · Wheel: zoom", "View cube: fixed directions", "Grid and axes are visual guides"],
+      "code": "F focuses selection  ·  Frame fits the scene"
+    },
+    {
+      "title": "Build a scene hierarchy",
+      "tag": "04 · THINGS & PROPERTIES",
+      "narration": "Parts, balls, pillars and models are scene objects. The Properties panel edits their names, positions, sizes, colors, visibility and collision setting. You can place objects under another object to make a group that moves together. Script and Effect entries are attached components: they belong to a thing, but do not appear as separate geometry. A Spawn sets where the player begins.",
+      "caption": "The hierarchy shows parent-child relationships. Geometry can be grouped; Script and Effect components attach to a thing without adding geometry. Spawn marks the player's starting point.",
+      "points": ["Geometry has position and size", "Groups move their child objects", "Scripts and Effects attach to a thing"],
+      "code": "Crate\n  ├─ Effect\n  └─ Script"
+    },
+    {
+      "title": "Save and understand the file",
+      "tag": "05 · SCENE DATA",
+      "narration": "Save world writes the scene into the open Volt file. World Studio stores a compact JSON scene snapshot on a comment line, between its world markers. It also writes the readable Volt instructions that build the world. When you save again, the editor replaces only that marked world section. Settings and your own game code outside the markers are preserved. When loading, the saved snapshot restores details that are not easy to infer from code alone.",
+      "caption": "The world markers delimit generated code. A JSON comment preserves editor-only details. Saving replaces the marked section and keeps the surrounding game code.",
+      "points": ["One .volt file contains the game", "World markers bound the generated section", "The JSON comment restores editor details"],
+      "code": "// >>> world-studio\nworld3d ...\nlet Crate = block3d(...)\n// world-studio: { ...scene data... }\n// <<< world-studio"
+    },
+    {
+      "title": "From scene to playable game",
+      "tag": "06 · GENERATED CODE",
+      "narration": "The generated code describes the scene with Volt's three dimensional commands. A part becomes a block three d object. Solid boxes tell the game kit where the player can walk and stand. Player Start records the spawn point. The game kit handles first person movement. In the every frame loop, playerStep reads movement input, worldStep runs World Studio behaviors, and render3d draws the scene. You can keep gameplay code below the generated world section.",
+      "caption": "World geometry, collision and spawn data become Volt instructions. Each frame, playerStep handles movement, worldStep runs behaviors, and render3d draws the scene.",
+      "points": ["block3d creates geometry", "solid defines collision", "playerStart and game.volt provide the player"],
+      "code": "every frame {\n  playerStep()\n  worldStep()\n  render3d\n}"
+    },
+    {
+      "title": "Scripts and visual effects",
+      "tag": "07 · BEHAVIOR & VFX",
+      "narration": "An Effect component stores a preset, color and size. World Studio generates a vfx function for it. A Script component links a Volt file and function, then World Studio imports and calls that function according to its trigger setting. Here is the simpler crate example. The script runs through worldStep. It remembers whether E was down last frame, so it calls the magic circle only on a fresh press while the player is nearby. Releasing E lets the next press trigger it again.",
+      "caption": "The linked function runs from worldStep. Track E's previous state so the effect fires once on each nearby key press, then waits for release.",
+      "points": ["Effect component: choose preset and appearance", "Script component: link a Volt function", "A press edge prevents repeated bursts while holding E"],
+      "code": "let e_was_down = false\n\nfn world_script() {\n  let e_is_down = held(\"e\")\n  if e_is_down and not e_was_down and playerNear(-200, -250, 150) {\n    vfx_Effect()\n  }\n  e_was_down = e_is_down\n}"
+    },
+    {
+      "title": "Compile, preview, improve",
+      "tag": "08 · YOUR FIRST TEST",
+      "narration": "A reliable first workflow is simple. Add a floor and a few parts, set the spawn, and check which objects should be solid. Add a Script or Effect only when the world needs behavior. Save world, compile the Volt file, and preview the game. Walk around with W A S D and the mouse. Check collision, the spawn height, the effect location and the controls. Make a change, save, compile and preview again. The editor test also checks that generated scripts and effects are wired into the game loop.",
+      "caption": "Build, save, compile, preview. Walk the scene, check collision and VFX, then adjust and repeat. The World Studio test checks key save and code-generation behavior.",
+      "points": ["Build → Save world → Compile → Preview", "Check spawn, collision, selection and VFX", "Change one thing and preview again"],
+      "code": "Build  →  Save world  →  Compile  →  Preview"
+    }
+  ]
+}
