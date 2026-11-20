@@ -158,10 +158,54 @@
     #side .pane > h3 { display: none; }
   }
   @media (max-width: 560px) { .tb kbd, .tb .word { display: none; } }
+  :root { --bg:#10141d; --panel:#171d28; --panel2:#202938; --line:#303b4d; --text:#e4eaf4; --muted:#93a1b5; --accent:#72b7ff; --accent2:#8bc5ff; --danger:#ff687a; --ok:#62d6a0; }
+  #app { background:var(--bg); }
+  #topbar { min-height:34px; display:flex; align-items:center; gap:12px; padding:0 12px; background:#111722; border-bottom:1px solid #2b3545; color:var(--muted); }
+  #brand { color:#edf4ff; font-weight:700; letter-spacing:.04em; } #brand em { color:var(--accent); font-style:normal; }
+  #projectLabel { font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } #topbar .spacer { flex:1; }
+  #topbar .top-chip { border:1px solid #344257; border-radius:5px; padding:2px 7px; font-size:10px; }
+  #toolbar { min-height:48px; flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden; gap:7px; padding:7px 9px; background:#192231; border-bottom:1px solid #354257; scrollbar-width:thin; }
+  #toolbar .grp { gap:3px; padding-right:9px; margin-right:1px; }
+  .tb { background:#263346; border-color:#3a4a60; border-radius:5px; min-height:30px; padding:5px 9px; }
+  .tb:hover:not(:disabled) { background:#31445e; border-color:#6c91ba; }
+  .tb.on { background:#203e5d; border-color:#6db6ff; color:#b9dcff; }
+  .tb.primary { background:#2c79bd; border-color:#4a9de4; color:#fff; } .tb.primary:hover:not(:disabled) { background:#378bd2; }
+  .tb.stop { background:#9d3545; border-color:#d15b6b; color:#fff; }
+  #toolbar select { background:#202d3f; border-color:#3a4a60; min-height:30px; }
+  #main { grid-template-columns:minmax(132px,164px) minmax(0,1fr) minmax(228px,278px); }
+  #pParts { background:#171f2c; border-right:1px solid #303d50; }
+  .pane > h3 { min-height:31px; padding:7px 10px; background:#202b3a; color:#b5c3d6; letter-spacing:.07em; }
+  #tools { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; padding:8px; }
+  .tool { min-height:61px; border-radius:6px; padding:8px 3px; background:#202c3c; border-color:#35465c; color:#c1ccda; }
+  .tool .g { color:#8bc5ff; font-size:20px; } .tool:hover { background:#2a3e55; border-color:#6daee9; }
+  #center { background:#090d14; } #vp { background:radial-gradient(ellipse at 50% 42%,#1d293b 0%,#101722 66%,#090d14 100%); }
+  #viewportTools { position:absolute; z-index:4; top:9px; left:10px; right:10px; display:flex; align-items:center; gap:5px; pointer-events:none; }
+  #viewportTools > * { pointer-events:auto; }
+  .vp-group { display:flex; gap:3px; padding:3px; border:1px solid rgba(110,135,168,.35); border-radius:7px; background:rgba(15,22,33,.88); box-shadow:0 4px 14px rgba(0,0,0,.22); backdrop-filter:blur(8px); }
+  .vp-btn { min-width:29px; height:27px; border:1px solid transparent; border-radius:4px; background:transparent; color:#c7d5e6; cursor:pointer; font-size:11px; padding:0 7px; }
+  .vp-btn:hover { background:#2b4058; border-color:#4a688b; color:#fff; } .vp-btn.on { background:#244668; color:#b9ddff; border-color:#5389bb; }
+  #viewCube { margin-left:auto; display:grid; grid-template-columns:repeat(3,25px); grid-template-rows:repeat(3,25px); gap:2px; }
+  #viewCube .vp-btn { min-width:0; padding:0; font-size:10px; background:rgba(15,22,33,.9); border-color:#40536b; }
+  #viewCube .blank { visibility:hidden; }
+  #viewportHint { position:absolute; z-index:3; right:10px; bottom:10px; pointer-events:none; padding:5px 8px; color:#b7c5d7; background:rgba(12,18,28,.78); border:1px solid rgba(94,119,151,.35); border-radius:5px; font-size:10px; text-shadow:0 1px 2px #000; }
+  #badge { bottom:10px; left:10px; border-color:#41536b; color:#d4e4f7; background:rgba(12,18,28,.86); }
+  #status { min-height:25px; background:#151e2b; border-top:1px solid #303d50; color:#a9b8cb; padding:5px 10px; }
+  #side { background:#171e29; border-left-color:#303d50; } #pExplorer { flex:1 1 48%; } #pProps { flex:1 1 52%; }
+  #explorer { padding:5px 0 12px; } .row { min-height:25px; border-left-width:2px; padding-top:4px; padding-bottom:4px; }
+  .row.sel { background:#213a56; border-left-color:#72b7ff; } .row .ic { font-size:12px; }
+  .sec { color:#8bc5ff; } .f input:focus,.f select:focus { outline-color:#72b7ff; border-color:#72b7ff; }
+  .f input[type=range],.f input[type=checkbox] { accent-color:#72b7ff; } .sec.adv { color:#a9b8cb; }
+  .render-error { position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:10px; padding:28px; text-align:center; color:#e8eef7; background:radial-gradient(ellipse,#29374a,#101722 70%); }
+  .render-error strong { font-size:18px; } .render-error span { max-width:440px; color:#b9c6d7; line-height:1.6; }
+  .render-error small { max-width:90%; color:#8797ad; overflow-wrap:anywhere; }
+  @media (max-width:1000px) { #main { grid-template-columns:112px minmax(0,1fr) 220px; } #tools { grid-template-columns:1fr; } }
+  @media (max-width:800px) { #main { display:flex; flex-direction:column; } #pParts .scroll { overflow-x:auto; } #tools { display:flex; flex-direction:row; } #side { height:236px; } #viewportHint { display:none; } }
+  @media (max-width:560px) { #topbar { min-height:30px; } #projectLabel { display:none; } #toolbar { gap:4px; padding:5px; } #viewCube { display:none; } }
 </style>
 </head>
 <body>
 <div id="app" data-dock="props">
+  <div id="topbar"><span id="brand">VOLT <em>/</em> WORLD STUDIO</span><span id="projectLabel">3D workspace · build, arrange and playtest your world</span><span class="spacer"></span><span class="top-chip">EDITOR</span></div>
   <div id="toolbar">
     <div class="grp">
       <button class="tb icon" id="bUndo" title="Undo (Ctrl+Z)">↶</button>
@@ -205,6 +249,19 @@
         <canvas id="cv" tabindex="0"></canvas>
         <div id="vig"></div>
         <div id="hud"></div>
+        <div id="viewportTools">
+          <div class="vp-group" aria-label="Viewport actions">
+            <button class="vp-btn" id="vFrame" title="Frame all objects">Frame</button><button class="vp-btn" id="vFocus" title="Focus selected object (F)">Focus</button>
+            <button class="vp-btn on" id="vGrid" title="Show or hide grid">Grid</button><button class="vp-btn on" id="vAxes" title="Show or hide axes">Axes</button>
+          </div>
+          <div class="vp-group"><button class="vp-btn" id="vZoomOut" title="Zoom out">−</button><button class="vp-btn" id="vZoomIn" title="Zoom in">+</button></div>
+          <div id="viewCube" class="vp-group" aria-label="Camera views">
+            <span class="vp-btn blank"></span><button class="vp-btn" data-view="top" title="Top view">TOP</button><span class="vp-btn blank"></span>
+            <button class="vp-btn" data-view="left" title="Left view">L</button><button class="vp-btn" data-view="front" title="Front view">F</button><button class="vp-btn" data-view="right" title="Right view">R</button>
+            <span class="vp-btn blank"></span><button class="vp-btn" data-view="back" title="Back view">B</button><span class="vp-btn blank"></span>
+          </div>
+        </div>
+        <div id="viewportHint">Right-drag: look · Middle-drag: pan · Scroll: zoom · F: focus</div>
         <div id="badge">Edit</div>
       </div>
       <div id="status"></div>
@@ -215,7 +272,7 @@
         <button data-dock="explorer">Things</button><button data-dock="props" class="on">Properties</button>
       </div>
       <section class="pane" id="pExplorer">
-        <h3>Things <span class="spacer"></span></h3>
+        <h3>Explorer <span class="spacer"></span></h3>
         <div class="scroll" id="explorer"></div>
       </section>
       <section class="pane" id="pProps">
@@ -4685,11 +4742,25 @@ function redo() { if (hpos < hist.length - 1) { hpos++; restore(hist[hpos]); upd
 //  Three.js world
 // ---------------------------------------------------------------------
 const cv = $('#cv'), vp = $('#vp');
-const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, powerPreference: 'high-performance' });
+} catch (error) {
+  console.error('[World Studio] WebGL could not start:', error);
+  const panel = document.createElement('div');
+  panel.className = 'render-error';
+  panel.innerHTML = '<strong>3D viewport could not start</strong><span>Volt could not create a WebGL graphics context. Update your graphics driver, enable hardware acceleration, then restart Volt Studio.</span><small>Technical detail: ' + esc(error && error.message ? error.message : 'WebGL initialisation failed') + '</small>';
+  vp.replaceChildren(panel);
+  return;
+}
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
 renderer.autoClear = false;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
+cv.addEventListener('webglcontextlost', (event) => {
+  event.preventDefault();
+  toast('The 3D graphics context was lost. Try reopening World Studio.', true);
+});
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, 1, 0.05, 400);
@@ -4715,6 +4786,7 @@ gameRig.visible = false;
 scene.add(gameRig);
 
 const grid = new THREE.GridHelper(100, 100, 0x3d4660, 0x252b3c); grid.position.y = 0.001; scene.add(grid);
+let showGrid = true, showAxes = true;
 const axisLines = new THREE.Group();
 [[0xff4d4d, 1, 0, 0], [0x4d8bff, 0, 0, 1]].forEach(([c, x, , z]) => {
   const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-50 * x, 0.002, -50 * z), new THREE.Vector3(50 * x, 0.002, 50 * z)]);
@@ -4918,7 +4990,7 @@ function skyLook(level, w) {   // mirrors __sky3d in lib/volt3d.js
 function applyWorld() {
   const w = S.world, game = mode !== 'edit';
   editorRig.visible = !game; gameRig.visible = game;
-  grid.visible = axisLines.visible = !game;
+  grid.visible = showGrid && !game; axisLines.visible = showAxes && !game;
   if (!game) { scene.background = EDIT_BG; scene.fog = null; }
   else {
     let bg = new THREE.Color(hex6(w.bg, '#05060a')), far = w.fog / 100, amb = w.ambient / 100, ambCol = 0x8890b0, sun = 0;
@@ -4958,23 +5030,47 @@ function lookAtPoint(x, y, z) {
 const fwd3 = () => new THREE.Vector3(Math.sin(cam.yaw) * Math.cos(cam.pitch), Math.sin(cam.pitch), -Math.cos(cam.yaw) * Math.cos(cam.pitch));
 applyCam();
 
-function frameAll() {   // put the camera back so the whole world is in view
-  let minx = 1e9, maxx = -1e9, minz = 1e9, maxz = -1e9;
-  for (const o of S.objects) { minx = Math.min(minx, o.x); maxx = Math.max(maxx, o.x); minz = Math.min(minz, o.z); maxz = Math.max(maxz, o.z); }
-  if (minx > maxx) { minx = maxx = minz = maxz = 0; }
-  const cx = (minx + maxx) / 200, cz = (minz + maxz) / 200, span = Math.max(4, Math.max(maxx - minx, maxz - minz) / 100);
-  cam.yaw = -0.5; cam.pitch = -0.5;
-  const f = fwd3(), dist = span * 0.9 + 4;
-  cam.x = cx - f.x * dist; cam.y = 1 - f.y * dist; cam.z = cz - f.z * dist;
+function sceneBounds() {
+  if (!S.objects.length) return { min: new THREE.Vector3(-2, 0, -2), max: new THREE.Vector3(2, 2, 2) };
+  const min = new THREE.Vector3(Infinity, Infinity, Infinity), max = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
+  for (const o of S.objects) {
+    const b = boundsOf(o), x = o.x / 100, y = o.y / 100 + b[3], z = o.z / 100;
+    min.x = Math.min(min.x, x - b[0] / 2); max.x = Math.max(max.x, x + b[0] / 2);
+    min.y = Math.min(min.y, y - b[1] / 2); max.y = Math.max(max.y, y + b[1] / 2);
+    min.z = Math.min(min.z, z - b[2] / 2); max.z = Math.max(max.z, z + b[2] / 2);
+  }
+  return { min, max };
+}
+function frameAll() {
+  const bounds = sceneBounds(), target = bounds.min.clone().add(bounds.max).multiplyScalar(0.5);
+  const span = bounds.max.clone().sub(bounds.min), aspect = Math.max(0.5, camera.aspect || 1);
+  const halfFov = Math.max(0.1, camera.fov * D2R / 2);
+  const distance = Math.max(3, span.y / (2 * Math.tan(halfFov)), span.x / (2 * Math.tan(halfFov) * aspect), span.z / 2) * 1.45;
+  cam.yaw = -0.62; cam.pitch = -0.38;
+  const f = fwd3();
+  cam.x = target.x - f.x * distance; cam.y = target.y - f.y * distance; cam.z = target.z - f.z * distance;
   applyCam();
 }
 function focusSelection() {
   const o = byId(sel);
-  let tx = 0, ty = 1, tz = 0, size = 6;
-  if (o) { tx = o.x / 100; ty = o.y / 100; tz = o.z / 100; const b = boundsOf(o); size = Math.max(b[0], b[1], b[2], 0.6) * 1.6; }
-  const f = fwd3(), dist = Math.max(2.2, size * 1.7);
-  cam.x = tx - f.x * dist; cam.y = ty - f.y * dist; cam.z = tz - f.z * dist;
+  if (!o) { frameAll(); return; }
+  const b = boundsOf(o), target = new THREE.Vector3(o.x / 100, o.y / 100 + b[3], o.z / 100);
+  const size = Math.max(b[0], b[1], b[2], 0.4);
+  const distance = Math.max(1.5, size / (2 * Math.tan(camera.fov * D2R / 2)) * 1.6);
+  const f = fwd3();
+  cam.x = target.x - f.x * distance; cam.y = target.y - f.y * distance; cam.z = target.z - f.z * distance;
   applyCam();
+}
+function viewPreset(view) {
+  const bounds = sceneBounds(), selected = byId(sel);
+  const point = selected ? new THREE.Vector3(selected.x / 100, selected.y / 100 + boundsOf(selected)[3], selected.z / 100) : bounds.min.clone().add(bounds.max).multiplyScalar(0.5);
+  const span = bounds.max.clone().sub(bounds.min).length(), distance = selected ? Math.max(3, focusDist()) : Math.max(4, span * 0.9);
+  const angles = { front: [0, -0.08], back: [Math.PI, -0.08], left: [-Math.PI / 2, -0.08], right: [Math.PI / 2, -0.08], top: [0, -Math.PI / 2 + 0.02] };
+  const a = angles[view] || angles.front;
+  cam.yaw = a[0]; cam.pitch = a[1];
+  const f = fwd3();
+  cam.x = point.x - f.x * distance; cam.y = point.y - f.y * distance; cam.z = point.z - f.z * distance;
+  applyCam(); updateGizmo();
 }
 const focusDist = () => { const o = byId(sel); return o ? Math.max(1.5, Math.hypot(o.x / 100 - cam.x, o.y / 100 - cam.y, o.z / 100 - cam.z)) : 10; };
 
@@ -5753,6 +5849,13 @@ $('#bUndo').onclick = undo; $('#bRedo').onclick = redo;
 $('#bDup').onclick = duplicateSelected; $('#bDel').onclick = deleteSelected;
 $('#snap').addEventListener('change', () => { cv.focus(); updateStatus(); });
 $('#bLight').onclick = () => { setMode(mode === 'preview' ? 'edit' : 'preview'); };
+$('#vFrame').onclick = () => { frameAll(); cv.focus(); };
+$('#vFocus').onclick = () => { focusSelection(); cv.focus(); };
+$('#vGrid').onclick = () => { showGrid = !showGrid; $('#vGrid').classList.toggle('on', showGrid); applyWorld(); };
+$('#vAxes').onclick = () => { showAxes = !showAxes; $('#vAxes').classList.toggle('on', showAxes); applyWorld(); };
+$$('[data-view]').forEach((b) => b.addEventListener('click', () => { viewPreset(b.dataset.view); cv.focus(); }));
+$('#vZoomIn').onclick = () => { const f = fwd3(), d = clamp(focusDist() * 0.18, 0.25, 4); cam.x += f.x * d; cam.y += f.y * d; cam.z += f.z * d; applyCam(); updateGizmo(); };
+$('#vZoomOut').onclick = () => { const f = fwd3(), d = clamp(focusDist() * 0.18, 0.25, 4); cam.x -= f.x * d; cam.y -= f.y * d; cam.z -= f.z * d; applyCam(); updateGizmo(); };
 $('#bPlay').onclick = () => { if (mode === 'play') stopPlay(); else startPlay(); };
 function setMode(m) {
   mode = m;
@@ -6454,7 +6557,7 @@ function resize() {
   if (narrow() !== resize.wasNarrow) { resize.wasNarrow = narrow(); }
   dirty = true;
 }
-new ResizeObserver(resize).observe(vp);
+if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resize).observe(vp);
 window.addEventListener('resize', resize);
 
 let last = performance.now();
@@ -6493,6 +6596,7 @@ function init() {
   hist = [snapshot()]; hpos = 0; updateButtons();
   if (narrow()) setDock('props');
   resize();
+  frameAll();
   requestAnimationFrame(frame);
   toHost('hello');
   setTimeout(() => { if (!host.ok) toHost('hello'); }, 700);
