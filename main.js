@@ -13,6 +13,7 @@ const volt = require('./compiler/volt.js');
 const { MicroPythonUploader } = require('./lib/micropython.js');
 const pluginsLib = require('./lib/plugins.js');
 const ai = require('./lib/ai.js');
+const projectFiles = require('./lib/project-files.js');
 
 let SerialPort = null;
 try { ({ SerialPort } = require('serialport')); } catch (e) { console.error('serialport not available:', e.message); }
@@ -119,6 +120,7 @@ function buildMenu() {
       submenu: [
         { label: 'New', accelerator: 'CmdOrCtrl+N', click: cmd('new') },
         { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: cmd('open') },
+        { label: 'Open Project Folder…', click: cmd('openProject') },
         { label: 'Save', accelerator: 'CmdOrCtrl+S', click: cmd('save') },
         { label: 'Save As…', accelerator: 'CmdOrCtrl+Shift+S', click: cmd('saveAs') },
         { type: 'separator' },
@@ -224,12 +226,20 @@ app.on('window-all-closed', () => {
 //  Files
 // ---------------------------------------------------------------------
 const VOLT_FILTER = [{ name: 'Volt programs', extensions: ['volt'] }, { name: 'All files', extensions: ['*'] }];
+const approvedProjectRoots = new Set();
+function approveProjectRoot(root) { const real = projectFiles.rootPath(root); approvedProjectRoots.add(real); return real; }
+function requireProjectRoot(root) {
+  const real = projectFiles.rootPath(root);
+  if (!approvedProjectRoots.has(real)) throw new Error('Open this project folder in Volt Studio first.');
+  return real;
+}
 
 function readVolt(filePath) {
   const content = fs.readFileSync(filePath, 'utf8');
+  const projectRoot = approveProjectRoot(path.dirname(filePath));
   settings.lastFile = filePath;
   saveSettings();
-  return { path: filePath, content };
+  return { path: filePath, content, projectRoot };
 }
 
 ipcMain.handle('file:open', async () => {
@@ -249,6 +259,17 @@ ipcMain.handle('file:lastFile', () => {
   return null;
 });
 
+ipcMain.handle('project:open', async () => {
+  const r = await dialog.showOpenDialog(win, { properties: ['openDirectory'] });
+  if (r.canceled || !r.filePaths[0]) return null;
+  try { const project = projectFiles.openProject(r.filePaths[0]); project.root = approveProjectRoot(project.root); return project; }
+  catch (err) { return { error: err.message }; }
+});
+ipcMain.handle('project:list', (e, { root }) => projectFiles.listVoltFiles(requireProjectRoot(root)));
+ipcMain.handle('project:readScript', (e, { root, file }) => projectFiles.readVoltFile(requireProjectRoot(root), file));
+ipcMain.handle('project:writeScript', (e, { root, file, content }) => projectFiles.writeVoltFile(requireProjectRoot(root), file, content));
+ipcMain.handle('project:createScript', (e, { root, file, content }) => projectFiles.writeVoltFile(requireProjectRoot(root), file, content, true));
+
 ipcMain.handle('file:save', async (e, { filePath, content, saveAs, suggestedName }) => {
   let target = filePath;
   if (!target || saveAs) {
@@ -262,9 +283,10 @@ ipcMain.handle('file:save', async (e, { filePath, content, saveAs, suggestedName
     if (!target.toLowerCase().endsWith('.volt')) target += '.volt';
   }
   fs.writeFileSync(target, content, 'utf8');
+  const projectRoot = approveProjectRoot(path.dirname(target));
   settings.lastFile = target;
   saveSettings();
-  return { path: target };
+  return { path: target, projectRoot };
 });
 
 ipcMain.on('app:dirty', (e, value) => { dirty = !!value; });
@@ -290,13 +312,20 @@ ipcMain.handle('examples:list', () => {
     const full = path.join(dir, f);
     if (f.endsWith('.volt')) files.push({ file: full, assetDir: null });
     else if (fs.statSync(full).isDirectory()) {
-      for (const g of fs.readdirSync(full).filter((x) => x.endsWith('.volt')).sort()) files.push({ file: path.join(full, g), assetDir: full });
+      let project = null;
+      try { project = projectFiles.readProjectManifest(full); } catch (err) { console.error(`Invalid example project ${full}:`, err.message); }
+      if (project) { approveProjectRoot(full); files.push({ file: path.join(full, project.entry), assetDir: full, projectRoot: full, projectFiles: projectFiles.listVoltFiles(full), projectName: project.name }); }
+      else for (const g of fs.readdirSync(full).filter((x) => x.endsWith('.volt')).sort()) files.push({ file: path.join(full, g), assetDir: full, projectRoot: full });
     }
   }
-  return files.map(({ file, assetDir }) => {
+  return files.map(({ file, assetDir, projectRoot: suppliedRoot, projectFiles: suppliedFiles }) => {
     const content = fs.readFileSync(file, 'utf8');
     const firstComment = (content.match(/^\s*\/\/\s*(.+)$/m) || [])[1] || '';
-    return { name: path.basename(file, '.volt'), description: firstComment, content, assetDir };
+    const projectRoot = suppliedRoot || assetDir || path.dirname(file);
+    const entryFile = path.relative(projectRoot, file).split(path.sep).join('/');
+    let name = path.basename(file, '.volt');
+    try { const manifest = projectFiles.readProjectManifest(projectRoot); if (manifest) name = manifest.name; } catch { /* malformed examples are omitted above */ }
+    return { name, description: firstComment, content, assetDir, projectRoot, entryFile, files: suppliedFiles || null };
   });
 });
 
@@ -446,7 +475,10 @@ function compileSource(source, filePath, assetDir) {
 }
 
 // Live compile while typing (nothing is written to disk)
-ipcMain.handle('volt:compile', (e, source) => compileSource(source));
+ipcMain.handle('volt:compile', (e, input) => {
+  const opts = typeof input === 'string' ? { source: input } : (input || {});
+  return compileSource(String(opts.source || ''), opts.filePath || null, opts.assetDir || null);
+});
 
 // Compile and save the output next to the .volt file
 ipcMain.handle('volt:build', (e, { filePath, source, assetDir }) => {

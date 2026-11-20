@@ -16,7 +16,7 @@ let failed = 0;
 const check = (name, cond, extra = '') => { if (!cond) failed++; console.log(`${cond ? 'pass' : 'FAIL'}  ${name}${cond ? '' : '  ' + extra}`); };
 const shellSource = fs.readFileSync(path.join(srcDir, 'shell.html'), 'utf8');
 check('the editor has viewport framing and navigation controls', studio.includes('function frameAll()') && studio.includes('function sceneBounds()') && ['vFrame','vFocus','vGrid','vAxes','vZoomIn','vZoomOut'].every((id) => shellSource.includes('id="' + id + '"')));
-check('the first launch frames the current scene', studio.includes('resize();\n  frameAll();\n  requestAnimationFrame(frame);'));
+check('the first launch frames the current scene', /resize\(\);\s*frameAll\(\);\s*requestAnimationFrame\(frame\);/.test(studio));
 check('the viewport reports WebGL startup failures', studio.includes('3D viewport could not start') && studio.includes('new THREE.WebGLRenderer') && studio.includes('catch (error)'));
 check('grid and axes can be toggled independently', studio.includes('grid.visible = showGrid && !game; axisLines.visible = showAxes && !game;'));
 
@@ -24,6 +24,11 @@ check('grid and axes can be toggled independently', studio.includes('grid.visibl
 function grabFn(name) {
   const i = studio.indexOf('function ' + name + '(');
   if (i < 0) throw new Error('no function ' + name + ' in studio.js');
+  if (name === 'worldLines') {
+    const end = studio.indexOf('\nfunction genGameFile', i);
+    if (end < 0) throw new Error('no end of worldLines');
+    return studio.slice(i, end).trimEnd();
+  }
   let pd = 0, after = studio.indexOf('(', i);
   for (let k = after; k < studio.length; k++) {
     if (studio[k] === '(') pd++;
@@ -87,6 +92,20 @@ try {
   volt.compile(file, { baseDir: null, extraDirs: plugins.libraryDirs(list) });
   console.log('pass  the game file it writes actually compiles');
 } catch (e) { failed++; console.log('FAIL  the game file does not compile: ' + e.message); }
+
+const linked = W.makeObj('script', { name: 'Arcane Spell', when: 'frame', file: 'Scripts/spell.volt', fn: 'arcaneSpell' });
+W.S.objects.push(linked);
+const linkedGame = W.genGameFile({ hud: true });
+check('a linked World Studio script is imported and called', linkedGame.includes('import "Scripts/spell.volt"') && /fn script_Arcane_Spell\(\) \{\n  arcaneSpell\(\)/.test(linkedGame));
+const tempProject = fs.mkdtempSync(path.join(require('os').tmpdir(), 'volt-world-script-'));
+try {
+  fs.mkdirSync(path.join(tempProject, 'Scripts'));
+  fs.writeFileSync(path.join(tempProject, 'Scripts', 'spell.volt'), 'fn arcaneSpell() {\n  magic3d 0, 100, 0, 180, "#9d6bff", 500\n}\n');
+  volt.compile(linkedGame, { baseDir: tempProject, extraDirs: plugins.libraryDirs(list) });
+  console.log('pass  a game with a linked World Studio script compiles');
+} catch (e) { failed++; console.log('FAIL  a linked World Studio script does not compile: ' + e.message); }
+finally { fs.rmSync(tempProject, { recursive: true, force: true }); }
+W.roomScene();
 
 // ---- 2. saving again keeps everything around the world ----
 const edited = file

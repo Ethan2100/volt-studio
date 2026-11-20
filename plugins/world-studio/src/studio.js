@@ -171,7 +171,7 @@ function makeObj(kind, over = {}) {
   if (kind === 'lamp') Object.assign(o, { y: 200, color: '#ffcc88', power: 40, range: 700 });
   if (kind === 'model') Object.assign(o, { file: '', scale: 100, solid: true });
   if (kind === 'char') Object.assign(o, { file: 'hunter', anim: 'idle', scale: 100, solid: true });
-  if (kind === 'script') Object.assign(o, { when: 'frame', code: '' });
+  if (kind === 'script') Object.assign(o, { when: 'frame', code: '', file: '', fn: '' });
   if (kind === 'vfx') {
     const preset = VFX_PRESETS[over.effect] || VFX_PRESETS.sparks;
     Object.assign(o, { effect: over.effect || 'sparks', when: 'start', color: preset.color, up: preset.up || 0, rate: preset.rate || 0,
@@ -528,22 +528,26 @@ function sceneBounds() {
 }
 function frameAll() {
   const bounds = sceneBounds(), target = bounds.min.clone().add(bounds.max).multiplyScalar(0.5);
-  const span = bounds.max.clone().sub(bounds.min), aspect = Math.max(0.5, camera.aspect || 1);
-  const halfFov = Math.max(0.1, camera.fov * D2R / 2);
-  const distance = Math.max(3, span.y / (2 * Math.tan(halfFov)), span.x / (2 * Math.tan(halfFov) * aspect), span.z / 2) * 1.45;
+  const span = bounds.max.clone().sub(bounds.min), aspect = Math.max(0.1, camera.aspect || 1);
+  const radius = Math.max(0.5, span.length() / 2);
+  const vfov = Math.max(0.1, camera.fov * D2R), hfov = 2 * Math.atan(Math.tan(vfov / 2) * aspect);
+  const distance = Math.max(3, radius / Math.sin(Math.min(vfov, hfov) / 2)) * 1.15;
   cam.yaw = -0.62; cam.pitch = -0.38;
   const f = fwd3();
   cam.x = target.x - f.x * distance; cam.y = target.y - f.y * distance; cam.z = target.z - f.z * distance;
+  lookAtPoint(target.x, target.y, target.z);
   applyCam();
 }
 function focusSelection() {
   const o = byId(sel);
   if (!o) { frameAll(); return; }
   const b = boundsOf(o), target = new THREE.Vector3(o.x / 100, o.y / 100 + b[3], o.z / 100);
-  const size = Math.max(b[0], b[1], b[2], 0.4);
-  const distance = Math.max(1.5, size / (2 * Math.tan(camera.fov * D2R / 2)) * 1.6);
+  const size = Math.max(b[0], b[1], b[2], 0.4), aspect = Math.max(0.1, camera.aspect || 1);
+  const vfov = Math.max(0.1, camera.fov * D2R), hfov = 2 * Math.atan(Math.tan(vfov / 2) * aspect);
+  const distance = Math.max(1.5, size * Math.sqrt(3) / 2 / Math.sin(Math.min(vfov, hfov) / 2) * 1.15);
   const f = fwd3();
   cam.x = target.x - f.x * distance; cam.y = target.y - f.y * distance; cam.z = target.z - f.z * distance;
+  lookAtPoint(target.x, target.y, target.z);
   applyCam();
 }
 function viewPreset(view) {
@@ -1085,8 +1089,8 @@ function objForm(o) {
     h += '<div class="sec">Runs</div>' + fSelect('when', 'When', o.when, Object.entries(WHENS));
     const owner = o.parent ? byId(o.parent) : null;
     h += `<div class="note">${owner ? `This script belongs to <b>${esc(owner.name)}</b>, which your code can use by that name (it is the part's number in the game).` : 'This script is loose in the world. Drop it inside a part in the Things list to tie it to that part.'}</div>`;
-    h += '<div class="sec">Code</div>' + fCode('code', o.code || '');
-    h += '<div class="note">Plain Volt. The player is at <b>PLAYER_X</b>, <b>PLAYER_Y</b>, <b>PLAYER_Z</b>; an effect inside the same part can be set off by its name, like <b>vfx_Slash()</b>. A counter or a score of your own needs a <b>let</b> line in the game part of the file first, or the game won\'t compile.</div>';
+    h += '<div class="sec">Source</div><div class="btnrow"><button type="button" class="tb" data-act="script-open">' + (o.file ? 'Open script file' : 'Create script file') + '</button></div>';
+    h += `<div class="note">${o.file ? `Linked to <b>${esc(o.file)}</b>${o.fn ? ` · function <b>${esc(o.fn)}</b>` : ''}.` : 'Creates a real .volt file under Scripts/ and opens it in the main code editor.'} Effects and other game code stay in the game file.</div>`;
     return h;
   }
 
@@ -1204,6 +1208,7 @@ $('#props').addEventListener('input', (e) => {
 $('#props').addEventListener('change', () => commit());
 $('#props').addEventListener('click', (e) => {
   if (e.target.closest('[data-act="rebrowse"]')) rebrowseModel(byId(sel));
+  if (e.target.closest('[data-act="script-open"]')) { const o = byId(sel); if (o && o.kind === 'script') toHost('openScript', { req: host.req++, objectId: o.id, name: o.name, file: o.file || '', fn: o.fn || '', code: o.code || '' }); }
   if (e.target.closest('[data-adv]')) { showAdvanced = !showAdvanced; renderProps(); }
   if (e.target.closest('[data-act="vfx-copy"]')) copyPreset(byId(sel));
   if (e.target.closest('[data-act="vfx-paste"]')) pastePreset(byId(sel));
@@ -1536,6 +1541,15 @@ window.addEventListener('message', (e) => {
   if (m.type === 'source' && host.waiting.has(m.req)) { const cb = host.waiting.get(m.req); host.waiting.delete(m.req); cb(m.source || ''); }
   if (m.type === 'asset' && host.waiting.has(m.req)) { const cb = host.waiting.get(m.req); host.waiting.delete(m.req); cb(m.base64 || null); }
   if (m.type === 'assetList' && host.waiting.has(m.req)) { const cb = host.waiting.get(m.req); host.waiting.delete(m.req); cb(m.files || []); }
+  if (m.type === 'scriptOpened') {
+    const o = byId(Number(m.objectId));
+    if (o && o.kind === 'script') { o.file = String(m.file || ''); o.fn = String(m.fn || ''); o.code = ''; renderProps(); dirty = true; commit(); }
+  }
+  if (m.type === 'scriptOpenFailed') toast(m.message || 'Could not open script file.', true);
+  if (m.type === 'scriptSaved') {
+    for (const o of S.objects) if (o.kind === 'script' && o.file === m.file && m.fn) o.fn = m.fn;
+    renderProps(); dirty = true;
+  }
 });
 function getSource() {
   return new Promise((ok, fail) => {
@@ -1590,6 +1604,9 @@ function worldLines() {
   for (const o of S.objects) if (ATTACHED.has(o.kind)) idn.set(o.id, identFor(o.name, used));
 
   L.push(MARK_OPEN + '  (World Studio writes this part - press "Save world" to update it)');
+  const scriptFiles = [...new Set(S.objects.filter((o) => o.kind === 'script' && o.file).map((o) => o.file))];
+  for (const file of scriptFiles) L.push('import ' + JSON.stringify(file));
+  if (scriptFiles.length) L.push('');
   let wl = 'world3d ' + q(w.bg);
   if (w.fog > 0) wl += ' fog ' + r(w.fog);
   wl += ' ambient ' + r(w.ambient) + ' fov ' + r(w.fov);
@@ -1706,10 +1723,17 @@ function worldLines() {
       const owner = o.parent ? byId(o.parent) : null;
       L.push(`// ${o.name}${owner ? ' (inside ' + owner.name + ')' : ''} - ${WHENS[o.when] || o.when}`);
       L.push(`fn ${f}() {`);
+      if (o.file) {
+        const fn = String(o.fn || '').trim();
+        if (/^[A-Za-z_]\w*$/.test(fn)) L.push('  ' + fn + '()');
+        else L.push('  // Open the linked file and choose its function name.');
+        L.push('}');
+      } else {
       const body = String(o.code || '').replace(/\r/g, '').split('\n').filter((l, i, a) => !(i === a.length - 1 && !l.trim()));
       if (!body.length || !body.some((l) => l.trim())) L.push('  // (nothing in this script yet)');
       else for (const line of body) L.push(line.trim() ? '  ' + line : '');
       L.push('}');
+      }
     }
   }
 

@@ -11,9 +11,14 @@ const on = (channel) => (callback) => {
 contextBridge.exposeInMainWorld('volt', {
   // files
   open: () => ipcRenderer.invoke('file:open'),
+  openProject: () => ipcRenderer.invoke('project:open'),
   openPath: (p) => ipcRenderer.invoke('file:openPath', p),
   lastFile: () => ipcRenderer.invoke('file:lastFile'),
   save: (opts) => ipcRenderer.invoke('file:save', opts),
+  projectFiles: (root) => ipcRenderer.invoke('project:list', { root }),
+  readProjectScript: (root, file) => ipcRenderer.invoke('project:readScript', { root, file }),
+  writeProjectScript: (root, file, content) => ipcRenderer.invoke('project:writeScript', { root, file, content }),
+  createProjectScript: (root, file, content) => ipcRenderer.invoke('project:createScript', { root, file, content }),
   setDirty: (v) => ipcRenderer.send('app:dirty', v),
   examples: () => ipcRenderer.invoke('examples:list'),
   reference: () => ipcRenderer.invoke('docs:reference'),
@@ -25,7 +30,7 @@ contextBridge.exposeInMainWorld('volt', {
   setSettings: (patch) => ipcRenderer.invoke('settings:set', patch),
 
   // compiler
-  compile: (source) => ipcRenderer.invoke('volt:compile', source),
+  compile: (opts) => ipcRenderer.invoke('volt:compile', opts),
   build: (opts) => ipcRenderer.invoke('volt:build', opts),
   upload: (opts) => ipcRenderer.invoke('volt:upload', opts),
   run: (opts) => ipcRenderer.invoke('volt:run', opts),

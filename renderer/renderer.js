@@ -89,6 +89,12 @@ const state = {
   filePath: null,
   suggestedName: 'my_program.volt',
   dirty: false,
+  projectRoot: null,
+  projectFiles: [],
+  entryFile: null,
+  documents: [],
+  activeDoc: null,
+  entryDoc: null,
   target: 'cpp',
   lastResult: null,
   errorMark: null,       // { line, widget }
@@ -205,40 +211,155 @@ document.querySelectorAll('[data-close-tab]').forEach((b) => {
 // ---------------------------------------------------------------------
 //  File handling
 // ---------------------------------------------------------------------
+const pathBase = (p) => (p ? p.split(/[\\/]/).pop() : 'untitled.volt');
+const pathDir = (p) => (p ? p.replace(/[\\/][^\\/]*$/, '') : '');
+const pathJoin = (root, rel) => `${String(root || '').replace(/[\\/]$/, '')}${String(root || '').includes('\\') ? '\\' : '/'}${String(rel || '').replace(/[\\/]/g, String(root || '').includes('\\') ? '\\' : '/')}`;
+const projectRelative = (p, root) => String(p || '').slice(String(root || '').length).replace(/^[\\/]+/, '').replace(/\\/g, '/');
+function compileFilePath() {
+  if (state.entryDoc?.filePath) return state.entryDoc.filePath;
+  if (state.projectRoot && state.entryFile) return pathJoin(state.projectRoot, state.entryFile);
+  return null;
+}
+function anyDirty() { return state.documents.some((d) => d.dirty); }
+function syncDirty() {
+  state.dirty = anyDirty();
+  api.setDirty(state.dirty);
+  updateTitle();
+  renderDocumentTabs();
+}
 function updateTitle() {
-  const name = baseName(state.filePath);
+  const doc = state.activeDoc;
+  const name = doc ? pathBase(doc.filePath || doc.relativePath || state.suggestedName) : pathBase(state.filePath);
   $('file-name').textContent = name;
-  $('file-name').title = state.filePath || 'Not saved yet';
+  $('file-name').title = doc?.filePath || (doc?.relativePath ? `${state.projectRoot || ''}/${doc.relativePath}` : 'Not saved yet');
   $('file-name').classList.toggle('dirty', state.dirty);
   document.title = `${name}${state.dirty ? ' ●' : ''} – Volt Studio`;
 }
 
 function setDirty(value) {
-  if (state.dirty === value) return;
-  state.dirty = value;
-  api.setDirty(value);
-  updateTitle();
+  if (state.activeDoc) state.activeDoc.dirty = value;
+  syncDirty();
 }
 
-function loadDocument(content, filePath) {
-  state.filePath = filePath || null;
-  state.assetDir = null;            // set again by examples that keep pictures in their own folder
-  editor.setValue(content);
-  editor.clearHistory();
-  editor.setCursor(0, 0);
-  setDirty(!filePath && content !== STARTER.cpp && content !== STARTER.python);
-  updateTitle();
-  compileNow();
+function renderDocumentTabs() {
+  const tabs = $('document-tabs');
+  if (!tabs) return;
+  tabs.innerHTML = state.documents.map((d, i) => {
+    const label = pathBase(d.filePath || d.relativePath || state.suggestedName);
+    return `<button class="document-tab${d === state.activeDoc ? ' active' : ''}" data-doc="${i}" title="${escapeHtml(d.filePath || d.relativePath || label)}"><span class="tab-label">${escapeHtml(label)}</span>${d.dirty ? '<span class="tab-dirty">●</span>' : ''}${d.isEntry ? '' : '<span class="tab-close" data-close-doc="' + i + '" title="Close file">×</span>'}</button>`;
+  }).join('');
+}
+
+function renderProjectTree() {
+  const tree = $('project-tree'), box = $('project-files'), pane = document.querySelector('.editor-pane');
+  const open = !!state.projectRoot;
+  tree.classList.toggle('hidden', !open);
+  pane.classList.toggle('project-open', open);
+  if (!open) return;
+  $('project-title').textContent = pathBase(state.projectRoot) || 'PROJECT';
+  if (!state.projectFiles.length) {
+    box.innerHTML = '<div class="project-empty">No Volt files in this project yet.</div>';
+    return;
+  }
+  box.innerHTML = state.projectFiles.map((f) => {
+    const isActive = f === state.activeDoc?.relativePath;
+    const depth = Math.max(0, f.split('/').length - 1);
+    return `<button class="project-file${isActive ? ' active' : ''}" data-project-file="${escapeHtml(f)}" style="padding-left:${12 + depth * 12}px"><span class="file-glyph">V</span><span>${escapeHtml(pathBase(f))}</span></button>`;
+  }).join('');
+}
+
+async function refreshProjectTree() {
+  if (!state.projectRoot) { state.projectFiles = []; renderProjectTree(); return; }
+  try { state.projectFiles = await api.projectFiles(state.projectRoot); }
+  catch (err) { state.projectFiles = []; toast(`Could not read project files: ${err.message}`, true); }
+  renderProjectTree();
+}
+
+function activateDocument(doc, compile = true) {
+  if (!doc) return;
+  state.activeDoc = doc;
+  state.filePath = doc.filePath || null;
+  editor.swapDoc(doc.cm);
+  $('target-select').disabled = !doc.isEntry;
+  updateTitle(); renderDocumentTabs(); renderProjectTree();
+  editor.refresh();
+  if (doc.isEntry && compile) compileNow();
+  else if (!doc.isEntry) {
+    clearError();
+    $('output-info').textContent = 'Save this script to compile the project';
+    setStatus(`Editing project script: ${doc.relativePath}`, '');
+  }
   editor.focus();
 }
 
+function addDocument(content, filePath, relativePath, isEntry = false) {
+  const doc = { cm: new CodeMirror.Doc(content, 'volt'), filePath: filePath || null, relativePath: relativePath || null, isEntry, dirty: false };
+  state.documents.push(doc);
+  if (isEntry) state.entryDoc = doc;
+  return doc;
+}
+
+function loadDocument(content, filePath, options = {}) {
+  state.documents = [];
+  state.activeDoc = null;
+  state.entryDoc = null;
+  state.filePath = filePath || null;
+  state.projectRoot = options.projectRoot || (filePath ? pathDir(filePath) : null);
+  state.entryFile = options.entryFile || (filePath && state.projectRoot ? projectRelative(filePath, state.projectRoot) : null);
+  state.assetDir = options.assetDir || null;
+  state.suggestedName = options.suggestedName || (state.entryFile ? pathBase(state.entryFile) : 'my_program.volt');
+  const doc = addDocument(content, filePath, state.entryFile, true);
+  state.target = directiveTarget(content);
+  setTarget(state.target);
+  activateDocument(doc, false);
+  syncDirty();
+  refreshProjectTree();
+  compileNow();
+}
+
+function openProjectEntry(root, relative, content, files) {
+  const full = pathJoin(root, relative);
+  state.projectFiles = files || [];
+  state.assetDir = root;
+  loadDocument(content, full, { projectRoot: root, entryFile: relative, assetDir: root });
+}
+
+async function chooseEntryFile(files) {
+  if (!files.length) return null;
+  if (files.length === 1) return files[0];
+  return new Promise((resolve) => {
+    const items = files.map((f) => `<button class="example" data-entry="${escapeHtml(f)}"><h4>${escapeHtml(f)}</h4><p>Open as the project game file</p></button>`).join('');
+    modal('Choose the game file', `<p>Select the main .volt file for this project.</p><div class="examples">${items}</div>`, [{ label: 'Cancel' }]).then(() => resolve(null));
+    $('modal-body').querySelectorAll('[data-entry]').forEach((b) => b.onclick = () => { $('modal').classList.add('hidden'); resolve(b.dataset.entry); });
+  });
+}
+
+async function openProject() {
+  if (!(await confirmDiscard())) return;
+  const project = await api.openProject();
+  if (!project) return;
+  if (project.error) { toast(project.error, true); return; }
+  const entry = project.entry || await chooseEntryFile(project.files || []);
+  if (!entry) { toast('Choose a project with a .volt game file.', true); return; }
+  try { openProjectEntry(project.root, entry, await api.readProjectScript(project.root, entry), project.files); }
+  catch (err) { toast(`Could not open project: ${err.message}`, true); }
+  toast(`Opened project: ${project.manifest?.name || pathBase(project.root)}`);
+}
+
+async function openProjectFromDetails(project) {
+  if (!(await confirmDiscard())) return;
+  try { openProjectEntry(project.projectRoot, project.entryFile, project.content, await api.projectFiles(project.projectRoot)); }
+  catch (err) { toast(`Could not open project: ${err.message}`, true); return; }
+  toast(`Opened project: ${project.name}`);
+}
+
 async function confirmDiscard() {
-  if (!state.dirty) return true;
+  if (!anyDirty()) return true;
   const choice = await modal('Unsaved changes',
-    `<p><b>${escapeHtml(baseName(state.filePath))}</b> has changes that aren't saved.</p>`,
-    [{ label: 'Cancel' }, { label: "Don't save" }, { label: 'Save', primary: true }]);
+    `<p>${state.documents.filter((d) => d.dirty).map((d) => `<b>${escapeHtml(pathBase(d.filePath || d.relativePath || state.suggestedName))}</b>`).join(', ')} ${state.documents.filter((d) => d.dirty).length === 1 ? 'has' : 'have'} changes that aren't saved.</p>`,
+    [{ label: 'Cancel' }, { label: "Don't save" }, { label: 'Save All', primary: true }]);
   if (choice === 0) return false;
-  if (choice === 2) return saveFile();
+  if (choice === 2) return saveAll();
   return true;
 }
 
@@ -263,17 +384,69 @@ async function newFile() {
 async function openFile() {
   if (!(await confirmDiscard())) return;
   const r = await api.open();
-  if (r) { loadDocument(r.content, r.path); toast(`Opened ${baseName(r.path)}`); }
+  if (r) { loadDocument(r.content, r.path, { projectRoot: r.projectRoot }); toast(`Opened ${baseName(r.path)}`); }
 }
 
 async function saveFile(saveAs = false) {
-  const r = await api.save({ filePath: state.filePath, content: editor.getValue(), saveAs, suggestedName: state.suggestedName });
+  const doc = state.activeDoc;
+  if (!doc) return false;
+  if (!doc.isEntry) {
+    if (!state.projectRoot || !doc.relativePath) { toast('Open a project folder before saving a script.', true); return false; }
+    try {
+      await api.writeProjectScript(state.projectRoot, doc.relativePath, doc.cm.getValue());
+      doc.dirty = false; syncDirty();
+      const functionName = (doc.cm.getValue().match(/^\s*fn\s+([A-Za-z_]\w*)\s*\(/m) || [])[1] || '';
+      notifyWorldStudioScriptSaved(doc.relativePath, functionName);
+      setStatus(`Saved ${doc.relativePath}`, 'ok');
+      return true;
+    } catch (err) { toast(`Could not save script: ${err.message}`, true); return false; }
+  }
+  const r = await api.save({ filePath: doc.filePath, content: doc.cm.getValue(), saveAs, suggestedName: state.suggestedName });
   if (!r) return false;
-  state.filePath = r.path;
-  setDirty(false);
-  updateTitle();
+  doc.filePath = r.path; doc.relativePath = projectRelative(r.path, r.projectRoot); state.filePath = r.path;
+  state.projectRoot = r.projectRoot; state.entryFile = doc.relativePath; state.assetDir = null;
+  doc.dirty = false; syncDirty(); refreshProjectTree();
   setStatus(`Saved ${baseName(r.path)}`, 'ok');
   return true;
+}
+
+async function saveAll() {
+  const active = state.activeDoc;
+  const docs = [...state.documents].filter((d) => d.dirty).sort((a, b) => Number(b.isEntry) - Number(a.isEntry));
+  for (const doc of docs) {
+    activateDocument(doc, false);
+    if (!(await saveFile(false))) {
+      if (active) activateDocument(active, false);
+      return false;
+    }
+  }
+  if (active) activateDocument(active, false);
+  return true;
+}
+
+async function openProjectFile(relative) {
+  if (!state.projectRoot) return;
+  const entryPath = pathJoin(state.projectRoot, relative);
+  let doc = state.documents.find((d) => d.filePath === entryPath || d.relativePath === relative);
+  if (!doc) {
+    try { doc = addDocument(await api.readProjectScript(state.projectRoot, relative), entryPath, relative, relative === state.entryFile); }
+    catch (err) { toast(`Could not open ${relative}: ${err.message}`, true); return; }
+  }
+  if (doc.isEntry) state.entryDoc = doc;
+  activateDocument(doc);
+}
+
+async function closeDocument(doc) {
+  if (!doc || doc.isEntry) return;
+  if (doc.dirty) {
+    const choice = await modal('Unsaved script', `<p><b>${escapeHtml(doc.relativePath)}</b> has unsaved changes.</p>`, [{ label: 'Cancel' }, { label: "Don't save" }, { label: 'Save', primary: true }]);
+    if (choice === 0) return;
+    if (choice === 2) { activateDocument(doc, false); if (!(await saveFile())) return; }
+  }
+  const index = state.documents.indexOf(doc);
+  state.documents.splice(index, 1);
+  if (state.activeDoc === doc) activateDocument(state.entryDoc || state.documents[0]);
+  syncDirty();
 }
 
 // ---------------------------------------------------------------------
@@ -351,7 +524,7 @@ function scheduleCompile() {
 }
 
 async function compileNow() {
-  const r = await api.compile(editor.getValue());
+  const r = await api.compile({ source: state.entryDoc?.cm.getValue() || editor.getValue(), filePath: compileFilePath(), assetDir: state.assetDir || state.projectRoot });
   state.lastResult = r;
   updateAiErrorButton();
   if (r.ok) {
@@ -372,7 +545,9 @@ async function compileNow() {
 }
 
 async function compileAndSave() {
-  const r = await api.build({ filePath: state.filePath, source: editor.getValue(), assetDir: state.assetDir });
+  const filePath = compileFilePath();
+  if (anyDirty() && !(await saveAll())) return;
+  const r = await api.build({ filePath, source: state.entryDoc?.cm.getValue() || editor.getValue(), assetDir: state.assetDir || state.projectRoot });
   showTab('bottom', 'console');
   if (!r.ok) {
     await compileNow();
@@ -511,10 +686,10 @@ async function run() {
   if (state.running) { await api.stop(); return; }
   const r = await compileNow();
   if (!r.ok) { jumpToError(); toast(`Fix line ${r.line} first`, true); return; }
-  if (state.dirty && state.filePath) await saveFile();
+  if (anyDirty() && state.projectRoot && !(await saveAll())) return;
   showTab('bottom', 'console');
   if (state.target !== 'html') $('console').textContent = '';
-  const res = await api.run({ filePath: state.filePath, source: editor.getValue(), assetDir: state.assetDir });
+  const res = await api.run({ filePath: compileFilePath(), source: state.entryDoc?.cm.getValue() || editor.getValue(), assetDir: state.assetDir || state.projectRoot });
   if (res.ok && res.preview) {
     setStatus('✓ Page shown in the preview window', 'ok');
   } else if (!res.ok) {
@@ -563,14 +738,14 @@ async function upload() {
       return;
     }
   }
-  if (state.dirty && state.filePath) await saveFile();
+  if (anyDirty() && state.projectRoot && !(await saveAll())) return;
 
   showTab('bottom', 'console');
   $('console').textContent = '';
   setStatus('Uploading…', 'busy');
   const res = await api.upload({
-    filePath: state.filePath,
-    source: editor.getValue(),
+    filePath: compileFilePath(),
+    source: state.entryDoc?.cm.getValue() || editor.getValue(),
     port: $('port-select').value,
     fqbn: $('board-select').value,
   });
@@ -734,11 +909,15 @@ async function loadExamples() {
     b.innerHTML = `<h4>${escapeHtml(ex.name.replace(/^\d+_/, '').replace(/_/g, ' '))} <span class="lang-pill">${lang.short}</span></h4><p>${escapeHtml(ex.description)}</p>`;
     b.onclick = async () => {
       if (!(await confirmDiscard())) return;
-      loadDocument(ex.content, null);
-      state.assetDir = ex.assetDir || null;
-      state.suggestedName = `${ex.name.replace(/^\d+_/, '')}.volt`;
-      setDirty(false);
-      toast(`Loaded example: ${ex.name}. Save it to keep your changes.`);
+      if (ex.projectRoot && Array.isArray(ex.files)) {
+        openProjectEntry(ex.projectRoot, ex.entryFile, ex.content, ex.files);
+        toast(`Opened project example: ${ex.name}`);
+      } else {
+        loadDocument(ex.content, null, { assetDir: ex.assetDir || null });
+        state.suggestedName = `${ex.name.replace(/^\d+_/, '')}.volt`;
+        setDirty(false);
+        toast(`Loaded example: ${ex.name}. Save it to keep your changes.`);
+      }
     };
     box.appendChild(b);
   });
@@ -774,6 +953,45 @@ function addPanelTab(plugin) {
 
   api.pluginsPanelUrl({ id: plugin.id }).then((url) => { if (url) frame.src = url; });
   panelTabEls.push({ button, body, frame });
+}
+
+function notifyWorldStudioScriptSaved(relative, fn) {
+  for (const panel of panelTabEls) {
+    if (panel.frame && /world-studio/i.test(panel.button?.textContent || '')) {
+      try { panel.frame.contentWindow.postMessage({ voltHost: 1, type: 'scriptSaved', file: relative, fn }, '*'); } catch { /* panel may be reloading */ }
+    }
+  }
+}
+
+function scriptSlug(name) {
+  const slug = String(name || 'World Script').replace(/([a-z0-9])([A-Z])/g, '$1_$2').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').toLowerCase();
+  return slug || 'world_script';
+}
+
+async function openWorldStudioScript(entry, message, reply) {
+  if (!state.projectRoot) { reply({ type: 'scriptOpenFailed', message: 'Open or save this game inside a project folder first.' }); return; }
+  const requested = typeof message.file === 'string' ? message.file : '';
+  let relative = requested, fn = typeof message.fn === 'string' ? message.fn : '';
+  try {
+    if (!relative) {
+      const stem = scriptSlug(message.name);
+      let candidateFn = `world_${stem}`;
+      let suffix = 1;
+      relative = `Scripts/${stem}.volt`;
+      while (state.projectFiles.includes(relative)) { relative = `Scripts/${stem}_${++suffix}.volt`; candidateFn = `world_${stem}_${suffix}`; }
+      const legacy = String(message.code || '').replace(/\r/g, '').split('\n').filter((line, i, all) => !(i === all.length - 1 && !line.trim()));
+      const body = legacy.some((line) => line.trim()) ? legacy.map((line) => line.trim() ? `  ${line}` : '').join('\n') : '  // Add this script\'s behavior here.\n  // Use PLAYER_X, PLAYER_Y, PLAYER_Z and the VFX helpers from the game file.';
+      const result = await api.createProjectScript(state.projectRoot, relative, `// World Studio script: ${message.name || 'World Script'}\nfn ${candidateFn}() {\n${body}\n}\n`);
+      if (!result.created) { await openWorldStudioScript(entry, { ...message, file: relative, fn: candidateFn }, reply); return; }
+      fn = candidateFn;
+    }
+    const content = await api.readProjectScript(state.projectRoot, relative);
+    const declared = [...content.matchAll(/^\s*fn\s+([A-Za-z_]\w*)\s*\(/gm)].map((m) => m[1]);
+    if (!declared.includes(fn)) fn = declared[0] || '';
+    if (!state.projectFiles.includes(relative)) { state.projectFiles.push(relative); state.projectFiles.sort(); renderProjectTree(); }
+    await openProjectFile(relative);
+    reply({ type: 'scriptOpened', objectId: message.objectId, file: relative, fn });
+  } catch (err) { reply({ type: 'scriptOpenFailed', message: err.message || 'Could not open script file.' }); }
 }
 
 async function loadPlugins() {
@@ -824,13 +1042,15 @@ window.addEventListener('message', (ev) => {
   const code = typeof m.code === 'string' && m.code.length < 4000000 ? m.code : null;
   switch (m.type) {
     case 'hello': reply({ type: 'hello', version: 1 }); break;
-    case 'getSource': reply({ type: 'source', req: m.req, source: editor.getValue() }); break;
+    case 'getSource': reply({ type: 'source', req: m.req, source: state.entryDoc?.cm.getValue() || editor.getValue() }); break;
+    case 'openScript': openWorldStudioScript(entry, m, reply); break;
     case 'insert':
       if (code != null) { editor.replaceSelection(code.endsWith('\n') ? code : `${code}\n`); editor.focus(); }
       break;
     case 'replace':   // one undo step in the code editor (Ctrl+Z)
       if (code != null) {
-        editor.setValue(code); editor.setCursor(0, 0); setDirty(true); compileNow();
+        const doc = state.entryDoc || state.activeDoc;
+        doc.cm.setValue(code); doc.cm.setCursor(0, 0); doc.dirty = true; syncDirty(); compileNow();
         if (m.run) run();
       }
       break;
@@ -1100,6 +1320,20 @@ function setFontSize(px) {
 // ---------------------------------------------------------------------
 $('btn-new').addEventListener('click', newFile);
 $('btn-open').addEventListener('click', openFile);
+$('btn-project').addEventListener('click', openProject);
+$('btn-project-refresh').addEventListener('click', refreshProjectTree);
+$('project-files').addEventListener('click', (e) => { const b = e.target.closest('[data-project-file]'); if (b) openProjectFile(b.dataset.projectFile); });
+$('document-tabs').addEventListener('click', (e) => {
+  const close = e.target.closest('[data-close-doc]');
+  if (close) { e.stopPropagation(); closeDocument(state.documents[Number(close.dataset.closeDoc)]); return; }
+  const tab = e.target.closest('[data-doc]'); if (tab) activateDocument(state.documents[Number(tab.dataset.doc)]);
+});
+{
+  let drag = false;
+  $('project-divider').addEventListener('mousedown', (e) => { drag = true; e.preventDefault(); });
+  window.addEventListener('mousemove', (e) => { if (drag) document.documentElement.style.setProperty('--project-width', `${Math.max(140, Math.min(420, e.clientX))}px`); });
+  window.addEventListener('mouseup', () => { drag = false; });
+}
 $('btn-save').addEventListener('click', () => saveFile());
 $('btn-compile').addEventListener('click', compileAndSave);
 $('btn-upload').addEventListener('click', upload);
@@ -1108,9 +1342,10 @@ $('btn-copy-output').addEventListener('click', () => {
   toast('Output code copied');
 });
 $('btn-open-output').addEventListener('click', async () => {
-  if (!state.filePath) { toast('Save your .volt file first'); return; }
-  await api.build({ filePath: state.filePath, source: editor.getValue(), assetDir: state.assetDir });
-  api.openOutput(state.filePath);
+  const filePath = compileFilePath();
+  if (!filePath) { toast('Save your .volt file first'); return; }
+  await api.build({ filePath, source: state.entryDoc?.cm.getValue() || editor.getValue(), assetDir: state.assetDir || state.projectRoot });
+  api.openOutput(filePath);
 });
 
 const MENU = {
