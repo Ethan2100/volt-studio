@@ -227,11 +227,25 @@ function redo() { if (hpos < hist.length - 1) { hpos++; restore(hist[hpos]); upd
 //  Three.js world
 // ---------------------------------------------------------------------
 const cv = $('#cv'), vp = $('#vp');
-const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, powerPreference: 'high-performance' });
+} catch (error) {
+  console.error('[World Studio] WebGL could not start:', error);
+  const panel = document.createElement('div');
+  panel.className = 'render-error';
+  panel.innerHTML = '<strong>3D viewport could not start</strong><span>Volt could not create a WebGL graphics context. Update your graphics driver, enable hardware acceleration, then restart Volt Studio.</span><small>Technical detail: ' + esc(error && error.message ? error.message : 'WebGL initialisation failed') + '</small>';
+  vp.replaceChildren(panel);
+  return;
+}
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
 renderer.autoClear = false;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
+cv.addEventListener('webglcontextlost', (event) => {
+  event.preventDefault();
+  toast('The 3D graphics context was lost. Try reopening World Studio.', true);
+});
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, 1, 0.05, 400);
@@ -257,6 +271,7 @@ gameRig.visible = false;
 scene.add(gameRig);
 
 const grid = new THREE.GridHelper(100, 100, 0x3d4660, 0x252b3c); grid.position.y = 0.001; scene.add(grid);
+let showGrid = true, showAxes = true;
 const axisLines = new THREE.Group();
 [[0xff4d4d, 1, 0, 0], [0x4d8bff, 0, 0, 1]].forEach(([c, x, , z]) => {
   const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-50 * x, 0.002, -50 * z), new THREE.Vector3(50 * x, 0.002, 50 * z)]);
@@ -460,7 +475,7 @@ function skyLook(level, w) {   // mirrors __sky3d in lib/volt3d.js
 function applyWorld() {
   const w = S.world, game = mode !== 'edit';
   editorRig.visible = !game; gameRig.visible = game;
-  grid.visible = axisLines.visible = !game;
+  grid.visible = showGrid && !game; axisLines.visible = showAxes && !game;
   if (!game) { scene.background = EDIT_BG; scene.fog = null; }
   else {
     let bg = new THREE.Color(hex6(w.bg, '#05060a')), far = w.fog / 100, amb = w.ambient / 100, ambCol = 0x8890b0, sun = 0;
@@ -500,23 +515,47 @@ function lookAtPoint(x, y, z) {
 const fwd3 = () => new THREE.Vector3(Math.sin(cam.yaw) * Math.cos(cam.pitch), Math.sin(cam.pitch), -Math.cos(cam.yaw) * Math.cos(cam.pitch));
 applyCam();
 
-function frameAll() {   // put the camera back so the whole world is in view
-  let minx = 1e9, maxx = -1e9, minz = 1e9, maxz = -1e9;
-  for (const o of S.objects) { minx = Math.min(minx, o.x); maxx = Math.max(maxx, o.x); minz = Math.min(minz, o.z); maxz = Math.max(maxz, o.z); }
-  if (minx > maxx) { minx = maxx = minz = maxz = 0; }
-  const cx = (minx + maxx) / 200, cz = (minz + maxz) / 200, span = Math.max(4, Math.max(maxx - minx, maxz - minz) / 100);
-  cam.yaw = -0.5; cam.pitch = -0.5;
-  const f = fwd3(), dist = span * 0.9 + 4;
-  cam.x = cx - f.x * dist; cam.y = 1 - f.y * dist; cam.z = cz - f.z * dist;
+function sceneBounds() {
+  if (!S.objects.length) return { min: new THREE.Vector3(-2, 0, -2), max: new THREE.Vector3(2, 2, 2) };
+  const min = new THREE.Vector3(Infinity, Infinity, Infinity), max = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
+  for (const o of S.objects) {
+    const b = boundsOf(o), x = o.x / 100, y = o.y / 100 + b[3], z = o.z / 100;
+    min.x = Math.min(min.x, x - b[0] / 2); max.x = Math.max(max.x, x + b[0] / 2);
+    min.y = Math.min(min.y, y - b[1] / 2); max.y = Math.max(max.y, y + b[1] / 2);
+    min.z = Math.min(min.z, z - b[2] / 2); max.z = Math.max(max.z, z + b[2] / 2);
+  }
+  return { min, max };
+}
+function frameAll() {
+  const bounds = sceneBounds(), target = bounds.min.clone().add(bounds.max).multiplyScalar(0.5);
+  const span = bounds.max.clone().sub(bounds.min), aspect = Math.max(0.5, camera.aspect || 1);
+  const halfFov = Math.max(0.1, camera.fov * D2R / 2);
+  const distance = Math.max(3, span.y / (2 * Math.tan(halfFov)), span.x / (2 * Math.tan(halfFov) * aspect), span.z / 2) * 1.45;
+  cam.yaw = -0.62; cam.pitch = -0.38;
+  const f = fwd3();
+  cam.x = target.x - f.x * distance; cam.y = target.y - f.y * distance; cam.z = target.z - f.z * distance;
   applyCam();
 }
 function focusSelection() {
   const o = byId(sel);
-  let tx = 0, ty = 1, tz = 0, size = 6;
-  if (o) { tx = o.x / 100; ty = o.y / 100; tz = o.z / 100; const b = boundsOf(o); size = Math.max(b[0], b[1], b[2], 0.6) * 1.6; }
-  const f = fwd3(), dist = Math.max(2.2, size * 1.7);
-  cam.x = tx - f.x * dist; cam.y = ty - f.y * dist; cam.z = tz - f.z * dist;
+  if (!o) { frameAll(); return; }
+  const b = boundsOf(o), target = new THREE.Vector3(o.x / 100, o.y / 100 + b[3], o.z / 100);
+  const size = Math.max(b[0], b[1], b[2], 0.4);
+  const distance = Math.max(1.5, size / (2 * Math.tan(camera.fov * D2R / 2)) * 1.6);
+  const f = fwd3();
+  cam.x = target.x - f.x * distance; cam.y = target.y - f.y * distance; cam.z = target.z - f.z * distance;
   applyCam();
+}
+function viewPreset(view) {
+  const bounds = sceneBounds(), selected = byId(sel);
+  const point = selected ? new THREE.Vector3(selected.x / 100, selected.y / 100 + boundsOf(selected)[3], selected.z / 100) : bounds.min.clone().add(bounds.max).multiplyScalar(0.5);
+  const span = bounds.max.clone().sub(bounds.min).length(), distance = selected ? Math.max(3, focusDist()) : Math.max(4, span * 0.9);
+  const angles = { front: [0, -0.08], back: [Math.PI, -0.08], left: [-Math.PI / 2, -0.08], right: [Math.PI / 2, -0.08], top: [0, -Math.PI / 2 + 0.02] };
+  const a = angles[view] || angles.front;
+  cam.yaw = a[0]; cam.pitch = a[1];
+  const f = fwd3();
+  cam.x = point.x - f.x * distance; cam.y = point.y - f.y * distance; cam.z = point.z - f.z * distance;
+  applyCam(); updateGizmo();
 }
 const focusDist = () => { const o = byId(sel); return o ? Math.max(1.5, Math.hypot(o.x / 100 - cam.x, o.y / 100 - cam.y, o.z / 100 - cam.z)) : 10; };
 
@@ -1295,6 +1334,13 @@ $('#bUndo').onclick = undo; $('#bRedo').onclick = redo;
 $('#bDup').onclick = duplicateSelected; $('#bDel').onclick = deleteSelected;
 $('#snap').addEventListener('change', () => { cv.focus(); updateStatus(); });
 $('#bLight').onclick = () => { setMode(mode === 'preview' ? 'edit' : 'preview'); };
+$('#vFrame').onclick = () => { frameAll(); cv.focus(); };
+$('#vFocus').onclick = () => { focusSelection(); cv.focus(); };
+$('#vGrid').onclick = () => { showGrid = !showGrid; $('#vGrid').classList.toggle('on', showGrid); applyWorld(); };
+$('#vAxes').onclick = () => { showAxes = !showAxes; $('#vAxes').classList.toggle('on', showAxes); applyWorld(); };
+$$('[data-view]').forEach((b) => b.addEventListener('click', () => { viewPreset(b.dataset.view); cv.focus(); }));
+$('#vZoomIn').onclick = () => { const f = fwd3(), d = clamp(focusDist() * 0.18, 0.25, 4); cam.x += f.x * d; cam.y += f.y * d; cam.z += f.z * d; applyCam(); updateGizmo(); };
+$('#vZoomOut').onclick = () => { const f = fwd3(), d = clamp(focusDist() * 0.18, 0.25, 4); cam.x -= f.x * d; cam.y -= f.y * d; cam.z -= f.z * d; applyCam(); updateGizmo(); };
 $('#bPlay').onclick = () => { if (mode === 'play') stopPlay(); else startPlay(); };
 function setMode(m) {
   mode = m;
@@ -1996,7 +2042,7 @@ function resize() {
   if (narrow() !== resize.wasNarrow) { resize.wasNarrow = narrow(); }
   dirty = true;
 }
-new ResizeObserver(resize).observe(vp);
+if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resize).observe(vp);
 window.addEventListener('resize', resize);
 
 let last = performance.now();
@@ -2035,6 +2081,7 @@ function init() {
   hist = [snapshot()]; hpos = 0; updateButtons();
   if (narrow()) setDock('props');
   resize();
+  frameAll();
   requestAnimationFrame(frame);
   toHost('hello');
   setTimeout(() => { if (!host.ok) toHost('hello'); }, 700);
