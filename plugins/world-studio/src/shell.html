@@ -158,10 +158,54 @@
     #side .pane > h3 { display: none; }
   }
   @media (max-width: 560px) { .tb kbd, .tb .word { display: none; } }
+  :root { --bg:#10141d; --panel:#171d28; --panel2:#202938; --line:#303b4d; --text:#e4eaf4; --muted:#93a1b5; --accent:#72b7ff; --accent2:#8bc5ff; --danger:#ff687a; --ok:#62d6a0; }
+  #app { background:var(--bg); }
+  #topbar { min-height:34px; display:flex; align-items:center; gap:12px; padding:0 12px; background:#111722; border-bottom:1px solid #2b3545; color:var(--muted); }
+  #brand { color:#edf4ff; font-weight:700; letter-spacing:.04em; } #brand em { color:var(--accent); font-style:normal; }
+  #projectLabel { font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } #topbar .spacer { flex:1; }
+  #topbar .top-chip { border:1px solid #344257; border-radius:5px; padding:2px 7px; font-size:10px; }
+  #toolbar { min-height:48px; flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden; gap:7px; padding:7px 9px; background:#192231; border-bottom:1px solid #354257; scrollbar-width:thin; }
+  #toolbar .grp { gap:3px; padding-right:9px; margin-right:1px; }
+  .tb { background:#263346; border-color:#3a4a60; border-radius:5px; min-height:30px; padding:5px 9px; }
+  .tb:hover:not(:disabled) { background:#31445e; border-color:#6c91ba; }
+  .tb.on { background:#203e5d; border-color:#6db6ff; color:#b9dcff; }
+  .tb.primary { background:#2c79bd; border-color:#4a9de4; color:#fff; } .tb.primary:hover:not(:disabled) { background:#378bd2; }
+  .tb.stop { background:#9d3545; border-color:#d15b6b; color:#fff; }
+  #toolbar select { background:#202d3f; border-color:#3a4a60; min-height:30px; }
+  #main { grid-template-columns:minmax(132px,164px) minmax(0,1fr) minmax(228px,278px); }
+  #pParts { background:#171f2c; border-right:1px solid #303d50; }
+  .pane > h3 { min-height:31px; padding:7px 10px; background:#202b3a; color:#b5c3d6; letter-spacing:.07em; }
+  #tools { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; padding:8px; }
+  .tool { min-height:61px; border-radius:6px; padding:8px 3px; background:#202c3c; border-color:#35465c; color:#c1ccda; }
+  .tool .g { color:#8bc5ff; font-size:20px; } .tool:hover { background:#2a3e55; border-color:#6daee9; }
+  #center { background:#090d14; } #vp { background:radial-gradient(ellipse at 50% 42%,#1d293b 0%,#101722 66%,#090d14 100%); }
+  #viewportTools { position:absolute; z-index:4; top:9px; left:10px; right:10px; display:flex; align-items:center; gap:5px; pointer-events:none; }
+  #viewportTools > * { pointer-events:auto; }
+  .vp-group { display:flex; gap:3px; padding:3px; border:1px solid rgba(110,135,168,.35); border-radius:7px; background:rgba(15,22,33,.88); box-shadow:0 4px 14px rgba(0,0,0,.22); backdrop-filter:blur(8px); }
+  .vp-btn { min-width:29px; height:27px; border:1px solid transparent; border-radius:4px; background:transparent; color:#c7d5e6; cursor:pointer; font-size:11px; padding:0 7px; }
+  .vp-btn:hover { background:#2b4058; border-color:#4a688b; color:#fff; } .vp-btn.on { background:#244668; color:#b9ddff; border-color:#5389bb; }
+  #viewCube { margin-left:auto; display:grid; grid-template-columns:repeat(3,25px); grid-template-rows:repeat(3,25px); gap:2px; }
+  #viewCube .vp-btn { min-width:0; padding:0; font-size:10px; background:rgba(15,22,33,.9); border-color:#40536b; }
+  #viewCube .blank { visibility:hidden; }
+  #viewportHint { position:absolute; z-index:3; right:10px; bottom:10px; pointer-events:none; padding:5px 8px; color:#b7c5d7; background:rgba(12,18,28,.78); border:1px solid rgba(94,119,151,.35); border-radius:5px; font-size:10px; text-shadow:0 1px 2px #000; }
+  #badge { bottom:10px; left:10px; border-color:#41536b; color:#d4e4f7; background:rgba(12,18,28,.86); }
+  #status { min-height:25px; background:#151e2b; border-top:1px solid #303d50; color:#a9b8cb; padding:5px 10px; }
+  #side { background:#171e29; border-left-color:#303d50; } #pExplorer { flex:1 1 48%; } #pProps { flex:1 1 52%; }
+  #explorer { padding:5px 0 12px; } .row { min-height:25px; border-left-width:2px; padding-top:4px; padding-bottom:4px; }
+  .row.sel { background:#213a56; border-left-color:#72b7ff; } .row .ic { font-size:12px; }
+  .sec { color:#8bc5ff; } .f input:focus,.f select:focus { outline-color:#72b7ff; border-color:#72b7ff; }
+  .f input[type=range],.f input[type=checkbox] { accent-color:#72b7ff; } .sec.adv { color:#a9b8cb; }
+  .render-error { position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:10px; padding:28px; text-align:center; color:#e8eef7; background:radial-gradient(ellipse,#29374a,#101722 70%); }
+  .render-error strong { font-size:18px; } .render-error span { max-width:440px; color:#b9c6d7; line-height:1.6; }
+  .render-error small { max-width:90%; color:#8797ad; overflow-wrap:anywhere; }
+  @media (max-width:1000px) { #main { grid-template-columns:112px minmax(0,1fr) 220px; } #tools { grid-template-columns:1fr; } }
+  @media (max-width:800px) { #main { display:flex; flex-direction:column; } #pParts .scroll { overflow-x:auto; } #tools { display:flex; flex-direction:row; } #side { height:236px; } #viewportHint { display:none; } }
+  @media (max-width:560px) { #topbar { min-height:30px; } #projectLabel { display:none; } #toolbar { gap:4px; padding:5px; } #viewCube { display:none; } }
 </style>
 </head>
 <body>
 <div id="app" data-dock="props">
+  <div id="topbar"><span id="brand">VOLT <em>/</em> WORLD STUDIO</span><span id="projectLabel">3D workspace · build, arrange and playtest your world</span><span class="spacer"></span><span class="top-chip">EDITOR</span></div>
   <div id="toolbar">
     <div class="grp">
       <button class="tb icon" id="bUndo" title="Undo (Ctrl+Z)">↶</button>
@@ -205,6 +249,19 @@
         <canvas id="cv" tabindex="0"></canvas>
         <div id="vig"></div>
         <div id="hud"></div>
+        <div id="viewportTools">
+          <div class="vp-group" aria-label="Viewport actions">
+            <button class="vp-btn" id="vFrame" title="Frame all objects">Frame</button><button class="vp-btn" id="vFocus" title="Focus selected object (F)">Focus</button>
+            <button class="vp-btn on" id="vGrid" title="Show or hide grid">Grid</button><button class="vp-btn on" id="vAxes" title="Show or hide axes">Axes</button>
+          </div>
+          <div class="vp-group"><button class="vp-btn" id="vZoomOut" title="Zoom out">−</button><button class="vp-btn" id="vZoomIn" title="Zoom in">+</button></div>
+          <div id="viewCube" class="vp-group" aria-label="Camera views">
+            <span class="vp-btn blank"></span><button class="vp-btn" data-view="top" title="Top view">TOP</button><span class="vp-btn blank"></span>
+            <button class="vp-btn" data-view="left" title="Left view">L</button><button class="vp-btn" data-view="front" title="Front view">F</button><button class="vp-btn" data-view="right" title="Right view">R</button>
+            <span class="vp-btn blank"></span><button class="vp-btn" data-view="back" title="Back view">B</button><span class="vp-btn blank"></span>
+          </div>
+        </div>
+        <div id="viewportHint">Right-drag: look · Middle-drag: pan · Scroll: zoom · F: focus</div>
         <div id="badge">Edit</div>
       </div>
       <div id="status"></div>
@@ -215,7 +272,7 @@
         <button data-dock="explorer">Things</button><button data-dock="props" class="on">Properties</button>
       </div>
       <section class="pane" id="pExplorer">
-        <h3>Things <span class="spacer"></span></h3>
+        <h3>Explorer <span class="spacer"></span></h3>
         <div class="scroll" id="explorer"></div>
       </section>
       <section class="pane" id="pProps">
