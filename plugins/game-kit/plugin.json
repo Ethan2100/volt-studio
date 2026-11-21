@@ -6,7 +6,7 @@
   "snippets": [
     {
       "file": "game.volt",
-      "label": "Game kit (player, gravity, collision)",
+      "label": "Game kit (player, collision, hotbar)",
       "description": "Normally used as import \"game.volt\". Includes player movement, collision and a reusable nine-slot hotbar (hotbarStep / hotbarDraw)."
     }
   ]
