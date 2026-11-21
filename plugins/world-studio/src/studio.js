@@ -1057,7 +1057,7 @@ function renderExplorer() {
       if (!collapsedPlayerNodes.has('hotbar')) {
         for (let i = 0; i < 10; i++) {
           const item = S.player.hotbar[i] || { name: '', count: 0 };
-          h += `<div class="row player-slot${selPlayer === 'slot' && selPlayerSlot === i ? ' sel' : ''}" data-player-section="slot" data-player-slot="${i}" style="padding-left:50px"><span class="twisty blank"></span><span class="ic">${i === 9 ? '0' : i + 1}</span><span class="nm">${esc(item.name || 'Empty slot')}</span>${item.count > 0 ? `<span class="kids">${item.count}</span>` : ''}</div>`;
+          h += `<div class="row player-slot${selPlayer === 'slot' && selPlayerSlot === i ? ' sel' : ''}" data-player-section="slot" data-player-slot="${i}" data-player-drop="${i}" draggable="true" style="padding-left:50px"><span class="twisty blank"></span><span class="ic">${i === 9 ? '0' : i + 1}</span><span class="nm">${esc(item.name || 'Empty slot')}</span>${item.count > 0 ? `<span class="kids">${item.count}</span>` : ''}</div>`;
         }
       }
     }
@@ -1076,7 +1076,15 @@ $('#explorer').addEventListener('click', (e) => {
   else if (row.dataset.world) selectWorld(); else select(Number(row.dataset.id));
 });
 
+let dragRow = null, dragPlayerSlot = null;
 $('#explorer').addEventListener('dragstart', (e) => {
+  const slot = e.target.closest('.player-slot[data-player-slot]');
+  if (slot) {
+    dragPlayerSlot = Number(slot.dataset.playerSlot);
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', 'player-slot:' + dragPlayerSlot); } catch (err) { /* some browsers */ }
+    return;
+  }
   const row = e.target.closest('.row[data-id]');
   if (!row) return;
   dragRow = Number(row.dataset.id);
@@ -1084,17 +1092,36 @@ $('#explorer').addEventListener('dragstart', (e) => {
   try { e.dataTransfer.setData('text/plain', 'row:' + dragRow); } catch (err) { /* some browsers */ }
 });
 $('#explorer').addEventListener('dragover', (e) => {
+  $('#explorer .row.drop').forEach((r) => r.classList.remove('drop'));
+  if (dragPlayerSlot != null) {
+    const slot = e.target.closest('.player-slot[data-player-drop]');
+    if (slot) { e.preventDefault(); slot.classList.add('drop'); }
+    return;
+  }
   if (dragRow == null) return;
   const row = e.target.closest('[data-drop]');
-  $$('#explorer .row.drop').forEach((r) => r.classList.remove('drop'));
   if (!row) return;
   e.preventDefault();
   row.classList.add('drop');
 });
-$('#explorer').addEventListener('dragleave', (e) => { const row = e.target.closest('[data-drop]'); if (row) row.classList.remove('drop'); });
+$('#explorer').addEventListener('dragleave', (e) => { const row = e.target.closest('[data-drop], .player-slot'); if (row) row.classList.remove('drop'); });
 $('#explorer').addEventListener('drop', (e) => {
+  $('#explorer .row.drop').forEach((r) => r.classList.remove('drop'));
+  if (dragPlayerSlot != null) {
+    const slot = e.target.closest('.player-slot[data-player-drop]');
+    const from = dragPlayerSlot; dragPlayerSlot = null;
+    if (!slot) return;
+    e.preventDefault();
+    const to = Number(slot.dataset.playerDrop);
+    if (from === to) return;
+    const item = S.player.hotbar[from];
+    S.player.hotbar[from] = S.player.hotbar[to];
+    S.player.hotbar[to] = item;
+    renderExplorer(); renderProps(); commit();
+    toast('Hotbar slots reordered');
+    return;
+  }
   const row = e.target.closest('[data-drop]');
-  $$('#explorer .row.drop').forEach((r) => r.classList.remove('drop'));
   if (dragRow == null || !row) return;
   e.preventDefault();
   const child = byId(dragRow), into = Number(row.dataset.drop);
@@ -1104,7 +1131,7 @@ $('#explorer').addEventListener('drop', (e) => {
   renderExplorer(); renderProps(); commit();
   toast(into ? `${child.name} is now inside ${byId(into).name}` : `${child.name} moved out into the world`);
 });
-$('#explorer').addEventListener('dragend', () => { dragRow = null; $$('#explorer .row.drop').forEach((r) => r.classList.remove('drop')); });
+$('#explorer').addEventListener('dragend', () => { dragRow = null; dragPlayerSlot = null; $('#explorer .row.drop').forEach((r) => r.classList.remove('drop')); });
 $('#explorer').addEventListener('dblclick', (e) => { const row = e.target.closest('.row[data-id]'); if (row) { select(Number(row.dataset.id)); focusSelection(); } });
 
 function renderTools() {
