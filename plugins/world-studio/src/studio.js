@@ -64,7 +64,7 @@ const WHENS = {
   start: 'When the game starts',
   frame: 'Every frame',
   near: 'When the player is close',
-  use: 'When the player presses E close by',
+  use: 'When the player interacts nearby',
   fired: 'Only when something else calls it',
 };
 // Effects are bursts of glowing specks (burst3d), which is what Volt has in
@@ -2219,7 +2219,7 @@ function showHelp() {
     '<p><b>Move a part</b> - pick it, then drag an arrow (W to move, E to turn, R to resize, Q to just select). <b>Grid</b> at the top rounds everything off so walls line up.</p>' +
     '<p><b>Put things inside things</b> - drag a row onto another row in the <b>Things</b> list, the way you would in Roblox. Move or turn the outer one and everything inside comes along; in the game they become a <b>group3d</b>.</p>' +
     '<p><b>Add a character</b> - the <b>Character</b> part places one of the rigged people that come with Volt Studio (or a wolf, bear or deer). Pick who it is and what it is doing - idle, walk, sprint, attack, carrying something - and it does that in the game.</p>' +
-    '<p><b>Scripts and effects</b> - pick a part, then click <b>Script</b> or <b>Effect</b>: it goes inside that part. A script is plain Volt that runs when you say - at the start, every frame, when the player is close, or when they press E close by. An effect is a burst of glowing specks; a script can set one off by name, like <b>vfx_Slash()</b>.</p>' +
+    '<p><b>Scripts and effects</b> - pick a part, then click <b>Script</b> or <b>Effect</b>: it goes inside that part. A script is plain Volt that runs when you say - at the start, every frame, when the player is close, or when they use its nearby interaction prompt. An effect is a burst of glowing specks; a script can set one off by name, like <b>vfx_Slash()</b>.</p>' +
     '<p><b>Try it</b> - press <b>Play</b>: W A S D to walk, Shift to run, Space to jump, Ctrl to crouch, Esc to stop. Play walks the world the way the game does; scripts and effects run once the game itself is running.</p>' +
     '<p><b>Put it in the game</b> - press <b>Save world</b>. The first time it offers to make a game file; after that it only rewrites the world part and leaves your own code alone.</p>' +
     '<p><b>Change how the game feels</b> - the settings at the top of that file (walking speed, jump height, how tall the player is) are plain numbers.</p>' +
