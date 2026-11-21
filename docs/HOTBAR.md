@@ -36,10 +36,10 @@ every frame {
 | `HOTBAR_SELECTED` | Currently selected slot, numbered 1–10. Use `HOTBAR_SELECTED - 1` for a zero-based array index. |
 | `HOTBAR_ENABLED` | Set false to hide the bar and ignore number-key selection. |
 | `HOTBAR_SLOT_COUNT` | Number of quick slots (10). |
-| `hotbarStep()` | Call once per frame before rendering; reads number keys 1–9 and 0. |
+| `hotbarStep()` | Call once per frame before rendering; reads number keys 1–9 and 0, plus mouse-wheel selection. |
 | `hotbarDraw()` | Call after `render3d` to draw the screen-space hotbar. |
 
-The tenth slot is selected with **0**. The HUD uses Volt's existing palette, a selected-slot highlight, item labels and stack counts.
+The tenth slot is selected with **0**. Scrolling down advances to the next slot; scrolling up selects the previous slot, wrapping at either end. The HUD uses Volt's existing palette, a selected-slot highlight, item labels and stack counts.
 
 ## Equipping an item
 
