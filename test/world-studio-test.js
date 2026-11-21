@@ -188,6 +188,19 @@ check('a shockwave becomes shock3d', /fn vfx_Wave\(\) \{\n  shock3d 100, 90, -20
 check('an embers effect is still a burst', /fn vfx_Embers\(\) \{\n  burst3d 100, 120, -200, "#ff6a2a", \d+, \d+\n\}/.test(built), (built.match(/fn vfx_Embers[\s\S]{0,90}/) || [''])[0]);
 check('"when the player presses E" is wired up', /if playerNear\(100, -200, 150\) and held\("e"\) \{\n    script_Swing\(\)/.test(built));
 check('a repeating effect runs on its own beat', /if ws_tick % 6 == 0 \{\n    vfx_Embers\(\)/.test(built));
+// Stable object IDs keep nested Folder / Model parents intact after reloads,
+// even when earlier scene objects have been deleted and IDs contain gaps.
+const savedHierarchyState = W.S, savedHierarchyNextId = W.nextId;
+decorFolder.id = 101; weaponFolder.id = 102; swordModel.id = 103; pommel.id = 104;
+weaponFolder.parent = 101; swordModel.parent = 102; pommel.parent = 103;
+const hierarchyRead = W.importSource(built);
+const readDecor = W.S.objects.find((o) => o.name === 'Decor');
+const readWeapons = W.S.objects.find((o) => o.name === 'Weapons');
+const readSwordModel = W.S.objects.find((o) => o.name === 'SwordModel');
+const readPommel = W.S.objects.find((o) => o.name === 'Pommel');
+check('nested Folder / Model IDs survive save and reload with gaps', hierarchyRead.ok && readDecor.id === 101 && readWeapons.parent === 101 && readSwordModel.parent === 102 && readPommel.parent === 103);
+W.S = savedHierarchyState; W.nextId = savedHierarchyNextId;
+
 const runBlock = built.slice(built.indexOf('fn worldStart()'));
 check('"only when called" effects are not run on their own', !/^  vfx_Slash\(\)$/m.test(runBlock));
 check('the character is loaded and placed', /model3d hunter_model = "hunter.glb"/.test(built) && /let Guard = put3d\(hunter_model, 0, 0, -400, 0, 100\)/.test(built));
