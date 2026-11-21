@@ -15,7 +15,7 @@ playerStart(0, 450, 0)
 HOTBAR_ITEMS = ["SWORD", "POTION", "BOW", "TORCH", "", "", "", "", "", ""]
 HOTBAR_COUNTS = [1, 5, 12, 1, 0, 0, 0, 0, 0, 0]
 
-let notice = "Press 1-9 or 0 to select a slot"
+let notice = "Press 1-9 / 0 or scroll to select a slot"
 let useWasDown = false
 every frame {
   playerStep()
@@ -38,5 +38,5 @@ every frame {
   render3d
   hotbarDraw()
   write notice at 160, 12 color "#ffffff" centered shadow
-  write "WASD move · 1-9 / 0 select · Space use demo item" at 160, 28 color "#aab8cc" centered
+  write "WASD move · 1-9 / 0 / wheel select · Space use demo item" at 160, 28 color "#aab8cc" centered
 }
