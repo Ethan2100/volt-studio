@@ -179,7 +179,8 @@ function makeObj(kind, over = {}) {
   if (kind === 'vfx') {
     const preset = VFX_PRESETS[over.effect] || VFX_PRESETS.sparks;
     Object.assign(o, { effect: over.effect || 'sparks', when: 'start', color: preset.color, up: preset.up || 0, rate: preset.rate || 0,
-      count: preset.count || 40, speed: preset.speed || 300, size: preset.size || 240, ms: preset.ms || 1200, len: preset.len || 900, thick: preset.thick || 24 });
+      count: preset.count || 40, speed: preset.speed || 300, size: preset.size || 240, ms: preset.ms || 1200, len: preset.len || 900, thick: preset.thick || 24,
+      promptEnabled: true, promptText: 'Activate', promptKey: 'e', promptRadius: 180 });
   }
   Object.assign(o, over);
   if (!o.name) o.name = uniqueName(KIND[kind].label);
@@ -1206,6 +1207,14 @@ function objForm(o) {
     if (fxKind(o) === 'beam') h += '<div class="note">The beam fires the way the part it sits in is turned.</div>';
     h += '<div class="sec">Runs</div>' + fSelect('when', 'When', o.when, Object.entries(WHENS));
     if (o.when === 'frame') h += fNum('rate', 'Every N frames', Math.max(1, o.rate || 1), { min: 1, max: 600 });
+    if (o.when === 'use') {
+      h += '<div class="sec">Interaction Prompt</div>' +
+        fCheck('promptEnabled', 'Show prompt near the part', o.promptEnabled !== false) +
+        fText('promptText', 'Prompt action text', o.promptText || 'Activate') +
+        fSelect('promptKey', 'Trigger key', o.promptKey || 'e', [['e', 'E'], ['f', 'F'], ['q', 'Q'], ['r', 'R']]) +
+        fNum('promptRadius', 'Interaction distance (cm)', o.promptRadius || 180, { min: 30, max: 1000, step: 10 }) +
+        '<div class="note">Walk close to the part to see the prompt. Press the chosen key once to trigger this effect. Holding the key will not repeatedly fire it.</div>';
+    }
     h += `<div class="note">${owner ? `Goes off at <b>${esc(owner.name)}</b>.` : 'Not inside anything, so it goes off where it stands.'} A script can set it off by name: <b>vfx_${esc(identish(o.name))}()</b>.</div>`;
     h += '<div class="sec">Preset</div><div class="btnrow"><button type="button" class="tb" data-act="vfx-import">⭳ Import…</button><button type="button" class="tb" data-act="vfx-copy">⎘ Copy</button><button type="button" class="tb" data-act="vfx-paste">⎙ Paste</button></div>' +
       '<div class="note">Presets are small .voltfx files - share one, or keep your own set.</div>';
@@ -1885,6 +1894,7 @@ function worldLines() {
   L.push('// worldStart() runs once, worldStep() runs every frame - the game file');
   L.push('// below calls both for you.');
   L.push('let ws_tick = 0');
+  for (const o of effects.filter((x) => x.when === 'use')) L.push(`let ws_use_prev_${idn.get(o.id)} = false`);
   L.push('fn worldStart() {');
   if (!atStart.length) L.push('  // nothing is set to run at the start yet');
   for (const o of atStart) L.push(`  ${nameOf(o)}()`);
@@ -1902,6 +1912,20 @@ function worldLines() {
     } else if (o.when === 'near') {
       L.push(`  if playerNear(${r(up.x)}, ${r(up.z)}, 150) {`);
       L.push(`    ${call}`);
+      L.push('  }');
+    } else if (o.when === 'use' && o.kind === 'vfx') {
+      const key = String(o.promptKey || 'e').toLowerCase().replace(/[^a-z]/g, '') || 'e';
+      const radius = clamp(r(o.promptRadius || 180), 30, 1000);
+      const prev = `ws_use_prev_${idn.get(o.id)}`;
+      const prompt = `Press ${key.toUpperCase()} - ${String(o.promptText || 'Activate').slice(0, 36)}`;
+      L.push(`  if playerNear(${r(up.x)}, ${r(up.z)}, ${radius}) {`);
+      if (o.promptEnabled !== false) L.push(`    write ${JSON.stringify(prompt)} at 160, 128 centered shadow`);
+      L.push(`    if held(${JSON.stringify(key)}) and not ${prev} {`);
+      L.push(`      ${call}`);
+      L.push('    }');
+      L.push(`    ${prev} = held(${JSON.stringify(key)})`);
+      L.push('  } else {');
+      L.push(`    ${prev} = false`);
       L.push('  }');
     } else if (o.when === 'use') {
       L.push(`  if playerNear(${r(up.x)}, ${r(up.z)}, 150) and held("e") {`);
