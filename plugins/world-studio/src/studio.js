@@ -1854,7 +1854,7 @@ function worldLines() {
   L.push('  ws_tick += 1');
   if (!running.length) L.push('  // nothing is set to run while the game is on yet');
   for (const o of running) {
-    const up = o.parent ? byId(o.parent) : o;
+    const up = spatialOwner(o) || o;
     const call = `${nameOf(o)}()`;
     if (o.when === 'frame') {
       const every = o.kind === 'vfx' ? Math.max(0, r(o.rate || 0)) : 0;
@@ -1875,7 +1875,7 @@ function worldLines() {
   L.push('');
   L.push('// How World Studio reads this world back in - leave this line to it.');
   L.push('HOTBAR_ENABLED = ' + (S.player.hotbarEnabled ? 'true' : 'false'));
-  L.push('HOTBAR_ITEMS = ' + JSON.stringify(S.player.hotbar.map((slot) => slot.name || '')));
+  L.push('HOTBAR_ITEMS = ' + JSON.stringify(S.player.hotbar.map((slot) => (slot.name || '').slice(0, 4))));
   L.push('HOTBAR_COUNTS = ' + JSON.stringify(S.player.hotbar.map((slot) => Math.max(0, Math.round(num(slot.count))))));
   L.push('// world-studio: ' + JSON.stringify({ v: 2, world: S.world, player: S.player, objects: S.objects.map(compactObj) }));
   L.push(MARK_CLOSE);
