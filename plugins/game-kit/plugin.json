@@ -2,12 +2,12 @@
   "name": "game-kit",
   "type": "library",
   "version": "1.0.0",
-  "description": "The first-person player and reusable HUD helpers for Volt 3D games: mouse look, walking, running, crouching, jumping, gravity, head bob, solid boxes, and a nine-slot hotbar with 1-9 selection. Written for import \"game.volt\" - World Studio adds that line for you. Configure HOTBAR_ITEMS and HOTBAR_COUNTS, call hotbarStep() each frame, and call hotbarDraw() after render3d.",
+  "description": "The first-person player and reusable HUD helpers for Volt 3D games: mouse look, walking, running, crouching, jumping, gravity, head bob, solid boxes, and a ten-slot 1–9/0 player hotbar. World Studio fills the hotbar from its Player > Backpack > Hotbar section.",
   "snippets": [
     {
       "file": "game.volt",
       "label": "Game kit (player, collision, hotbar)",
-      "description": "Normally used as import \"game.volt\". Includes player movement, collision and a reusable nine-slot hotbar (hotbarStep / hotbarDraw)."
+      "description": "Import with `import \"game.volt\"`. Includes first-person movement, collision and the default ten-slot player hotbar."
     }
   ]
 }
