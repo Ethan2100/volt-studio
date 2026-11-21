@@ -16,20 +16,24 @@ HOTBAR_ITEMS = ["SWORD", "POTION", "BOW", "TORCH", "", "", "", "", ""]
 HOTBAR_COUNTS = [1, 5, 12, 1, 0, 0, 0, 0, 0]
 
 let notice = "Press 1-9 to select a slot"
+let useWasDown = false
 every frame {
   playerStep()
   hotbarStep()
+  let useDown = held("space")
+  let usePressed = useDown and not useWasDown
 
-  if HOTBAR_SELECTED == 1 and held("space") {
+  if usePressed and HOTBAR_SELECTED == 1 {
     notice = "SWORD selected"
   }
-  if HOTBAR_SELECTED == 2 and held("space") and HOTBAR_COUNTS[1] > 0 {
+  if usePressed and HOTBAR_SELECTED == 2 and HOTBAR_COUNTS[1] > 0 {
     HOTBAR_COUNTS[1] -= 1
     notice = "Potion used"
   }
-  if HOTBAR_SELECTED == 3 and held("space") {
+  if usePressed and HOTBAR_SELECTED == 3 {
     notice = "BOW selected"
   }
+  useWasDown = useDown
 
   render3d
   hotbarDraw()
