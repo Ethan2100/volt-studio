@@ -1030,7 +1030,7 @@ const TARGET_NAMES = {
 const BUILTINS = {
   random: 2, abs: 1, min: 2, max: 2, constrain: 3, map: 5, number: 1, text: 1, length: 1, upper: 1, lower: 1, contains: 2, part: 3, sign: 1, held: 1, saved: 2, touchscreen: 0,
   // 3D and engine helpers (sin3/cos3/atan2 use tenths of a degree and thousandths - see the 3D section of the reference)
-  block3d: 7, ball3d: 5, cyl3d: 6, lamp3d: 6, put3d: 6, group3d: 3, mousedx: 0, mousedy: 0, locked3d: 0, clicked3d: 0, hot3d: 4, sky3d: 1, crisp: 1, sin3: 1, cos3: 1, atan2: 2,
+  block3d: 7, ball3d: 5, cyl3d: 6, lamp3d: 6, put3d: 6, group3d: 3, mousedx: 0, mousedy: 0, mousescroll: 0, locked3d: 0, clicked3d: 0, hot3d: 4, sky3d: 1, crisp: 1, sin3: 1, cos3: 1, atan2: 2,
   // everyday math (decimal sin/cos in degrees)
   sqrt: 1, sin: 1, cos: 1,
   // small gamedev helpers - plain math, so they work on every target
@@ -2374,6 +2374,7 @@ function generate(ast, target = 'cpp', options = {}) {
           return { code: `__crisp(${c.join(', ')})`, type: 'num' };
         case 'mousedx':
         case 'mousedy':
+        case 'mousescroll':
         case 'locked3d':
         case 'clicked3d':
         case 'hot3d':

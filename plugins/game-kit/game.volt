@@ -301,3 +301,82 @@ fn playerFacing(x, z, spread) {
   }
   return false
 }
+
+
+// ---------------------------------------------------------------------
+//  DEFAULT PLAYER HOTBAR - ten quick slots, matching the familiar
+//  1-9 / 0 keyboard layout. World Studio fills the item and stack arrays.
+//  Call hotbarStep() once per frame and hotbarDraw() after render3d.
+// ---------------------------------------------------------------------
+let HOTBAR_ENABLED = true
+let HOTBAR_SELECTED = 1
+let HOTBAR_SLOT_COUNT = 10
+let HOTBAR_ITEMS = ["", "", "", "", "", "", "", "", "", ""]
+let HOTBAR_COUNTS = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+let HOTBAR_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
+
+fn hotbarStep() {
+  let wheel = mousescroll()
+  if not HOTBAR_ENABLED { return 0 }
+  if wheel < 0 {
+    HOTBAR_SELECTED -= 1
+    if HOTBAR_SELECTED < 1 {
+      HOTBAR_SELECTED = 10
+    }
+  }
+  if wheel > 0 {
+    HOTBAR_SELECTED += 1
+    if HOTBAR_SELECTED > 10 {
+      HOTBAR_SELECTED = 1
+    }
+  }
+  if held("1") { HOTBAR_SELECTED = 1 }
+  if held("2") { HOTBAR_SELECTED = 2 }
+  if held("3") { HOTBAR_SELECTED = 3 }
+  if held("4") { HOTBAR_SELECTED = 4 }
+  if held("5") { HOTBAR_SELECTED = 5 }
+  if held("6") { HOTBAR_SELECTED = 6 }
+  if held("7") { HOTBAR_SELECTED = 7 }
+  if held("8") { HOTBAR_SELECTED = 8 }
+  if held("9") { HOTBAR_SELECTED = 9 }
+  if held("0") { HOTBAR_SELECTED = 10 }
+  return HOTBAR_SELECTED
+}
+
+// Draw after render3d so the bar stays in screen space above the 3D scene.
+fn hotbarDraw() {
+  if not HOTBAR_ENABLED { return 0 }
+  let slotW = 24
+  let slotH = 28
+  let gap = 2
+  let totalW = HOTBAR_SLOT_COUNT * slotW + (HOTBAR_SLOT_COUNT - 1) * gap
+  let startX = (320 - totalW) / 2
+  let startY = 148
+  let i = 0
+  while i < HOTBAR_SLOT_COUNT {
+    let sx = startX + i * (slotW + gap)
+    let edge = "#3b4658"
+    let fill = "#101722e8"
+    let labelColor = "#dce8f5"
+    if i + 1 == HOTBAR_SELECTED {
+      edge = "#55c7ff"
+      fill = "#19344bf0"
+    }
+    if i < length(HOTBAR_COUNTS) and HOTBAR_COUNTS[i] <= 0 {
+      labelColor = "#7f8999"
+    }
+    box sx, startY, slotW, slotH color edge
+    box sx + 1, startY + 1, slotW - 2, slotH - 2 color fill
+    write HOTBAR_KEYS[i] at sx + 3, startY + 2 color "#9fb1c6"
+    if i < length(HOTBAR_ITEMS) and HOTBAR_ITEMS[i] != "" {
+      write HOTBAR_ITEMS[i] at sx + 12, startY + 12 color labelColor centered
+    } else {
+      write "-" at sx + 12, startY + 12 color "#596579" centered
+    }
+    if i < length(HOTBAR_COUNTS) and HOTBAR_COUNTS[i] > 0 {
+      write "" + HOTBAR_COUNTS[i] at sx + slotW - 3, startY + 21 color "#ffd36b"
+    }
+    i += 1
+  }
+  return 0
+}

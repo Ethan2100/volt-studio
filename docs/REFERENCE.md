@@ -416,6 +416,7 @@ In your program **1 unit = 1 cm** (a 2 m corridor is 200) and **y is up**. **Ang
 | `beam3d x1, y1, z1, x2, y2, z2, thick, "#colour"` | A glowing beam from one point to another, thinning as it fades |
 | `render3d` | Draws the 3D world and clears the 2D layer. Call it once per frame |
 | `mousedx()` `mousedy()` | How far the mouse moved since last asked. The first click on the page captures the mouse (Esc lets go) |
+| `mousescroll()` | Mouse wheel direction since last asked: -1 up, 1 down, 0 no scroll. Only works in `#html` 3D games |
 | `locked3d()` | 1 while the mouse is captured |
 | `sin3(a)` `cos3(a)` | The whole-number 3D versions: angle in tenths of a degree in, thousandths out: `sin3(900)` is 1000. (Plain `sin` and `cos` take degrees and give decimals, see Maths.) |
 | `atan2(y, x)` | The angle (0 to 3599) that points from the origin to x, y |
