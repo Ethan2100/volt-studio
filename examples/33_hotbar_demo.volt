@@ -1,5 +1,5 @@
 #html
-// Nine-slot hotbar demo for Volt's Game Kit / World Studio.
+// Ten-slot player hotbar demo for Volt's Game Kit / World Studio.
 title "Volt Hotbar Demo"
 canvas 320, 180
 import "game.volt"
@@ -12,10 +12,10 @@ solid(0, 0, 600, 600, -10, 0)
 solid(260, -180, 55, 55, 0, 110)
 playerStart(0, 450, 0)
 
-HOTBAR_ITEMS = ["SWORD", "POTION", "BOW", "TORCH", "", "", "", "", ""]
-HOTBAR_COUNTS = [1, 5, 12, 1, 0, 0, 0, 0, 0]
+HOTBAR_ITEMS = ["SWORD", "POTION", "BOW", "TORCH", "", "", "", "", "", ""]
+HOTBAR_COUNTS = [1, 5, 12, 1, 0, 0, 0, 0, 0, 0]
 
-let notice = "Press 1-9 to select a slot"
+let notice = "Press 1-9 or 0 to select a slot"
 let useWasDown = false
 every frame {
   playerStep()
@@ -38,5 +38,5 @@ every frame {
   render3d
   hotbarDraw()
   write notice at 160, 12 color "#ffffff" centered shadow
-  write "WASD move · 1-9 select · Space use demo item" at 160, 28 color "#aab8cc" centered
+  write "WASD move · 1-9 / 0 select · Space use demo item" at 160, 28 color "#aab8cc" centered
 }
