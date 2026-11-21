@@ -26,11 +26,13 @@ const hex6 = (c, d = '#8a8f99') => (/^#[0-9a-f]{6}$/i.test(c || '') ? c.toLowerC
 // ---------------------------------------------------------------------
 const KIND = {
   block: { label: 'Part', icon: '▣' },
+  folder: { label: 'Folder', icon: '📁' },
+  group: { label: 'Model', icon: '◆' },
   ball: { label: 'Ball', icon: '●' },
   cyl: { label: 'Pillar', icon: '▮' },
   lamp: { label: 'Light', icon: '✦' },
   spawn: { label: 'Spawn', icon: '⚑' },
-  model: { label: 'Model', icon: '◆' },
+  model: { label: '3D Model', icon: '▧' },
   char: { label: 'Character', icon: '☻' },
   script: { label: 'Script', icon: '✎' },
   vfx: { label: 'Effect', icon: '✺' },
@@ -96,11 +98,12 @@ const modelCache = new Map();   // filename -> { scene, box:{x,y,z}, center:{x,y
 const charKey = (name) => 'pack:' + name + '.glb';
 const identish = (name) => String(name || '').replace(/[^A-Za-z0-9_]+/g, '_').replace(/^_+|_+$/g, '') || 'thing';
 const charAsked = new Set();   // characters already requested from the editor this session
+const playerDefaults = () => ({ hotbarEnabled: true, hotbar: Array.from({ length: 10 }, () => ({ name: '', count: 0 })) });
 const worldDefaults = () => ({
   title: 'My 3D world', bg: '#05060a', fog: 1600, ambient: 8, fov: 75, shadows: true,
   torch: 60, torchRange: 1800, sky: -1, bloom: 0, vignette: 0, grain: 0,
 });
-let S = { world: worldDefaults(), objects: [] };
+let S = { world: worldDefaults(), objects: [], player: playerDefaults() };
 let nextId = 1;
 const byId = (id) => S.objects.find((o) => o.id === id);
 
@@ -165,6 +168,7 @@ function uniqueName(base) {
 }
 function makeObj(kind, over = {}) {
   const o = { id: nextId++, kind, name: '', x: 0, y: 0, z: 0, yaw: 0, visible: true, parent: 0 };
+  if (kind === 'folder' || kind === 'group') Object.assign(o, { x: 0, y: 0, z: 0, yaw: 0 });
   if (kind === 'block') Object.assign(o, { w: 100, h: 100, d: 100, y: 50, color: '#8a8f99', glow: '', shine: false, rough: 40, metal: 0, solid: true });
   if (kind === 'ball') Object.assign(o, { r: 50, y: 50, color: '#c8ccd4', glow: '', shine: false, rough: 40, metal: 0, solid: true });
   if (kind === 'cyl') Object.assign(o, { r: 30, h: 300, y: 150, color: '#8a8f99', glow: '', shine: false, rough: 40, metal: 0, solid: true });
@@ -182,7 +186,7 @@ function makeObj(kind, over = {}) {
   return o;
 }
 function roomScene() {
-  S = { world: worldDefaults(), objects: [] };
+  S = { world: worldDefaults(), objects: [], player: playerDefaults() };
   nextId = 1;
   const add = (kind, name, over) => { S.objects.push(makeObj(kind, Object.assign({ name }, over))); };
   add('block', 'Floor', { x: 0, y: -5, z: 0, w: 1200, h: 10, d: 1200, color: '#6a6f78' });
@@ -202,7 +206,7 @@ function roomScene() {
 //  Undo / redo (whole-scene snapshots) + light local autosave
 // ---------------------------------------------------------------------
 let hist = [], hpos = -1;
-const snapshot = () => JSON.stringify({ world: S.world, objects: S.objects, nextId });
+const snapshot = () => JSON.stringify({ world: S.world, objects: S.objects, player: S.player, nextId });
 function commit() {
   const s = snapshot();
   if (hist[hpos] === s) return;
@@ -215,7 +219,9 @@ function commit() {
 }
 function restore(s) {
   const d = JSON.parse(s);
-  S = { world: Object.assign(worldDefaults(), d.world), objects: d.objects };
+  S = { world: Object.assign(worldDefaults(), d.world), objects: d.objects, player: Object.assign(playerDefaults(), d.player || {}) };
+  if (!Array.isArray(S.player.hotbar)) S.player.hotbar = playerDefaults().hotbar;
+  S.player.hotbar = Array.from({ length: 10 }, (_, i) => Object.assign({ name: '', count: 0 }, S.player.hotbar[i] || {}));
   nextId = d.nextId || (Math.max(0, ...S.objects.map((o) => o.id)) + 1);
   if (sel != null && !byId(sel)) sel = null;
   rebuildAll(); renderExplorer(); renderProps(); updateGizmo(); applyWorld(); updateStatus();
@@ -356,6 +362,8 @@ function boundsOf(o) {   // [w, h, d] in metres, plus a y offset, for the select
     case 'ball': return [o.r / 50, o.r / 50, o.r / 50, 0];
     case 'cyl': return [o.r / 50, o.h / 100, o.r / 50, 0];
     case 'lamp': return [0.3, 0.3, 0.3, 0];
+    case 'group': return [0.34, 0.34, 0.34, 0];
+    case 'folder': return [0.01, 0.01, 0.01, 0];
     case 'script': case 'vfx': return [0.26, 0.32, 0.26, 0.62];
     case 'char':
     case 'model': {
@@ -378,6 +386,12 @@ function buildNode(o) {
     const g = o.kind === 'block' ? boxGeo(o.w, o.h, o.d) : o.kind === 'ball' ? ballGeo(o.r) : cylGeo(o.r, o.h);
     n = new THREE.Mesh(g, material());
     n.castShadow = n.receiveShadow = true;
+  } else if (o.kind === 'folder') {
+    n = new THREE.Group(); n.userData.hiddenContainer = true; n.visible = false;
+  } else if (o.kind === 'group') {
+    n = new THREE.Group();
+    const marker = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.28, 0.28), new THREE.MeshBasicMaterial({ color: 0x55c7ff, wireframe: true, transparent: true, opacity: 0.7 }));
+    n.add(marker); n.userData.marker = true;
   } else if (o.kind === 'lamp') {
     n = new THREE.Group();
     n.add(new THREE.Mesh(new THREE.SphereGeometry(0.1, 14, 10), new THREE.MeshBasicMaterial({ color: hex6(o.color, '#ffcc88') })));
@@ -458,7 +472,8 @@ function applyNodeMode(n) {
   const game = mode !== 'edit';
   if (n.userData.light) n.userData.light.visible = game;
   const o = S.objects.find((x) => x.id === n.userData.rootId);
-  if (n.userData.marker || n.userData.placeholder) n.visible = mode !== 'play' && !!o && o.visible !== false;
+  if (n.userData.hiddenContainer) n.visible = false;
+  else if (n.userData.marker || n.userData.placeholder) n.visible = mode !== 'play' && !!o && o.visible !== false;
   n.userData.outline.visible = !!o && o.id === sel && mode !== 'play';
 }
 
@@ -566,18 +581,21 @@ const focusDist = () => { const o = byId(sel); return o ? Math.max(1.5, Math.hyp
 // ---------------------------------------------------------------------
 //  Selection, snapping, mutation helpers
 // ---------------------------------------------------------------------
-let sel = null, selWorld = false, tool = 'select';
+let sel = null, selWorld = false, selPlayer = '', selPlayerSlot = -1, tool = 'select';
+const collapsedNodes = new Set();
+const collapsedPlayerNodes = new Set();
 const snapStep = () => num($('#snap').value, 0);
 const sn = (v) => { const s = snapStep(); return s > 0 ? Math.round(v / s) * s : Math.round(v); };
 const snRot = (d) => (snapStep() > 0 ? Math.round(d / 15) * 15 : Math.round(d));
 
 function select(id) {
-  sel = id; selWorld = false;
+  sel = id; selWorld = false; selPlayer = ''; selPlayerSlot = -1;
   for (const [nid, n] of nodes) n.userData.outline.visible = (nid === id) && mode !== 'play';
   renderExplorer(); renderProps(); updateGizmo(); updateStatus(); updateButtons(); dirty = true;
   if (narrow() && id != null) setDock('props');
 }
-function selectWorld() { sel = null; selWorld = true; for (const n of nodes.values()) n.userData.outline.visible = false; renderExplorer(); renderProps(); updateGizmo(); updateStatus(); updateButtons(); dirty = true; if (narrow()) setDock('props'); }
+function selectWorld() { sel = null; selWorld = true; selPlayer = ''; selPlayerSlot = -1; for (const n of nodes.values()) n.userData.outline.visible = false; renderExplorer(); renderProps(); updateGizmo(); updateStatus(); updateButtons(); dirty = true; if (narrow()) setDock('props'); }
+function selectPlayer(section, slot = -1) { sel = null; selWorld = false; selPlayer = section; selPlayerSlot = slot; for (const n of nodes.values()) n.userData.outline.visible = false; renderExplorer(); renderProps(); updateGizmo(); updateStatus(); updateButtons(); dirty = true; if (narrow()) setDock('props'); }
 function touch(o) { refreshNode(o); updateGizmo(); }
 
 // ---------------------------------------------------------------------
@@ -624,7 +642,7 @@ function gizmoSupports(o) {
 }
 function activeGizmo() { const g = gizmoSupports(byId(sel)); return g && gizmoRoot.visible ? g : null; }
 function updateGizmo() {
-  const o = byId(sel), g = gizmoSupports(o);
+  const o = byId(sel), g = gizmoSupports(o) && o.kind !== 'folder';
   moveG.visible = scaleG.visible = rotHolder.visible = false;
   gizmoRoot.visible = !!g;
   if (!g) { dirty = true; return; }
@@ -818,13 +836,15 @@ cv.addEventListener('drop', (e) => {
 // ---------------------------------------------------------------------
 const PRESETS = {
   block: { kind: 'block', label: 'Part', glyph: '▣', over: { w: 100, h: 100, d: 100 }, base: 'Part' },
+  folder: { kind: 'folder', label: 'Folder', glyph: '📁', over: {}, base: 'Folder' },
+  group: { kind: 'group', label: 'Model', glyph: '◆', over: {}, base: 'Model' },
   wall: { kind: 'block', label: 'Wall', glyph: '▬', over: { w: 400, h: 300, d: 20, color: '#7b808a' }, base: 'Wall' },
   floor: { kind: 'block', label: 'Floor', glyph: '▱', over: { w: 800, h: 10, d: 800, color: '#6a6f78' }, base: 'Floor' },
   pillar: { kind: 'cyl', label: 'Pillar', glyph: '▮', over: { r: 30, h: 300 }, base: 'Pillar' },
   ball: { kind: 'ball', label: 'Ball', glyph: '●', over: { r: 50 }, base: 'Ball' },
   lamp: { kind: 'lamp', label: 'Light', glyph: '✦', over: {}, base: 'Light' },
   spawn: { kind: 'spawn', label: 'Spawn', glyph: '⚑', over: {}, base: 'Spawn' },
-  model: { kind: 'model', label: 'Model', glyph: '◆', over: {}, base: 'Model' },
+  model: { kind: 'model', label: 'Import 3D', glyph: '▧', over: {}, base: 'Model' },
   char: { kind: 'char', label: 'Character', glyph: '☻', over: {}, base: 'Character' },
   script: { kind: 'script', label: 'Script', glyph: '✎', over: {}, base: 'Script' },
   vfx: { kind: 'vfx', label: 'Effect', glyph: '✺', over: {}, base: 'Effect' },
@@ -845,11 +865,20 @@ function addPreset(key, at) {
   if (key === 'spawn') { const old = S.objects.filter((o) => o.kind === 'spawn'); if (old.length >= 1) { toast('Only the first Spawn is used by the game - moved it here instead.'); const o = old[0]; if (at) { o.x = sn(at[0]); o.z = sn(at[1]); touch(o); select(o.id); commit(); syncPropValues(); } return; } }
   if (key === 'model') { pickModelFile(at); return; }
   const o = makeObj(P.kind, Object.assign({ name: uniqueName(P.base) }, P.over));
+  const selectedOwner = byId(sel);
+  const containerOwner = selectedOwner && ['folder', 'group'].includes(selectedOwner.kind) ? selectedOwner : null;
+  if (P.kind === 'folder' || P.kind === 'group') {
+    o.parent = containerOwner ? containerOwner.id : 0;
+    if (P.kind === 'group' && containerOwner) { o.x = containerOwner.x; o.y = containerOwner.y; o.z = containerOwner.z; }
+    S.objects.push(o); refreshNode(o); select(o.id); renderExplorer(); commit();
+    toast(containerOwner ? `${o.name} added inside ${containerOwner.name}` : `${o.name} added to the World`);
+    return;
+  }
   if (ATTACHED.has(P.kind)) {
     // like Roblox's "insert into the thing you have selected"
     const owner = byId(sel);
     const host_ = owner && !ATTACHED.has(owner.kind) ? owner : null;
-    o.parent = host_ ? host_.id : 0;
+    o.parent = host_ ? host_.id : (containerOwner ? containerOwner.id : 0);
     o.x = host_ ? host_.x : 0; o.y = host_ ? host_.y : 0; o.z = host_ ? host_.z : 0;
     S.objects.push(o); refreshNode(o); select(o.id); renderExplorer(); commit();
     toast(host_ ? `${o.name} added inside ${host_.name}` : `${o.name} added - drop it inside a part in the Things list to tie it to one`);
@@ -857,6 +886,7 @@ function addPreset(key, at) {
   }
   const [x, z] = dropPoint(at);
   o.x = sn(x); o.z = sn(z);
+  if (containerOwner) { o.parent = containerOwner.id; o.x = containerOwner.x; o.y = containerOwner.y; o.z = containerOwner.z; }
   if (P.kind === 'char') { o.y = 0; askHostForModel(o.file); }
   if (P.kind === 'block') o.y = key === 'floor' ? -o.h / 2 : o.h / 2;
   else if (P.kind === 'cyl') o.y = o.h / 2;
@@ -997,31 +1027,53 @@ function duplicateSelected() {
 // ---------------------------------------------------------------------
 function renderExplorer() {
   const box = $('#explorer');
-  let h = `<div class="row world${selWorld ? ' sel' : ''}" data-world="1" data-drop="0"><span class="ic">🌐</span><span class="nm">World</span></div>`;
-  if (!S.objects.length) h += '<div class="empty">Nothing here yet. Add a part from the left.</div>';
-  const draw = (parentId, depth) => {
-    for (const o of S.objects) {
-      if ((o.parent || 0) !== parentId) continue;
-      const kids = childrenOf(o.id).length;
-      h += `<div class="row${o.id === sel ? ' sel' : ''}${o.visible ? '' : ' hidden'}" data-id="${o.id}" data-drop="${o.id}" draggable="true" style="padding-left:${8 + depth * 14}px">` +
-        `<span class="ic">${KIND[o.kind].icon}</span><span class="nm">${esc(o.name)}</span>` +
-        (kids ? `<span class="kids" title="${kids} inside">${kids}</span>` : '') +
-        (ATTACHED.has(o.kind) ? '' : `<span class="eye" data-eye="${o.id}" title="Show / hide">${o.visible ? '👁' : '◌'}</span>`) +
-        '</div>';
-      draw(o.id, depth + 1);
+  const twist = (id, has, collapsed) => has ? `<button class="twisty" data-toggle="${id}" title="Expand / collapse">${collapsed ? '▸' : '▾'}</button>` : '<span class="twisty blank"></span>';
+  let h = `<div class="row world${selWorld ? ' sel' : ''}" data-world="1" data-drop="0">${twist('0', true, collapsedNodes.has(0))}<span class="ic">🌐</span><span class="nm">World</span></div>`;
+  if (!collapsedNodes.has(0)) {
+    if (!S.objects.length) h += '<div class="empty">Nothing here yet. Add a part from the left.</div>';
+    const draw = (parentId, depth) => {
+      for (const o of S.objects) {
+        if ((o.parent || 0) !== parentId) continue;
+        const kids = childrenOf(o.id).length, collapsed = collapsedNodes.has(o.id);
+        h += `<div class="row${o.id === sel ? ' sel' : ''}${o.visible ? '' : ' hidden'}" data-id="${o.id}" data-drop="${o.id}" draggable="true" style="padding-left:${8 + depth * 14}px">` +
+          twist(String(o.id), kids > 0, collapsed) +
+          `<span class="ic">${KIND[o.kind].icon}</span><span class="nm">${esc(o.name)}</span>` +
+          (kids ? `<span class="kids" title="${kids} inside">${kids}</span>` : '') +
+          (ATTACHED.has(o.kind) || o.kind === 'folder' ? '' : `<span class="eye" data-eye="${o.id}" title="Show / hide">${o.visible ? '👁' : '◌'}</span>`) +
+          '</div>';
+        if (!collapsed) draw(o.id, depth + 1);
+      }
+    };
+    draw(0, 0);
+  }
+  const playerRow = (id, label, icon, depth, collapsed) => `<div class="row player-row${selPlayer === id ? ' sel' : ''}" data-player-section="${id}" style="padding-left:${8 + depth * 14}px"><button class="twisty" data-player-toggle="${id}">${collapsed ? '▸' : '▾'}</button><span class="ic">${icon}</span><span class="nm">${label}</span></div>`;
+  h += playerRow('player', 'Player', '♙', 0, collapsedPlayerNodes.has('player'));
+  if (!collapsedPlayerNodes.has('player')) {
+    h += playerRow('backpack', 'Backpack', '▣', 1, collapsedPlayerNodes.has('backpack'));
+    if (!collapsedPlayerNodes.has('backpack')) {
+      h += playerRow('hotbar', 'Hotbar', '▤', 2, collapsedPlayerNodes.has('hotbar'));
+      if (!collapsedPlayerNodes.has('hotbar')) {
+        for (let i = 0; i < 10; i++) {
+          const item = S.player.hotbar[i] || { name: '', count: 0 };
+          h += `<div class="row player-slot${selPlayer === 'slot' && selPlayerSlot === i ? ' sel' : ''}" data-player-section="slot" data-player-slot="${i}" style="padding-left:50px"><span class="twisty blank"></span><span class="ic">${i === 9 ? '0' : i + 1}</span><span class="nm">${esc(item.name || 'Empty slot')}</span>${item.count > 0 ? `<span class="kids">${item.count}</span>` : ''}</div>`;
+        }
+      }
     }
-  };
-  draw(0, 0);
+  }
   box.innerHTML = h;
 }
 $('#explorer').addEventListener('click', (e) => {
+  const toggle = e.target.closest('[data-toggle]');
+  if (toggle) { const id = Number(toggle.dataset.toggle); collapsedNodes.has(id) ? collapsedNodes.delete(id) : collapsedNodes.add(id); renderExplorer(); return; }
+  const ptoggle = e.target.closest('[data-player-toggle]');
+  if (ptoggle) { const id = ptoggle.dataset.playerToggle; collapsedPlayerNodes.has(id) ? collapsedPlayerNodes.delete(id) : collapsedPlayerNodes.add(id); renderExplorer(); return; }
   const eye = e.target.closest('[data-eye]');
   if (eye) { const o = byId(Number(eye.dataset.eye)); o.visible = !o.visible; refreshNode(o); renderExplorer(); renderProps(); commit(); return; }
   const row = e.target.closest('.row'); if (!row) return;
-  if (row.dataset.world) selectWorld(); else select(Number(row.dataset.id));
+  if (row.dataset.playerSection) selectPlayer(row.dataset.playerSection, row.dataset.playerSlot == null ? -1 : Number(row.dataset.playerSlot));
+  else if (row.dataset.world) selectWorld(); else select(Number(row.dataset.id));
 });
-// Drag a row onto another to put it inside, the way Roblox's Explorer does.
-let dragRow = null;
+
 $('#explorer').addEventListener('dragstart', (e) => {
   const row = e.target.closest('.row[data-id]');
   if (!row) return;
@@ -1081,6 +1133,8 @@ function parentOptions(o) {
 
 function objForm(o) {
   const kids = childrenOf(o.id);
+  if (o.kind === 'folder') return `<div class="sec">Folder</div>` + fText('name', 'Name', o.name) + fSelect('parent', 'Inside', String(o.parent || 0), parentOptions(o)) + `<div class="note">A Folder is organizational only. Put parts, models, scripts and effects inside it. It does not change positions or create a game object.</div>`;
+  if (o.kind === 'group') return `<div class="sec">Model</div>` + fText('name', 'Name', o.name) + fSelect('parent', 'Inside', String(o.parent || 0), parentOptions(o)) + `<div class="note">A Model groups everything inside it. Move or rotate the Model to move its descendants together in the game.</div>` + '<div class="sec">Pivot</div>' + fNum('x', 'Position X (cm)', o.x) + fNum('y', 'Position Y (cm)', o.y) + fNum('z', 'Position Z (cm)', o.z) + fNum('yaw', 'Rotation Y (°)', o.yaw);
   let h = `<div class="sec">${KIND[o.kind].label}</div>` + fText('name', 'Name', o.name) +
     fSelect('parent', 'Inside', String(o.parent || 0), parentOptions(o));
   if (kids.length) h += `<div class="note">${kids.length} thing${kids.length > 1 ? 's' : ''} inside: ${kids.map((k) => esc(k.name)).join(', ')}. Moving or turning this one takes them along.</div>`;
@@ -1178,8 +1232,38 @@ function worldForm() {
   return h;
 }
 
+function playerForm(section, slotIndex) {
+  if (section === 'slot' && slotIndex >= 0) {
+    const item = S.player.hotbar[slotIndex] || { name: '', count: 0 };
+    return `<div class="sec">Hotbar slot ${slotIndex === 9 ? '0' : slotIndex + 1}</div>` +
+      fText('slotName_' + slotIndex, 'Item name', item.name) +
+      fNum('slotCount_' + slotIndex, 'Stack count', item.count, { min: 0, max: 999 }) +
+      '<div class="note">This item appears in the matching numbered quick slot when the game starts. Leave the name empty for an empty slot.</div>';
+  }
+  if (section === 'backpack') return '<div class="sec">Player Backpack</div><div class="note">The Backpack is the player inventory container. Items assigned to the Hotbar appear in the numbered quick slots at the bottom of the game.</div><div class="btnrow"><button class="tb" type="button" data-player-open="hotbar">Configure Hotbar</button></div>';
+  if (section === 'hotbar') {
+    const rows = S.player.hotbar.map((item, i) => `<div class="note" style="display:flex;gap:8px;align-items:center"><b style="min-width:24px">${i === 9 ? '0' : i + 1}</b><span style="flex:1">${esc(item.name || 'Empty slot')}</span><span>${item.count > 0 ? item.count : ''}</span><button class="tb" type="button" data-player-slot="${i}">Edit</button></div>`).join('');
+    return '<div class="sec">Default Hotbar</div>' + fCheck('hotbarEnabled', 'Show hotbar in game', S.player.hotbarEnabled) +
+      '<div class="note">10 quick slots · keys 1–9 and 0 · configure the starter items below.</div>' + rows;
+  }
+  return '<div class="sec">Player</div><div class="note">Volt single-player profile. The Backpack contains the default Hotbar. Configure the items that appear when the player starts.</div>' +
+    fCheck('hotbarEnabled', 'Enable default hotbar', S.player.hotbarEnabled) +
+    '<div class="btnrow"><button class="tb" type="button" data-player-open="hotbar">Configure Hotbar</button></div>';
+}
+function setPlayerProp(k, v) {
+  if (k === 'hotbarEnabled') S.player.hotbarEnabled = !!v;
+  else {
+    const m = /^(slotName|slotCount)_(\d+)$/.exec(k);
+    if (!m) return;
+    const i = Number(m[2]); if (i < 0 || i >= 10) return;
+    if (m[1] === 'slotName') S.player.hotbar[i].name = String(v).slice(0, 18);
+    else S.player.hotbar[i].count = clamp(Math.round(num(v)), 0, 999);
+    renderExplorer();
+  }
+}
 function renderProps() {
   const box = $('#props');
+  if (selPlayer) { box.innerHTML = playerForm(selPlayer, selPlayerSlot); return; }
   if (selWorld) { box.innerHTML = worldForm(); return; }
   const o = byId(sel);
   box.innerHTML = o ? objForm(o) : '<div class="empty">Nothing picked.<br>Click something in the world, or add a part from the left.</div>';
@@ -1203,10 +1287,12 @@ $('#props').addEventListener('input', (e) => {
   const v = readVal(t); if (v === undefined) return;
   if (t.type === 'color' || t.dataset.hex) $$(`#props [data-k="${k}"]`).forEach((s) => { if (s !== t) s.value = v; });
   if (t.type === 'range') { const out = t.parentElement.querySelector('.val'); if (out) out.textContent = v; }
-  if (selWorld) setWorldProp(k, v); else setObjProp(k, v);
+  if (selPlayer) setPlayerProp(k, v); else if (selWorld) setWorldProp(k, v); else setObjProp(k, v);
 });
 $('#props').addEventListener('change', () => commit());
 $('#props').addEventListener('click', (e) => {
+  const playerOpen = e.target.closest('[data-player-open]'); if (playerOpen) { selectPlayer(playerOpen.dataset.playerOpen); return; }
+  const playerSlot = e.target.closest('button[data-player-slot]'); if (playerSlot) { selectPlayer('slot', Number(playerSlot.dataset.playerSlot)); return; }
   if (e.target.closest('[data-act="rebrowse"]')) rebrowseModel(byId(sel));
   if (e.target.closest('[data-act="script-open"]')) { const o = byId(sel); if (o && o.kind === 'script') toHost('openScript', { req: host.req++, objectId: o.id, name: o.name, file: o.file || '', fn: o.fn || '', code: o.code || '' }); }
   if (e.target.closest('[data-adv]')) { showAdvanced = !showAdvanced; renderProps(); }
@@ -1599,7 +1685,7 @@ function compactObj(o) {
 // the solid boxes the player walks into.
 function worldLines() {
   const w = S.world, L = [], used = new Set(), idn = new Map();
-  const shapes = S.objects.filter((o) => o.kind !== 'spawn' && !ATTACHED.has(o.kind));
+  const shapes = S.objects.filter((o) => o.kind !== 'spawn' && o.kind !== 'folder' && !ATTACHED.has(o.kind));
   for (const o of shapes) idn.set(o.id, identFor(o.name, used));
   for (const o of S.objects) if (ATTACHED.has(o.kind)) idn.set(o.id, identFor(o.name, used));
 
@@ -1628,6 +1714,7 @@ function worldLines() {
   L.push('');
   for (const o of shapes) {
     if (o.kind === 'model' && !o.file) continue;   // nothing to place without a file
+    if (o.kind === 'group') continue;   // emitted as a group3d container below
     const n = idn.get(o.id);
     if (o.kind === 'block') L.push(`let ${n} = block3d(${r(o.x)}, ${r(o.y)}, ${r(o.z)}, ${r(o.w)}, ${r(o.h)}, ${r(o.d)}, ${q(o.color)})`);
     else if (o.kind === 'ball') L.push(`let ${n} = ball3d(${r(o.x)}, ${r(o.y)}, ${r(o.z)}, ${r(o.r)}, ${q(o.color)})`);
@@ -1646,24 +1733,34 @@ function worldLines() {
     if (!o.visible) L.push(`show3d ${n}, 0`);
   }
 
-  // ---- groups: a thing and everything under it move together ----
+  // ---- Model groups and parented parts ----
   const groupIdent = new Map();
-  const parents = shapes.filter((o) => childrenOf(o.id).some((c) => !ATTACHED.has(c.kind)));
+  const spatialChildren = (parentId, out = []) => {
+    for (const c of childrenOf(parentId)) {
+      if (c.kind === 'folder') spatialChildren(c.id, out);
+      else if (!ATTACHED.has(c.kind) && c.kind !== 'spawn') out.push(c);
+    }
+    return out;
+  };
+  const parents = shapes.filter((o) => o.kind === 'group' || spatialChildren(o.id).length > 0);
   if (parents.length) {
     L.push('');
-    L.push('// Things with other things inside them: the group is what you move');
-    L.push('// or turn, and everything in it comes along.');
-    // deepest first, so a child's group exists before it joins its parent's
-    const byDepth = parents.slice().sort((a, b) => depthOf(b) - depthOf(a));
-    for (const o of byDepth) {
-      const g = identFor(identish(o.name) + '_group', used);
-      groupIdent.set(o.id, g);
-      L.push(`let ${g} = group3d(${r(o.x)}, ${r(o.y)}, ${r(o.z)})`);
-      if (idn.get(o.id)) L.push(`join3d ${idn.get(o.id)}, ${g}`);
-      for (const c of childrenOf(o.id)) {
-        if (ATTACHED.has(c.kind)) continue;
-        L.push(`join3d ${groupIdent.get(c.id) || idn.get(c.id)}, ${g}`);
+    L.push('// Models and nested parts: each Model is a real group in the game.');
+    const byDept = parents.slice().sort((a, b) => depthOf(b) - depthOf(a));
+    for (const o of byDept) {
+      let g;
+      if (o.kind === 'group') {
+        g = idn.get(o.id);
+        L.push(`let ${g} = group3d(${r(o.x)}, ${r(o.y)}, ${r(o.z)})`);
+        if (o.yaw) L.push(`turn3d ${g}, ${r(o.yaw * 10)}`);
+        if (!o.visible) L.push(`show3d ${g}, 0`);
+      } else {
+        g = identFor(identish(o.name) + '_group', used);
+        L.push(`let ${g} = group3d(${r(o.x)}, ${r(o.y)}, ${r(o.z)})`);
+        L.push(`join3d ${idn.get(o.id)}, ${g}`);
       }
+      groupIdent.set(o.id, g);
+      for (const c of spatialChildren(o.id)) L.push(`join3d ${groupIdent.get(c.id) || idn.get(c.id)}, ${g}`);
     }
   }
 
@@ -1685,7 +1782,8 @@ function worldLines() {
   L.push(`playerStart(${sp ? r(sp.x) : 0}, ${sp ? r(sp.z) : 400}, ${sp ? r((sp.yaw || 0) * 10) : 0})`);
 
   // ---- effects ----
-  const where = (o) => { const up = o.parent ? byId(o.parent) : null; return up ? { x: r(up.x), y: r(up.y) + r(o.up || 0), z: r(up.z) } : { x: r(o.x), y: r(o.y) + r(o.up || 0), z: r(o.z) }; };
+  const spatialOwner = (o) => { let up = o.parent ? byId(o.parent) : null; while (up && up.kind === 'folder') up = up.parent ? byId(up.parent) : null; return up; };
+  const where = (o) => { const up = spatialOwner(o); return up ? { x: r(up.x), y: r(up.y) + r(o.up || 0), z: r(up.z) } : { x: r(o.x), y: r(o.y) + r(o.up || 0), z: r(o.z) }; };
   const effects = S.objects.filter((o) => o.kind === 'vfx');
   const fxName = new Map();
   if (effects.length) {
@@ -1695,7 +1793,7 @@ function worldLines() {
       const f = 'vfx_' + idn.get(o.id);
       fxName.set(o.id, f);
       const at = where(o);
-      const owner = o.parent ? byId(o.parent) : null;
+      const owner = spatialOwner(o);
       L.push(`// ${o.name}${owner ? ' (inside ' + owner.name + ')' : ''} - ${(VFX_PRESETS[o.effect] || {}).label || o.effect}`);
       L.push(`fn ${f}() {`);
       const kind = fxKind(o), aim = r((owner ? (owner.yaw || 0) : (o.yaw || 0)) * 10);
@@ -1720,7 +1818,7 @@ function worldLines() {
     for (const o of scripts) {
       const f = 'script_' + idn.get(o.id);
       scName.set(o.id, f);
-      const owner = o.parent ? byId(o.parent) : null;
+      const owner = spatialOwner(o);
       L.push(`// ${o.name}${owner ? ' (inside ' + owner.name + ')' : ''} - ${WHENS[o.when] || o.when}`);
       L.push(`fn ${f}() {`);
       if (o.file) {
@@ -1774,7 +1872,10 @@ function worldLines() {
 
   L.push('');
   L.push('// How World Studio reads this world back in - leave this line to it.');
-  L.push('// world-studio: ' + JSON.stringify({ v: 1, world: S.world, objects: S.objects.map(compactObj) }));
+  L.push('HOTBAR_ENABLED = ' + (S.player.hotbarEnabled ? 'true' : 'false'));
+  L.push('HOTBAR_ITEMS = ' + JSON.stringify(S.player.hotbar.map((slot) => slot.name || '')));
+  L.push('HOTBAR_COUNTS = ' + JSON.stringify(S.player.hotbar.map((slot) => Math.max(0, Math.round(num(slot.count))))));
+  L.push('// world-studio: ' + JSON.stringify({ v: 2, world: S.world, player: S.player, objects: S.objects.map(compactObj) }));
   L.push(MARK_CLOSE);
   return L.join('\n');
 }
@@ -1814,7 +1915,9 @@ function genGameFile(opt) {
   L.push('every frame {');
   L.push('  playerStep()         // look, walk, jump, fall');
   L.push('  worldStep()          // the scripts and effects in the world above');
+  L.push('  hotbarStep()         // select a tool with 1-9 or 0');
   L.push('  render3d             // draw the world - your own drawing goes after this');
+  L.push('  hotbarDraw()         // draw the player\'s default quick-slot bar');
   if (opt.hud) L.push('  write "WASD + mouse  ·  Shift run  ·  Space jump" at 160, 6 centered shadow');
   L.push('}');
   return L.join('\n') + '\n';
@@ -1848,7 +1951,9 @@ function importSource(src) {
     try {
       const d = JSON.parse(m[1]);
       if (d && Array.isArray(d.objects)) {
-        S = { world: Object.assign(worldDefaults(), d.world || {}), objects: d.objects.filter((o) => o && KIND[o.kind]).map((o) => Object.assign(makeObjQuiet(o.kind, o.name || '', {}), o)) };
+        S = { world: Object.assign(worldDefaults(), d.world || {}), objects: d.objects.filter((o) => o && KIND[o.kind]).map((o) => Object.assign(makeObjQuiet(o.kind, o.name || '', {}), o)), player: Object.assign(playerDefaults(), d.player || {}) };
+        if (!Array.isArray(S.player.hotbar)) S.player.hotbar = playerDefaults().hotbar;
+        S.player.hotbar = Array.from({ length: 10 }, (_, i) => Object.assign({ name: '', count: 0 }, S.player.hotbar[i] || {}));
         S.objects.forEach((o, i) => { o.id = i + 1; if (!o.name) o.name = KIND[o.kind].label + (i + 1); });
         nextId = S.objects.length + 1;
         return { ok: true, how: 'saved world', count: S.objects.length };
