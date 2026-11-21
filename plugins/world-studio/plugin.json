@@ -2,7 +2,7 @@
   "name": "world-studio",
   "type": "panel",
   "version": "3.0.0",
-  "description": "A Roblox-Studio-style 3D editor for Volt games. Place parts, pillars, lights, spawn points, your own .glb models and the rigged characters that come with Volt Studio; drag things into each other in the Things list so a sword carries its gem, its script and its effects; and walk around what you built with the same walking, running, jumping and crouching the finished game has. A Script is plain Volt that runs at the start, every frame, or when the player is close; an Effect is a burst of glowing specks a script can set off by name. Save writes the world between two marker lines in your .volt file, so your own settings and code are never touched. Needs the game-kit plugin (the player) and the character-pack plugin (the characters).",
+  "description": "A full 3D scene editor for Volt games with a hierarchical Explorer, collapsible Folders, transformable Model groups, Parts, imported 3D assets, characters, Scripts and Effects. Drag objects into parents, inspect Properties, and configure the player's Backpack > Hotbar with ten 1–9/0 quick slots. Keeps Volt's existing editor colour scheme.",
   "panel": {
     "entry": "index.html",
     "title": "World Studio"

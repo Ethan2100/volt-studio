@@ -60,8 +60,8 @@ const W = new Function([
   'const refreshNode = () => {};',
   grabConst('esc'), grabConst('clamp'), grabConst('num'), grabConst('hex6'),
   grabConst('KIND'), grabConst('ATTACHED'), grabConst('CHAR_PACK'), grabConst('CHARACTERS'), grabConst('animsOf'), grabConst('isAnimal'),
-  grabConst('CHAR_ANIMS'), grabConst('WHENS'), grabConst('VFX_PRESETS'), grabConst('FX_FIELDS'), grabConst('fxKind'), grabConst('worldDefaults'),
-  'let S = { world: worldDefaults(), objects: [] };', 'let nextId = 1;', 'const modelCache = new Map();',
+  grabConst('CHAR_ANIMS'), grabConst('WHENS'), grabConst('VFX_PRESETS'), grabConst('FX_FIELDS'), grabConst('fxKind'), grabConst('playerDefaults'), grabConst('worldDefaults'),
+  'let S = { world: worldDefaults(), objects: [], player: playerDefaults() };', 'let nextId = 1;', 'const modelCache = new Map();',
   grabConst('byId'), grabConst('childrenOf'), grabFn('descendants'), grabFn('depthOf'), grabFn('canParent'),
   grabFn('setParent'), grabFn('treeSnapshot'), grabFn('treeApply'), grabFn('withTree'),
   grabConst('charKey'), grabConst('identish'),
@@ -71,15 +71,18 @@ const W = new Function([
   grabConst('KIT'), grabFn('solidBoxes'), grabConst('spawnOf'),
   grabConst('MARK_OPEN'), grabConst('MARK_CLOSE'),
   grabFn('compactObj'), grabFn('worldLines'), grabFn('genGameFile'), grabFn('spliceWorld'), grabFn('genVolt'), grabFn('importSource'),
-  'return { get S() { return S; }, set S(v) { S = v; }, get nextId() { return nextId; }, set nextId(v) { nextId = v; },',
+  'return { get S() { return S; }, set S(v) { S = Object.assign({ player: playerDefaults() }, v); if (!Array.isArray(S.player.hotbar)) S.player.hotbar = playerDefaults().hotbar; S.player.hotbar = Array.from({ length: 10 }, (_, i) => Object.assign({ name: \'\', count: 0 }, S.player.hotbar[i] || {})); }, get nextId() { return nextId; }, set nextId(v) { nextId = v; },',
   '         roomScene, makeObj, genGameFile, spliceWorld, genVolt, importSource, setParent, childrenOf, withTree, MARK_OPEN, MARK_CLOSE };',
 ].join('\n\n'))();
 
 // ---- 1. the game file it writes ----
 W.roomScene();
+W.S.player.hotbar[0] = { name: 'SWORD', count: 1 };
+W.S.player.hotbar[1] = { name: 'POTION', count: 4 };
 const file = W.genGameFile({ hud: true });
 check('the game file is an #html program', file.startsWith('#html\n') && file.includes('canvas 320, 180'));
 check('it imports the player kit', file.includes('import "game.volt"'));
+check('it includes the configured ten-slot hotbar', file.includes('HOTBAR_ITEMS = ["SWORD","POTION","","","","","","","",""]') && file.includes('HOTBAR_COUNTS = [1,4,0,0,0,0,0,0,0,0]') && file.includes('hotbarStep()') && file.includes('hotbarDraw()'));
 check('it has settings you can change', /^WALK_SPEED = \d+/m.test(file) && /^JUMP_POWER = \d+/m.test(file));
 check('the world sits between the markers', file.indexOf(W.MARK_OPEN) < file.indexOf(W.MARK_CLOSE));
 check('it builds the world', /let Floor = block3d\(/.test(file));
@@ -131,6 +134,7 @@ const before = tidy(W.S.objects);
 W.S = { world: W.S.world, objects: [] };
 const res = W.importSource(saved);
 check('the saved world is found', res.ok && res.how === 'saved world', JSON.stringify(res));
+check('player hotbar data survives a save and reload', W.S.player.hotbar[0].name === 'SWORD' && W.S.player.hotbar[1].count === 4);
 check('every thing comes back, field for field', tidy(W.S.objects) === before);
 
 const example = fs.readFileSync(path.join(root, 'examples', '30_world_studio_game.volt'), 'utf8');
@@ -156,6 +160,13 @@ const wave = add('vfx', { name: 'Wave', effect: 'shock', when: 'near' });
 const swing = add('script', { name: 'Swing', when: 'use', code: 'vfx_Slash()\nprint "swing"' });
 const embers = add('vfx', { name: 'Embers', effect: 'fire', when: 'frame', rate: 6 });
 const guard = add('char', { name: 'Guard', file: 'hunter', anim: 'sprint', x: 0, y: 0, z: -400, yaw: 90 });
+const decorFolder = add('folder', { name: 'Decor' });
+const weaponFolder = add('folder', { name: 'Weapons' });
+const swordModel = add('group', { name: 'SwordModel', x: 20, y: 30, z: 40 });
+const pommel = add('block', { name: 'Pommel', x: 20, y: 30, z: 40, w: 12, h: 12, d: 12 });
+W.setParent(weaponFolder, decorFolder.id);
+W.setParent(swordModel, weaponFolder.id);
+W.setParent(pommel, swordModel.id);
 add('spawn', { name: 'Spawn', x: 0, y: 0, z: 400 });
 W.setParent(gem, sword.id);
 W.setParent(slash, sword.id);
@@ -166,6 +177,8 @@ W.setParent(wave, sword.id);
 const built = W.genGameFile({ hud: true });
 
 check('a part with things inside gets a group', /let Sword_group = group3d\(100, 90, -200\)/.test(built));
+check('Folders are organizational and do not become runtime parts', !built.includes('let Decor =') && !built.includes('let Weapons ='));
+check('a Model is emitted as a real group3d container', /let SwordModel = group3d\(20, 30, 40\)/.test(built) && built.includes('join3d Pommel, SwordModel'));
 check('the part and its child part join the group', built.includes('join3d Sword, Sword_group') && built.includes('join3d Gem, Sword_group'));
 check('scripts and effects are not joined to groups', !/join3d (Swing|Slash|Embers)/.test(built));
 check('a script becomes a function', /fn script_Swing\(\) \{[\s\S]*vfx_Slash\(\)[\s\S]*print "swing"[\s\S]*\}/.test(built));
@@ -175,12 +188,27 @@ check('a shockwave becomes shock3d', /fn vfx_Wave\(\) \{\n  shock3d 100, 90, -20
 check('an embers effect is still a burst', /fn vfx_Embers\(\) \{\n  burst3d 100, 120, -200, "#ff6a2a", \d+, \d+\n\}/.test(built), (built.match(/fn vfx_Embers[\s\S]{0,90}/) || [''])[0]);
 check('"when the player presses E" is wired up', /if playerNear\(100, -200, 150\) and held\("e"\) \{\n    script_Swing\(\)/.test(built));
 check('a repeating effect runs on its own beat', /if ws_tick % 6 == 0 \{\n    vfx_Embers\(\)/.test(built));
+// Stable object IDs keep nested Folder / Model parents intact after reloads,
+// even when earlier scene objects have been deleted and IDs contain gaps.
+const savedHierarchyState = W.S, savedHierarchyNextId = W.nextId;
+decorFolder.id = 101; weaponFolder.id = 102; swordModel.id = 103; pommel.id = 104;
+weaponFolder.parent = 101; swordModel.parent = 102; pommel.parent = 103;
+const gapBuilt = W.genGameFile({ hud: true });
+const hierarchyRead = W.importSource(gapBuilt);
+const readDecor = W.S.objects.find((o) => o.name === 'Decor');
+const readWeapons = W.S.objects.find((o) => o.name === 'Weapons');
+const readSwordModel = W.S.objects.find((o) => o.name === 'SwordModel');
+const readPommel = W.S.objects.find((o) => o.name === 'Pommel');
+check('nested Folder / Model IDs survive save and reload with gaps', hierarchyRead.ok && readDecor.id === 101 && readWeapons.parent === 101 && readSwordModel.parent === 102 && readPommel.parent === 103);
+W.S = savedHierarchyState; W.nextId = savedHierarchyNextId;
+
 const runBlock = built.slice(built.indexOf('fn worldStart()'));
 check('"only when called" effects are not run on their own', !/^  vfx_Slash\(\)$/m.test(runBlock));
 check('the character is loaded and placed', /model3d hunter_model = "hunter.glb"/.test(built) && /let Guard = put3d\(hunter_model, 0, 0, -400, 0, 100\)/.test(built));
 check('the character plays its animation', built.includes('anim3d Guard, "sprint"'));
 check('the character is turned', built.includes('turn3d Guard, 900'));
 check('the game file calls worldStart and worldStep', built.includes('worldStart()') && /^  worldStep\(\)/m.test(built));
+check('the game loop draws the player hotbar after the 3D world', /hotbarStep\(\)[\s\S]*render3d[\s\S]*hotbarDraw\(\)/.test(built));
 try {
   volt.compile(built, { baseDir: null, extraDirs: plugins.libraryDirs(list) });
   console.log('pass  a world with scripts, effects and a character compiles');
@@ -236,8 +264,14 @@ if (!JSDOM) {
 
   check('the panel starts without errors', errors.length === 0, errors[0] || '');
   check('every toolbar button is there', ['#bUndo', '#bRedo', '#bDup', '#bDel', '#bPlay', '#bSave', '#bSavePlay', '#bMore', '#bLight', '#snap'].every((id) => $(id)));
-  check('the parts strip is filled in', $('#tools').children.length === 11, 'got ' + $('#tools').children.length);
-  check('characters, scripts and effects are in the strip', ['char', 'script', 'vfx'].every((k) => $(`#tools [data-add="${k}"]`)));
+  check('the parts strip includes Folder and Model containers', $('#tools').children.length === 13, 'got ' + $('#tools').children.length);
+  check('characters, scripts, effects, folders and Models are in the strip', ['char', 'script', 'vfx', 'folder', 'group'].every((k) => $(`#tools [data-add="${k}"]`)));
+  check('the Player > Backpack > Hotbar section exists', $('#explorer').textContent.includes('Player') && $('#explorer').textContent.includes('Backpack') && $('#explorer').textContent.includes('Hotbar'));
+  click('#explorer [data-player-section="hotbar"]');
+  check('selecting Hotbar opens ten-slot player properties', $('#props').textContent.includes('Default Hotbar') && $('#props').textContent.includes('10 quick slots'));
+  click('#explorer [data-player-section="slot"][data-player-slot="0"]');
+  check('individual hotbar slots can be configured', $('#props').textContent.includes('Hotbar slot 1') && $('#props').textContent.includes('Item name'));
+  check('hotbar slots can be drag-reordered in the Player tree', studio.includes('dragPlayerSlot') && studio.includes('Hotbar slots reordered'));
   check('the world is listed', $('#explorer').querySelectorAll('.row').length >= 10);
   win.__worldStudio.select(win.__worldStudio.scene.objects[7].id);
   check('properties start simple', $('#props').textContent.includes('Advanced') && !$('#props').textContent.includes('Roughness'));
