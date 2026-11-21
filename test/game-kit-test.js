@@ -36,6 +36,8 @@ function __held(k) { return KEYS.has(k); }
 let __mdx = 0, __mdy = 0;
 function __mousedx() { const v = __mdx; __mdx = 0; return v; }
 function __mousedy() { const v = __mdy; __mdy = 0; return v; }
+let __wheel = 0;
+function __mousescroll() { const v = __wheel; __wheel = 0; return Math.sign(v); }
 function __sin3(a) { return Math.round(Math.sin(a / 10 * Math.PI / 180) * 1000); }
 function __cos3(a) { return Math.round(Math.cos(a / 10 * Math.PI / 180) * 1000); }
 function __atan23(y, x) { return ((Math.round(Math.atan2(y, x) * 1800 / Math.PI) % 3600) + 3600) % 3600; }
@@ -142,6 +144,10 @@ async function frames(n) { for (let i = 0; i < n; i++) { await kit.api.playerWal
   check('number 0 selects hotbar slot 10', g('HOTBAR_SELECTED') === 10);
   keys.clear(); await kit.api.hotbarStep();
   check('selection stays on the last chosen slot', g('HOTBAR_SELECTED') === 10);
+  kit.set('__wheel', -1); await kit.api.hotbarStep();
+  check('mouse wheel up selects the previous slot and wraps', g('HOTBAR_SELECTED') === 9);
+  kit.set('__wheel', 1); await kit.api.hotbarStep();
+  check('mouse wheel down selects the next slot', g('HOTBAR_SELECTED') === 10);
   kit.set('HOTBAR_ENABLED', false); keys.add('2'); await kit.api.hotbarStep();
   check('disabled hotbar ignores number keys', g('HOTBAR_SELECTED') === 10);
   kit.set('HOTBAR_ENABLED', true); keys.clear();
