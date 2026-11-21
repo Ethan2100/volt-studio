@@ -157,6 +157,7 @@ const gem = add('ball', { name: 'Gem', x: 100, y: 160, z: -200, r: 12, color: '#
 const slash = add('vfx', { name: 'Slash', effect: 'slash', when: 'fired', up: 80 });
 const circle = add('vfx', { name: 'Circle', effect: 'circle', when: 'start' });
 const wave = add('vfx', { name: 'Wave', effect: 'shock', when: 'near' });
+const interactFx = add('vfx', { name: 'Crystal', effect: 'magic', when: 'use', promptText: 'Collect crystal', promptKey: 'f', promptRadius: 240, color: '#44ddff' });
 const swing = add('script', { name: 'Swing', when: 'use', code: 'vfx_Slash()\nprint "swing"' });
 const embers = add('vfx', { name: 'Embers', effect: 'fire', when: 'frame', rate: 6 });
 const guard = add('char', { name: 'Guard', file: 'hunter', anim: 'sprint', x: 0, y: 0, z: -400, yaw: 90 });
@@ -185,6 +186,9 @@ check('a script becomes a function', /fn script_Swing\(\) \{[\s\S]*vfx_Slash\(\)
 check('a slash becomes a real sword arc', /fn vfx_Slash\(\) \{\n  slash3d 100, 170, -200, \d+, \d+, "#dff3ff"\n\}/.test(built), (built.match(/fn vfx_Slash[\s\S]{0,90}/) || [''])[0]);
 check('a magic circle becomes magic3d', /fn vfx_Circle\(\) \{\n  magic3d 100, 90, -200, \d+, "#9d6bff", \d+\n\}/.test(built), (built.match(/fn vfx_Circle[\s\S]{0,90}/) || [''])[0]);
 check('a shockwave becomes shock3d', /fn vfx_Wave\(\) \{\n  shock3d 100, 90, -200, \d+, "#ffd23f"\n\}/.test(built), (built.match(/fn vfx_Wave[\s\S]{0,90}/) || [''])[0]);
+check('an E/F interaction effect gets a configurable prompt and range', built.includes('write "Press F - Collect crystal" at 160, 128 centered shadow') && built.includes('playerNear(100, -200, 240)') && built.includes('held("f")'));
+check('an interaction effect fires only on the key-down edge', /if held\("f"\) and not ws_use_prev_Crystal \{\n      vfx_Crystal\(\)/.test(built) && built.includes('ws_use_prev_Crystal = held("f")'));
+check('interaction prompt settings survive save and reload', (() => { const d = W.importSource(built); const fx = W.S.objects.find((o) => o.name === 'Crystal'); return d.ok && fx.promptText === 'Collect crystal' && fx.promptKey === 'f' && fx.promptRadius === 240 && fx.color === '#44ddff'; })());
 check('an embers effect is still a burst', /fn vfx_Embers\(\) \{\n  burst3d 100, 120, -200, "#ff6a2a", \d+, \d+\n\}/.test(built), (built.match(/fn vfx_Embers[\s\S]{0,90}/) || [''])[0]);
 check('"when the player presses E" is wired up', /if playerNear\(100, -200, 150\) and held\("e"\) \{\n    script_Swing\(\)/.test(built));
 check('a repeating effect runs on its own beat', /if ws_tick % 6 == 0 \{\n    vfx_Embers\(\)/.test(built));
