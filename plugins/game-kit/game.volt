@@ -304,30 +304,19 @@ fn playerFacing(x, z, spread) {
 
 
 // ---------------------------------------------------------------------
-//  HOTBAR - a reusable 9-slot equipment bar for #html 3D games
-// ---------------------------------------------------------------------
-// Set HOTBAR_ITEMS and HOTBAR_COUNTS from your game file, then call
-// hotbarStep() once per frame and hotbarDraw() after render3d.
-//
-//   HOTBAR_ITEMS = ["SWORD", "POTION", "BOW", "TORCH", "", "", "", "", ""]
-//   HOTBAR_COUNTS = [1, 5, 12, 1, 0, 0, 0, 0, 0]
-//
-// Number keys 1-9 select a slot. HOTBAR_SELECTED is 1-based, so game
-// logic can use it to decide which tool / item is currently equipped.
-// Labels should be short (about 5 characters) to fit the slot.
+//  DEFAULT PLAYER HOTBAR - ten quick slots, matching the familiar
+//  1-9 / 0 keyboard layout. World Studio fills the item and stack arrays.
+//  Call hotbarStep() once per frame and hotbarDraw() after render3d.
 // ---------------------------------------------------------------------
 let HOTBAR_ENABLED = true
 let HOTBAR_SELECTED = 1
-let HOTBAR_SLOT_COUNT = 9
-let HOTBAR_ITEMS = ["", "", "", "", "", "", "", "", ""]
-let HOTBAR_COUNTS = [0, 0, 0, 0, 0, 0, 0, 0, 0]
-let HOTBAR_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+let HOTBAR_SLOT_COUNT = 10
+let HOTBAR_ITEMS = ["", "", "", "", "", "", "", "", "", ""]
+let HOTBAR_COUNTS = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+let HOTBAR_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
 
-// Read the number keys and update the selected slot. Call once per frame.
 fn hotbarStep() {
-  if not HOTBAR_ENABLED {
-    return 0
-  }
+  if not HOTBAR_ENABLED { return 0 }
   if held("1") { HOTBAR_SELECTED = 1 }
   if held("2") { HOTBAR_SELECTED = 2 }
   if held("3") { HOTBAR_SELECTED = 3 }
@@ -337,21 +326,19 @@ fn hotbarStep() {
   if held("7") { HOTBAR_SELECTED = 7 }
   if held("8") { HOTBAR_SELECTED = 8 }
   if held("9") { HOTBAR_SELECTED = 9 }
+  if held("0") { HOTBAR_SELECTED = 10 }
   return HOTBAR_SELECTED
 }
 
-// Draw the nine-slot bar at the bottom of the standard 320x180 canvas.
-// Call AFTER render3d so it appears as a screen-space HUD.
+// Draw after render3d so the bar stays in screen space above the 3D scene.
 fn hotbarDraw() {
-  if not HOTBAR_ENABLED {
-    return 0
-  }
-  let slotW = 28
-  let slotH = 29
-  let gap = 3
+  if not HOTBAR_ENABLED { return 0 }
+  let slotW = 24
+  let slotH = 28
+  let gap = 2
   let totalW = HOTBAR_SLOT_COUNT * slotW + (HOTBAR_SLOT_COUNT - 1) * gap
   let startX = (320 - totalW) / 2
-  let startY = 145
+  let startY = 148
   let i = 0
   while i < HOTBAR_SLOT_COUNT {
     let sx = startX + i * (slotW + gap)
@@ -369,12 +356,12 @@ fn hotbarDraw() {
     box sx + 1, startY + 1, slotW - 2, slotH - 2 color fill
     write HOTBAR_KEYS[i] at sx + 3, startY + 2 color "#9fb1c6"
     if i < length(HOTBAR_ITEMS) and HOTBAR_ITEMS[i] != "" {
-      write HOTBAR_ITEMS[i] at sx + 14, startY + 12 color labelColor centered
+      write HOTBAR_ITEMS[i] at sx + 12, startY + 12 color labelColor centered
     } else {
-      write "-" at sx + 14, startY + 12 color "#596579" centered
+      write "-" at sx + 12, startY + 12 color "#596579" centered
     }
     if i < length(HOTBAR_COUNTS) and HOTBAR_COUNTS[i] > 0 {
-      write "" + HOTBAR_COUNTS[i] at sx + slotW - 4, startY + 21 color "#ffd36b"
+      write "" + HOTBAR_COUNTS[i] at sx + slotW - 3, startY + 21 color "#ffd36b"
     }
     i += 1
   }
