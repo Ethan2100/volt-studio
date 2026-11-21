@@ -468,13 +468,23 @@ function rebuildAll() {
   }
   dirty = true;
 }
+function effectivelyVisible(o) {
+  let p = o;
+  while (p) {
+    if (p.kind !== 'folder' && p.visible === false) return false;
+    p = p.parent ? byId(p.parent) : null;
+  }
+  return !!o;
+}
 function applyNodeMode(n) {
   const game = mode !== 'edit';
-  if (n.userData.light) n.userData.light.visible = game;
   const o = S.objects.find((x) => x.id === n.userData.rootId);
+  const visible = effectivelyVisible(o);
   if (n.userData.hiddenContainer) n.visible = false;
-  else if (n.userData.marker || n.userData.placeholder) n.visible = mode !== 'play' && !!o && o.visible !== false;
-  n.userData.outline.visible = !!o && o.id === sel && mode !== 'play';
+  else if (n.userData.marker || n.userData.placeholder) n.visible = mode !== 'play' && visible;
+  else n.visible = visible;
+  if (n.userData.light) n.userData.light.visible = game && visible;
+  n.userData.outline.visible = !!o && o.id === sel && mode !== 'play' && visible;
 }
 
 // ---- world settings -> scene (edit look vs. real in-game look) ----
@@ -1070,7 +1080,7 @@ $('#explorer').addEventListener('click', (e) => {
   const ptoggle = e.target.closest('[data-player-toggle]');
   if (ptoggle) { const id = ptoggle.dataset.playerToggle; collapsedPlayerNodes.has(id) ? collapsedPlayerNodes.delete(id) : collapsedPlayerNodes.add(id); renderExplorer(); return; }
   const eye = e.target.closest('[data-eye]');
-  if (eye) { const o = byId(Number(eye.dataset.eye)); o.visible = !o.visible; refreshNode(o); renderExplorer(); renderProps(); commit(); return; }
+  if (eye) { const o = byId(Number(eye.dataset.eye)); o.visible = !o.visible; refreshNode(o); for (const child of descendants(o.id)) refreshNode(child); renderExplorer(); renderProps(); commit(); return; }
   const row = e.target.closest('.row'); if (!row) return;
   if (row.dataset.playerSection) selectPlayer(row.dataset.playerSection, row.dataset.playerSlot == null ? -1 : Number(row.dataset.playerSlot));
   else if (row.dataset.world) selectWorld(); else select(Number(row.dataset.id));
@@ -1421,6 +1431,7 @@ function setObjProp(k, v) {
   else if (k === 'color' && o.glow && o.glow === o.color) { o.color = v; o.glow = v; }
   else o[k] = v;
   touch(o);
+  if (k === 'visible') for (const child of descendants(o.id)) refreshNode(child);
   if (k === 'name' || k === 'visible') renderExplorer();
   if (k === 'name') renderStatus();
   if (again || k === 'visible') { const keep = document.activeElement; renderProps(); if (keep && keep.dataset && keep.dataset.k) { const el = $(`#props [data-k="${keep.dataset.k}"]`); if (el) el.focus(); } }
