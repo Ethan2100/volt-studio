@@ -38,11 +38,11 @@ The Player section is a runtime configuration area, not a world object. Open **P
 | 1–9 | 1–9 |
 | 0 | 10 |
 
-Select a slot in the Explorer tree to edit its item label and stack count. Empty labels create empty slots. The item labels are shortened to four characters in the compact in-game HUD; the full label remains in the editor.
+Select a slot in the Explorer tree to edit its item label and stack count. Drag one slot onto another to reorder them. Empty labels create empty slots. The item labels are shortened to four characters in the compact in-game HUD; the full label remains in the editor.
 
 World Studio writes the hotbar configuration into the saved world marker and generates calls to:
 
-- `hotbarStep()` — reads the 1–9 / 0 selection keys.
+- `hotbarStep()` — reads the 1–9 / 0 selection keys and mouse wheel.
 - `hotbarDraw()` — draws the ten-slot HUD after `render3d`.
 - `HOTBAR_SELECTED` — 1-based selected slot, available to game logic.
 - `HOTBAR_ITEMS` / `HOTBAR_COUNTS` — starter slot labels and stack counts.
