@@ -131,17 +131,19 @@ async function frames(n) { for (let i = 0; i < n; i++) { await kit.api.playerWal
     (await kit.api.playerNear(0, 350, 100)) === true && (await kit.api.playerNear(0, 0, 100)) === false &&
     (await kit.api.playerFacing(0, 0, 300)) === true && (await kit.api.playerFacing(0, 900, 300)) === false);
 
-  // Roblox-style hotbar: number keys select one of nine persistent slots.
+  // Default player hotbar: ten quick slots, numbered 1-9 and 0.
   await world([FLOOR]);
-  check('hotbar starts with nine slots and selects slot 1', g('HOTBAR_SLOT_COUNT') === 9 && g('HOTBAR_SELECTED') === 1);
+  check('hotbar starts with ten slots and selects slot 1', g('HOTBAR_SLOT_COUNT') === 10 && g('HOTBAR_SELECTED') === 1);
   keys.add('5'); await kit.api.hotbarStep();
   check('number 5 selects hotbar slot 5', g('HOTBAR_SELECTED') === 5);
   keys.clear(); keys.add('9'); await kit.api.hotbarStep();
   check('number 9 selects hotbar slot 9', g('HOTBAR_SELECTED') === 9);
+  keys.clear(); keys.add('0'); await kit.api.hotbarStep();
+  check('number 0 selects hotbar slot 10', g('HOTBAR_SELECTED') === 10);
   keys.clear(); await kit.api.hotbarStep();
-  check('selection stays on the last chosen slot', g('HOTBAR_SELECTED') === 9);
+  check('selection stays on the last chosen slot', g('HOTBAR_SELECTED') === 10);
   kit.set('HOTBAR_ENABLED', false); keys.add('2'); await kit.api.hotbarStep();
-  check('disabled hotbar ignores number keys', g('HOTBAR_SELECTED') === 9);
+  check('disabled hotbar ignores number keys', g('HOTBAR_SELECTED') === 10);
   kit.set('HOTBAR_ENABLED', true); keys.clear();
 
   // the examples ship in this shape - they have to keep compiling
