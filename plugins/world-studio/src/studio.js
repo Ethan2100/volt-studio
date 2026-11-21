@@ -1798,6 +1798,7 @@ function worldLines() {
         g = identFor(identish(o.name) + '_group', used);
         L.push(`let ${g} = group3d(${r(o.x)}, ${r(o.y)}, ${r(o.z)})`);
         L.push(`join3d ${idn.get(o.id)}, ${g}`);
+        if (!o.visible) L.push(`show3d ${g}, 0`);
       }
       groupIdent.set(o.id, g);
       for (const c of spatialChildren(o.id)) L.push(`join3d ${groupIdent.get(c.id) || idn.get(c.id)}, ${g}`);
