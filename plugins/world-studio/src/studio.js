@@ -971,8 +971,10 @@ function pickModelFile(at) {
     const file = inp.files && inp.files[0]; if (!file) return;
     loadModelBytes(file, (name) => {
       const [x, z] = dropPoint(at);
+      const parent = byId(sel), container = parent && ['folder', 'group'].includes(parent.kind) ? parent : null;
       const o = makeObj('model', { name: uniqueName('Model'), file: name, scale: 100 });
-      o.x = sn(x); o.z = sn(z); o.y = 0;
+      o.parent = container ? container.id : 0;
+      o.x = container ? container.x : sn(x); o.y = container ? container.y : 0; o.z = container ? container.z : sn(z);
       S.objects.push(o); refreshNode(o); select(o.id); commit();
     }, (err) => toast(err.message, true));
   });
