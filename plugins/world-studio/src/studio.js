@@ -1754,7 +1754,7 @@ function worldLines() {
       if (o.kind === 'group') {
         g = idn.get(o.id);
         L.push(`let ${g} = group3d(${r(o.x)}, ${r(o.y)}, ${r(o.z)})`);
-        if (o.yaw) L.push(`turn3d ${g}, ${r(o.yaw * 10)}`);
+        // Descendant transforms already include the Model's pivot rotation.
         if (!o.visible) L.push(`show3d ${g}, 0`);
       } else {
         g = identFor(identish(o.name) + '_group', used);
