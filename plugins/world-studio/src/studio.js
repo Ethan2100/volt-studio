@@ -1713,7 +1713,7 @@ const MARK_CLOSE = '// <<< world-studio';
 // fills the rest back in from the same defaults.
 function compactObj(o) {
   const d = makeObjQuiet(o.kind, '', {});
-  const out = { kind: o.kind, name: o.name };
+  const out = { id: o.id, kind: o.kind, name: o.name };
   for (const k of Object.keys(o)) {
     if (k === 'id' || k === 'kind' || k === 'name') continue;
     if (JSON.stringify(o[k]) !== JSON.stringify(d[k])) out[k] = o[k];
@@ -1916,7 +1916,7 @@ function worldLines() {
   L.push('HOTBAR_ENABLED = ' + (S.player.hotbarEnabled ? 'true' : 'false'));
   L.push('HOTBAR_ITEMS = ' + JSON.stringify(S.player.hotbar.map((slot) => (slot.name || '').slice(0, 4))));
   L.push('HOTBAR_COUNTS = ' + JSON.stringify(S.player.hotbar.map((slot) => Math.max(0, Math.round(num(slot.count))))));
-  L.push('// world-studio: ' + JSON.stringify({ v: 2, world: S.world, player: S.player, objects: S.objects.map(compactObj) }));
+  L.push('// world-studio: ' + JSON.stringify({ v: 3, world: S.world, player: S.player, objects: S.objects.map(compactObj) }));
   L.push(MARK_CLOSE);
   return L.join('\n');
 }
@@ -1995,8 +1995,8 @@ function importSource(src) {
         S = { world: Object.assign(worldDefaults(), d.world || {}), objects: d.objects.filter((o) => o && KIND[o.kind]).map((o) => Object.assign(makeObjQuiet(o.kind, o.name || '', {}), o)), player: Object.assign(playerDefaults(), d.player || {}) };
         if (!Array.isArray(S.player.hotbar)) S.player.hotbar = playerDefaults().hotbar;
         S.player.hotbar = Array.from({ length: 10 }, (_, i) => Object.assign({ name: '', count: 0 }, S.player.hotbar[i] || {}));
-        S.objects.forEach((o, i) => { o.id = i + 1; if (!o.name) o.name = KIND[o.kind].label + (i + 1); });
-        nextId = S.objects.length + 1;
+        S.objects.forEach((o, i) => { if (!Number.isInteger(o.id) || o.id < 1) o.id = i + 1; if (!o.name) o.name = KIND[o.kind].label + (i + 1); });
+        nextId = Math.max(0, ...S.objects.map((o) => o.id)) + 1;
         return { ok: true, how: 'saved world', count: S.objects.length };
       }
     } catch (e) { /* fall through to the best-effort reader */ }
