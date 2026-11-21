@@ -301,3 +301,81 @@ fn playerFacing(x, z, spread) {
   }
   return false
 }
+
+
+// ---------------------------------------------------------------------
+//  HOTBAR - a reusable 9-slot equipment bar for #html 3D games
+// ---------------------------------------------------------------------
+// Set HOTBAR_ITEMS and HOTBAR_COUNTS from your game file, then call
+// hotbarStep() once per frame and hotbarDraw() after render3d.
+//
+//   HOTBAR_ITEMS = ["SWORD", "POTION", "BOW", "TORCH", "", "", "", "", ""]
+//   HOTBAR_COUNTS = [1, 5, 12, 1, 0, 0, 0, 0, 0]
+//
+// Number keys 1-9 select a slot. HOTBAR_SELECTED is 1-based, so game
+// logic can use it to decide which tool / item is currently equipped.
+// Labels should be short (about 5 characters) to fit the slot.
+// ---------------------------------------------------------------------
+let HOTBAR_ENABLED = true
+let HOTBAR_SELECTED = 1
+let HOTBAR_SLOT_COUNT = 9
+let HOTBAR_ITEMS = ["", "", "", "", "", "", "", "", ""]
+let HOTBAR_COUNTS = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+let HOTBAR_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+
+// Read the number keys and update the selected slot. Call once per frame.
+fn hotbarStep() {
+  if not HOTBAR_ENABLED {
+    return 0
+  }
+  if held("1") { HOTBAR_SELECTED = 1 }
+  if held("2") { HOTBAR_SELECTED = 2 }
+  if held("3") { HOTBAR_SELECTED = 3 }
+  if held("4") { HOTBAR_SELECTED = 4 }
+  if held("5") { HOTBAR_SELECTED = 5 }
+  if held("6") { HOTBAR_SELECTED = 6 }
+  if held("7") { HOTBAR_SELECTED = 7 }
+  if held("8") { HOTBAR_SELECTED = 8 }
+  if held("9") { HOTBAR_SELECTED = 9 }
+  return HOTBAR_SELECTED
+}
+
+// Draw the nine-slot bar at the bottom of the standard 320x180 canvas.
+// Call AFTER render3d so it appears as a screen-space HUD.
+fn hotbarDraw() {
+  if not HOTBAR_ENABLED {
+    return 0
+  }
+  let slotW = 28
+  let slotH = 29
+  let gap = 3
+  let totalW = HOTBAR_SLOT_COUNT * slotW + (HOTBAR_SLOT_COUNT - 1) * gap
+  let startX = (320 - totalW) / 2
+  let startY = 145
+  let i = 0
+  while i < HOTBAR_SLOT_COUNT {
+    let sx = startX + i * (slotW + gap)
+    let edge = "#3b4658"
+    let fill = "#101722e8"
+    let labelColor = "#dce8f5"
+    if i + 1 == HOTBAR_SELECTED {
+      edge = "#55c7ff"
+      fill = "#19344bf0"
+    }
+    if i < length(HOTBAR_COUNTS) and HOTBAR_COUNTS[i] <= 0 {
+      labelColor = "#7f8999"
+    }
+    box sx, startY, slotW, slotH color edge
+    box sx + 1, startY + 1, slotW - 2, slotH - 2 color fill
+    write HOTBAR_KEYS[i] at sx + 3, startY + 2 color "#9fb1c6"
+    if i < length(HOTBAR_ITEMS) and HOTBAR_ITEMS[i] != "" {
+      write HOTBAR_ITEMS[i] at sx + 14, startY + 12 color labelColor centered
+    } else {
+      write "-" at sx + 14, startY + 12 color "#596579" centered
+    }
+    if i < length(HOTBAR_COUNTS) and HOTBAR_COUNTS[i] > 0 {
+      write "" + HOTBAR_COUNTS[i] at sx + slotW - 4, startY + 21 color "#ffd36b"
+    }
+    i += 1
+  }
+}
