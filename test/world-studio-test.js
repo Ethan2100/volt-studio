@@ -193,7 +193,8 @@ check('a repeating effect runs on its own beat', /if ws_tick % 6 == 0 \{\n    vf
 const savedHierarchyState = W.S, savedHierarchyNextId = W.nextId;
 decorFolder.id = 101; weaponFolder.id = 102; swordModel.id = 103; pommel.id = 104;
 weaponFolder.parent = 101; swordModel.parent = 102; pommel.parent = 103;
-const hierarchyRead = W.importSource(built);
+const gapBuilt = W.genGameFile({ hud: true });
+const hierarchyRead = W.importSource(gapBuilt);
 const readDecor = W.S.objects.find((o) => o.name === 'Decor');
 const readWeapons = W.S.objects.find((o) => o.name === 'Weapons');
 const readSwordModel = W.S.objects.find((o) => o.name === 'SwordModel');
