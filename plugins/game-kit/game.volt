@@ -316,7 +316,10 @@ let HOTBAR_COUNTS = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 let HOTBAR_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
 
 fn hotbarStep() {
+  let wheel = mousescroll()
   if not HOTBAR_ENABLED { return 0 }
+  if wheel < 0 { HOTBAR_SELECTED -= 1; if HOTBAR_SELECTED < 1 { HOTBAR_SELECTED = 10 } }
+  if wheel > 0 { HOTBAR_SELECTED += 1; if HOTBAR_SELECTED > 10 { HOTBAR_SELECTED = 1 } }
   if held("1") { HOTBAR_SELECTED = 1 }
   if held("2") { HOTBAR_SELECTED = 2 }
   if held("3") { HOTBAR_SELECTED = 3 }
