@@ -378,4 +378,5 @@ fn hotbarDraw() {
     }
     i += 1
   }
+  return 0
 }
