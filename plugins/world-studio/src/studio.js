@@ -1092,7 +1092,7 @@ $('#explorer').addEventListener('dragstart', (e) => {
   try { e.dataTransfer.setData('text/plain', 'row:' + dragRow); } catch (err) { /* some browsers */ }
 });
 $('#explorer').addEventListener('dragover', (e) => {
-  $('#explorer .row.drop').forEach((r) => r.classList.remove('drop'));
+  $$('#explorer .row.drop').forEach((r) => r.classList.remove('drop'));
   if (dragPlayerSlot != null) {
     const slot = e.target.closest('.player-slot[data-player-drop]');
     if (slot) { e.preventDefault(); slot.classList.add('drop'); }
@@ -1106,7 +1106,7 @@ $('#explorer').addEventListener('dragover', (e) => {
 });
 $('#explorer').addEventListener('dragleave', (e) => { const row = e.target.closest('[data-drop], .player-slot'); if (row) row.classList.remove('drop'); });
 $('#explorer').addEventListener('drop', (e) => {
-  $('#explorer .row.drop').forEach((r) => r.classList.remove('drop'));
+  $$('#explorer .row.drop').forEach((r) => r.classList.remove('drop'));
   if (dragPlayerSlot != null) {
     const slot = e.target.closest('.player-slot[data-player-drop]');
     const from = dragPlayerSlot; dragPlayerSlot = null;
@@ -1131,7 +1131,7 @@ $('#explorer').addEventListener('drop', (e) => {
   renderExplorer(); renderProps(); commit();
   toast(into ? `${child.name} is now inside ${byId(into).name}` : `${child.name} moved out into the world`);
 });
-$('#explorer').addEventListener('dragend', () => { dragRow = null; dragPlayerSlot = null; $('#explorer .row.drop').forEach((r) => r.classList.remove('drop')); });
+$('#explorer').addEventListener('dragend', () => { dragRow = null; dragPlayerSlot = null; $$('#explorer .row.drop').forEach((r) => r.classList.remove('drop')); });
 $('#explorer').addEventListener('dblclick', (e) => { const row = e.target.closest('.row[data-id]'); if (row) { select(Number(row.dataset.id)); focusSelection(); } });
 
 function renderTools() {
