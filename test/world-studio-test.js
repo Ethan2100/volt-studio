@@ -257,6 +257,7 @@ if (!JSDOM) {
   check('selecting Hotbar opens ten-slot player properties', $('#props').textContent.includes('Default Hotbar') && $('#props').textContent.includes('10 quick slots'));
   click('#explorer [data-player-section="slot"][data-player-slot="0"]');
   check('individual hotbar slots can be configured', $('#props').textContent.includes('Hotbar slot 1') && $('#props').textContent.includes('Item name'));
+  check('hotbar slots can be drag-reordered in the Player tree', studio.includes('dragPlayerSlot') && studio.includes('Hotbar slots reordered'));
   check('the world is listed', $('#explorer').querySelectorAll('.row').length >= 10);
   win.__worldStudio.select(win.__worldStudio.scene.objects[7].id);
   check('properties start simple', $('#props').textContent.includes('Advanced') && !$('#props').textContent.includes('Roughness'));
