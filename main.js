@@ -28,12 +28,22 @@ let busy = false;            // an upload is running
 //  Settings (saved in the app's data folder)
 // ---------------------------------------------------------------------
 const settingsFile = path.join(app.getPath('userData'), 'settings.json');
-// anthropicModel defaults to '' (not a hardcoded model id) so a fresh
-// install still falls through to the ANTHROPIC_MODEL env var, if set -
-// see resolveAiModel() below, which is what actually applies the
-// 'claude-sonnet-5' default once both the setting and the env var are empty.
-let settings = { arduinoCli: '', board: 'arduino:avr:uno', port: '', lastFile: '', fontSize: 15, baud: 9600, anthropicApiKey: '', anthropicModel: '' };
+// geminiModel defaults to '' (not a hardcoded model id) so a fresh install
+// still falls through to the GEMINI_MODEL env var, if set - see
+// resolveAiModel() below, which is what applies lib/ai.js's DEFAULT_MODEL
+// once both the setting and the env var are empty.
+let settings = { arduinoCli: '', board: 'arduino:avr:uno', port: '', lastFile: '', fontSize: 15, baud: 9600, geminiApiKey: '', geminiModel: '' };
 try { Object.assign(settings, JSON.parse(fs.readFileSync(settingsFile, 'utf8'))); } catch { /* first run */ }
+// The AI tab used to call Anthropic. An old settings.json still holds that
+// key, and it is no use to Gemini - carrying it over would show "a key is
+// set" and then fail on every message. Drop it instead, and say so once so
+// the key isn't just silently gone.
+if ('anthropicApiKey' in settings || 'anthropicModel' in settings) {
+  const had = !!settings.anthropicApiKey;
+  delete settings.anthropicApiKey;
+  delete settings.anthropicModel;
+  if (had) console.log('The AI tab now uses Google Gemini, so the saved Anthropic key was removed. Add a Gemini key in Settings -> AI.');
+}
 function saveSettings() {
   try {
     fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
@@ -347,16 +357,16 @@ ipcMain.handle('docs:reference', () => fs.readFileSync(path.join(__dirname, 'doc
 
 // ---------------------------------------------------------------------
 //  AI chat - grounded in the real docs/REFERENCE.md, answered by the
-//  user's own Anthropic API key. The API call happens here in the main
+//  user's own Google Gemini API key. The API call happens here in the main
 //  process (see lib/ai.js) so the key never has to reach the sandboxed
 //  renderer; the renderer only ever sees the reply text.
 //
 //  The key can come from the settings field (typed into the API key
-//  dialog, saved to settings.json) or from the ANTHROPIC_API_KEY
+//  dialog, saved to settings.json) or from the GEMINI_API_KEY
 //  environment variable - handy for not wanting the key sitting in a
 //  plaintext settings file, or for sharing one key across tools that
 //  already read it. A key saved in settings always wins if both are
-//  set; ANTHROPIC_MODEL works the same way as a fallback for the model.
+//  set; GEMINI_MODEL works the same way as a fallback for the model.
 // ---------------------------------------------------------------------
 let cachedSystemPrompt = null;
 function getSystemPrompt() {
@@ -367,29 +377,48 @@ function getSystemPrompt() {
   return cachedSystemPrompt;
 }
 
-function resolveAiKey() { return settings.anthropicApiKey || process.env.ANTHROPIC_API_KEY || ''; }
-function resolveAiModel() { return settings.anthropicModel || process.env.ANTHROPIC_MODEL || 'claude-sonnet-5'; }
+// More than one key is allowed everywhere: the Settings field and both
+// environment variables take a list separated by commas, semicolons,
+// newlines or spaces. GEMINI_API_KEYS is the natural name for a list and
+// GEMINI_API_KEY for a single one, so both are read and joined - whichever
+// you happened to set is the one that works.
+function resolveAiKeys() {
+  const fromEnv = [process.env.GEMINI_API_KEYS, process.env.GEMINI_API_KEY].filter(Boolean).join(',');
+  return ai.parseKeys(settings.geminiApiKey || fromEnv);
+}
+function resolveAiModel() { return settings.geminiModel || process.env.GEMINI_MODEL || ai.DEFAULT_MODEL; }
+
+// Which key answered last time. Keeping it means a key that has run out is
+// skipped from then on, instead of being retried before every message.
+let aiKeyAt = 0;
 
 // Tells the renderer whether a key is available and where it came from,
 // without ever handing over the key itself (just enough to show, e.g.,
-// "Using your key (...1234)" or "Using ANTHROPIC_API_KEY").
+// "Using your key (...1234)" or "Using GEMINI_API_KEY").
 ipcMain.handle('ai:keyInfo', () => {
-  const key = resolveAiKey();
+  const keys = resolveAiKeys();
+  if (aiKeyAt >= keys.length) aiKeyAt = 0;
+  const key = keys[aiKeyAt] || '';
   return {
-    hasKey: !!key,
-    source: settings.anthropicApiKey ? 'settings' : (key ? 'env' : 'none'),
+    hasKey: keys.length > 0,
+    source: settings.geminiApiKey ? 'settings' : (keys.length ? 'env' : 'none'),
     last4: key ? key.slice(-4) : '',
+    count: keys.length,
+    using: keys.length ? aiKeyAt + 1 : 0,
+    envName: settings.geminiApiKey ? '' : (process.env.GEMINI_API_KEYS ? 'GEMINI_API_KEYS' : 'GEMINI_API_KEY'),
     model: resolveAiModel(),
   };
 });
 
 ipcMain.handle('ai:chat', async (e, { messages }) => {
   try {
-    const reply = await ai.askClaude({
-      apiKey: resolveAiKey(),
+    const reply = await ai.askGemini({
+      apiKeys: resolveAiKeys(),
       model: resolveAiModel(),
       systemPrompt: getSystemPrompt(),
       messages,
+      startAt: aiKeyAt,
+      onKeyUsed: (i) => { aiKeyAt = i; },   // stay on whichever key answered
     });
     return { ok: true, reply };
   } catch (err) {

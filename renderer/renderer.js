@@ -972,6 +972,12 @@ const slug = (text) => text.toLowerCase().replace(/<[^>]+>/g, '').replace(/&#39;
 
 async function loadReference() {
   const md = await api.reference();
+  // The inline suggestions read their built-in signatures straight out of
+  // this same document, so they can never offer syntax the reference does
+  // not describe (see renderer/ghost.js).
+  if (window.VoltGhost && window.VoltGhost.learn) {
+    try { window.VoltGhost.learn(md); } catch (e) { console.warn('Could not read signatures from the reference', e); }
+  }
   marked.use({
     renderer: {
       heading(text, level) {
@@ -1197,7 +1203,7 @@ window.addEventListener('message', (ev) => {
 
 // ---------------------------------------------------------------------
 //  AI chat - grounded in the real Volt reference (see lib/ai.js);
-//  answered by the user's own Anthropic API key, kept in the main process.
+//  answered by the user's own Gemini API key, kept in the main process.
 // ---------------------------------------------------------------------
 const aiHistory = []; // [{ role, content }], sent in full with every request
 
@@ -1348,28 +1354,31 @@ function updateAiErrorButton() {
 }
 
 // The resolved key can come from the saved setting or from the
-// ANTHROPIC_API_KEY environment variable (see main.js's resolveAiKey) -
+// GEMINI_API_KEY environment variable (see main.js's resolveAiKey) -
 // ai:keyInfo tells us which, without ever handing the actual key to the
 // renderer, so the status line can say which one is actually in effect.
 async function updateAiKeyStatus() {
   const info = await api.aiKeyInfo();
-  if (!info.hasKey) $('ai-key-status').textContent = 'No API key set';
-  else if (info.source === 'env') $('ai-key-status').textContent = `Using ANTHROPIC_API_KEY (…${info.last4}) · ${info.model}`;
-  else $('ai-key-status').textContent = `Using your key (…${info.last4}) · ${info.model}`;
+  if (!info.hasKey) { $('ai-key-status').textContent = 'No API key set'; return; }
+  // with several keys, say which one is in use - a key that runs out is
+  // skipped from then on, so this number moving is the sign that happened
+  const which = info.count > 1 ? ` (…${info.last4}, key ${info.using} of ${info.count})` : ` (…${info.last4})`;
+  const where = info.source === 'env' ? (info.envName || 'GEMINI_API_KEY') : 'your key';
+  $('ai-key-status').textContent = `Using ${where}${which} · ${info.model}`;
 }
 
 $('btn-ai-settings').addEventListener('click', async () => {
   const info = await api.aiKeyInfo();
   const envNote = info.hasKey && info.source === 'env'
-    ? `<p class="muted">Currently using the <code>ANTHROPIC_API_KEY</code> environment variable (…${info.last4}). Saving a key here overrides it; leave this blank and Cancel to keep using the environment variable.</p>`
-    : `<p class="muted">You can also set this via the <code>ANTHROPIC_API_KEY</code> (and optionally <code>ANTHROPIC_MODEL</code>) environment variable instead of saving it here.</p>`;
-  const modalPromise = modal('Anthropic API key',
-    `<p class="muted" style="margin-top:0">Used only to power the AI tab, called from this app's own process - your key never leaves your computer except straight to Anthropic. Get a key at <code>console.anthropic.com</code>.</p>
-     <label style="display:block;margin-bottom:10px">API key
-       <input type="password" id="ai-key-input" value="${escapeHtml(state.settings.anthropicApiKey || '')}" placeholder="${info.hasKey && info.source === 'env' ? 'Leave blank to keep using the environment variable' : 'sk-ant-…'}" style="width:100%;margin-top:4px;padding:7px 9px;background:var(--panel-2);border:1px solid var(--border);border-radius:7px;color:var(--text);font:inherit">
+    ? `<p class="muted">Currently using the <code>${info.envName || 'GEMINI_API_KEY'}</code> environment variable (${info.count > 1 ? `${info.count} keys` : `…${info.last4}`}). Saving a key here overrides it; leave this blank and Cancel to keep using the environment variable.</p>`
+    : '<p class="muted">You can also set this via the <code>GEMINI_API_KEY</code> environment variable, or <code>GEMINI_API_KEYS</code> for several at once (and optionally <code>GEMINI_MODEL</code>), instead of saving it here.</p>';
+  const modalPromise = modal('Gemini API key',
+    `<p class="muted" style="margin-top:0">Used only to power the AI tab, called from this app's own process - your key never leaves your computer except straight to Google. Get a key at <code>aistudio.google.com</code>. You can paste several, separated by commas: if one is out of quota the next is used.</p>
+     <label style="display:block;margin-bottom:10px">API key${info.count > 1 ? 's' : ''}
+       <input type="password" id="ai-key-input" value="${escapeHtml(state.settings.geminiApiKey || '')}" placeholder="${info.hasKey && info.source === 'env' ? 'Leave blank to keep using the environment variable' : 'AIza…'}" style="width:100%;margin-top:4px;padding:7px 9px;background:var(--panel-2);border:1px solid var(--border);border-radius:7px;color:var(--text);font:inherit">
      </label>
      <label style="display:block;margin-bottom:10px">Model
-       <input type="text" id="ai-model-input" value="${escapeHtml(state.settings.anthropicModel || '')}" placeholder="${info.model}" style="width:100%;margin-top:4px;padding:7px 9px;background:var(--panel-2);border:1px solid var(--border);border-radius:7px;color:var(--text);font:inherit">
+       <input type="text" id="ai-model-input" value="${escapeHtml(state.settings.geminiModel || '')}" placeholder="${info.model}" style="width:100%;margin-top:4px;padding:7px 9px;background:var(--panel-2);border:1px solid var(--border);border-radius:7px;color:var(--text);font:inherit">
      </label>
      ${envNote}`,
     [{ label: 'Cancel' }, { label: 'Save', primary: true }]);
@@ -1388,11 +1397,11 @@ $('btn-ai-settings').addEventListener('click', async () => {
 
   const choice = await modalPromise;
   if (choice !== 1) return;
-  const anthropicApiKey = keyInput.value.trim();
-  const anthropicModel = modelInput.value.trim(); // blank = fall back to ANTHROPIC_MODEL / the default
-  state.settings = await api.setSettings({ anthropicApiKey, anthropicModel });
+  const geminiApiKey = keyInput.value.trim();
+  const geminiModel = modelInput.value.trim(); // blank = fall back to GEMINI_MODEL / the default
+  state.settings = await api.setSettings({ geminiApiKey, geminiModel });
   await updateAiKeyStatus();
-  toast(anthropicApiKey ? 'Saved your API key' : 'Cleared the saved key');
+  toast(geminiApiKey ? 'Saved your API key' : 'Cleared the saved key');
 });
 
 // ---------------------------------------------------------------------
