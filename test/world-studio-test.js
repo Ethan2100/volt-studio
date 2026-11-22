@@ -306,6 +306,61 @@ if (!JSDOM) {
   click('#ctx [data-cact="del"]');
   check('the test effect is cleared away again', !win.__worldStudio.scene.objects.some((o) => o.id === fx.id));
 
+  // ---- picking several things at once ----
+  const WS = win.__worldStudio;
+  const blocks = WS.scene.objects.filter((o) => o.kind === 'block').slice(0, 3);
+  const rowOf2 = (id) => $(`#explorer .row[data-id="${id}"]`);
+  WS.select(blocks[0].id);
+  check('one thing picked looks like it always did', win.document.querySelectorAll('#explorer .row.sel').length === 1);
+  fire(rowOf2(blocks[1].id), 'click', { ctrlKey: true });
+  check('ctrl-click adds a second', win.document.querySelectorAll('#explorer .row.sel').length === 2);
+  fire(rowOf2(blocks[1].id), 'click', { ctrlKey: true });
+  check('ctrl-clicking it again takes it back out', win.document.querySelectorAll('#explorer .row.sel').length === 1);
+  fire(rowOf2(blocks[2].id), 'click', { shiftKey: true });
+  const run = win.document.querySelectorAll('#explorer .row.sel').length;
+  check('shift-click picks the whole run between the two', run >= 3, `${run} rows`);
+  check('Properties switches to the many-things panel', /things picked/.test($('#props').textContent), $('#props').textContent.slice(0, 60));
+  check('it says what the mix is', /\u00d7 Part|\u00d7 Wall|\u00d7 Floor/.test($('#props').textContent));
+
+  // one colour change reaches all of them
+  const chosen = [...win.document.querySelectorAll('#explorer .row.sel')].map((r) => Number(r.dataset.id)).filter(Boolean);
+  const colourable = chosen.map((id) => WS.scene.objects.find((o) => o.id === id)).filter((o) => o && o.color !== undefined);
+  const el = $('#props [data-k="multiColor"][type="color"]');
+  el.value = '#aa3311'; el.dispatchEvent(new win.Event('input', { bubbles: true }));
+  check('setting the colour sets it on every one of them',
+    colourable.every((o) => o.color === '#aa3311'), colourable.map((o) => o.color).join(','));
+
+  // and they copy, group and delete together
+  const before = WS.scene.objects.length;
+  click('#props [data-act="multi-dup"]');
+  check('Copy all copies every one of them', WS.scene.objects.length >= before + chosen.length, `${before} -> ${WS.scene.objects.length}`);
+  check('the copies end up picked, ready to move', win.document.querySelectorAll('#explorer .row.sel').length >= chosen.length);
+  const afterCopy = WS.scene.objects.length;
+  click('#props [data-act="multi-del"]');
+  check('Delete all removes just those', WS.scene.objects.length === before, `${afterCopy} -> ${WS.scene.objects.length}`);
+  check('nothing is picked afterwards', win.document.querySelectorAll('#explorer .row.sel').length === 0);
+
+  // one folder for the lot
+  WS.select(blocks[0].id);
+  fire(rowOf2(blocks[1].id), 'click', { ctrlKey: true });
+  click('#bFolder');
+  const newFolder = WS.scene.objects.filter((o) => o.kind === 'folder').pop();
+  check('Put all in a folder makes one folder holding them all',
+    blocks[0].parent === newFolder.id && blocks[1].parent === newFolder.id, `${blocks[0].parent} / ${blocks[1].parent}`);
+  check('grouping leaves the folder picked, not its contents', WS.sel === newFolder.id);
+  // pick the two again to take them back out - "move out" on the folder
+  // itself would do nothing, since the folder is already in the World
+  WS.select(blocks[0].id);
+  fire(rowOf2(blocks[1].id), 'click', { ctrlKey: true });
+  click('#bUnparent');
+  check('and they can all come back out', !blocks[0].parent && !blocks[1].parent);
+  // tidy the empty folder away so later checks see the scene they expect
+  WS.select(newFolder.id);
+  click('#bDel');
+  check('the empty folder can be deleted again', !WS.scene.objects.some((o) => o.id === newFolder.id));
+  WS.select(null);
+  check('clicking nothing drops the selection', win.document.querySelectorAll('#explorer .row.sel').length === 0);
+
   // ---- the history list says what each step was ----
   // the button toggles, so shut it before reopening or the list goes stale
   // a property is applied on 'input' but only committed to history on

@@ -272,6 +272,14 @@
   #histMenu button.now { background:#24405e; color:#cfe6ff; }
   #histMenu .tick { width:9px; flex:none; color:var(--accent); font-size:8px; }
   #histMenu .here { margin-left:auto; font-size:9.5px; letter-spacing:.06em; text-transform:uppercase; color:#8bc5ff; }
+  .btnrow .tb.danger { border-color:#5c2a31; color:#ffb3bc; }
+  .btnrow .tb.danger:hover { background:#4a1f25; }
+  /* the anchor of a multi-selection: the one Properties would show alone */
+  #explorer .row.anchor { box-shadow: inset 2px 0 0 var(--accent); }
+  /* drag on empty space to pick everything in a rectangle */
+  #boxSel { position:absolute; display:none; pointer-events:none; z-index:6;
+    border:1px solid var(--accent); background:rgba(90,168,255,.14); border-radius:2px; }
+  #boxSel.on { display:block; }
 </style>
 </head>
 <body>
@@ -397,6 +405,7 @@
           </div>
         </div>
         <div id="viewportHint">Right-drag: look · Middle-drag: pan · Scroll: zoom · F: focus</div>
+        <div id="boxSel"></div>
         <div id="badge">Edit</div>
       </div>
       <section class="pane" id="pOutput" data-open="0">

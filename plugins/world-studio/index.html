@@ -272,6 +272,14 @@
   #histMenu button.now { background:#24405e; color:#cfe6ff; }
   #histMenu .tick { width:9px; flex:none; color:var(--accent); font-size:8px; }
   #histMenu .here { margin-left:auto; font-size:9.5px; letter-spacing:.06em; text-transform:uppercase; color:#8bc5ff; }
+  .btnrow .tb.danger { border-color:#5c2a31; color:#ffb3bc; }
+  .btnrow .tb.danger:hover { background:#4a1f25; }
+  /* the anchor of a multi-selection: the one Properties would show alone */
+  #explorer .row.anchor { box-shadow: inset 2px 0 0 var(--accent); }
+  /* drag on empty space to pick everything in a rectangle */
+  #boxSel { position:absolute; display:none; pointer-events:none; z-index:6;
+    border:1px solid var(--accent); background:rgba(90,168,255,.14); border-radius:2px; }
+  #boxSel.on { display:block; }
 </style>
 </head>
 <body>
@@ -397,6 +405,7 @@
           </div>
         </div>
         <div id="viewportHint">Right-drag: look · Middle-drag: pan · Scroll: zoom · F: focus</div>
+        <div id="boxSel"></div>
         <div id="badge">Edit</div>
       </div>
       <section class="pane" id="pOutput" data-open="0">
@@ -4921,6 +4930,8 @@ function restore(s) {
   S = { world: Object.assign(worldDefaults(), d.world), objects: d.objects };
   nextId = d.nextId || (Math.max(0, ...S.objects.map((o) => o.id)) + 1);
   if (sel != null && !byId(sel)) sel = null;
+  for (const id of [...picked]) if (!byId(id)) picked.delete(id);
+  if (sel == null && picked.size) sel = [...picked][picked.size - 1];
   rebuildAll(); renderExplorer(); renderProps(); updateGizmo(); applyWorld(); updateStatus();
 }
 function undo() { if (hpos > 0) { const w = histWhat[hpos]; hpos--; restore(hist[hpos]); updateButtons(); log(`Undid: ${w}`); } }
@@ -5306,18 +5317,60 @@ const focusDist = () => { const o = byId(sel); return o ? Math.max(1.5, Math.hyp
 // ---------------------------------------------------------------------
 //  Selection, snapping, mutation helpers
 // ---------------------------------------------------------------------
+// `sel` is the anchor - the last thing clicked, whose Properties are
+// shown and which shift-click measures a range from. `picked` holds
+// everything selected, the anchor included, so one thing picked is just
+// a set of one and the rest of the code reads the same either way.
 let sel = null, selWorld = false, tool = 'select';
+let picked = new Set();
+const pickedObjects = () => S.objects.filter((o) => picked.has(o.id));
+// The ones to actually move: a thing inside another selected thing comes
+// along with its parent already, so moving it too would move it twice.
+function pickedRoots() {
+  const inSel = (o) => { let p = o.parent; while (p) { if (picked.has(p)) return true; p = (byId(p) || {}).parent; } return false; };
+  return pickedObjects().filter((o) => !inSel(o));
+}
+function selCenter() {
+  const list = pickedObjects();
+  if (!list.length) return { x: 0, y: 0, z: 0 };
+  const sum = list.reduce((a, o) => ({ x: a.x + o.x, y: a.y + o.y, z: a.z + o.z }), { x: 0, y: 0, z: 0 });
+  return { x: Math.round(sum.x / list.length), y: Math.round(sum.y / list.length), z: Math.round(sum.z / list.length) };
+}
 const snapStep = () => num($('#snap').value, 0);
 const sn = (v) => { const s = snapStep(); return s > 0 ? Math.round(v / s) * s : Math.round(v); };
 const snRot = (d) => (snapStep() > 0 ? Math.round(d / 15) * 15 : Math.round(d));
 
-function select(id) {
-  sel = id; selWorld = false;
-  for (const [nid, n] of nodes) n.userData.outline.visible = (nid === id) && mode !== 'play';
+// how: 'set' (default - just this one), 'toggle' (ctrl-click), 'range'
+// (shift-click: everything between the anchor and this one, in the order
+// the Things list shows them), 'keep' (leave a selection alone if this
+// thing is already in it - so dragging one of several drags them all).
+function select(id, how) {
+  selWorld = false;
+  if (id == null) { picked.clear(); sel = null; }
+  else if (how === 'keep' && picked.has(id)) { sel = id; }
+  else if (how === 'toggle') {
+    if (picked.has(id) && picked.size > 1) {
+      picked.delete(id);
+      if (sel === id) sel = [...picked][picked.size - 1];
+    } else { picked.add(id); sel = id; }
+  } else if (how === 'range' && sel != null && sel !== id) {
+    const order = rowOrder.length ? rowOrder : S.objects.map((o) => o.id);
+    const a = order.indexOf(sel), b = order.indexOf(id);
+    if (a < 0 || b < 0) { picked = new Set([id]); sel = id; }
+    else { for (let i = Math.min(a, b); i <= Math.max(a, b); i++) picked.add(order[i]); sel = id; }
+  } else { picked = new Set([id]); sel = id; }
+  for (const [nid, n] of nodes) n.userData.outline.visible = picked.has(nid) && mode !== 'play';
   renderExplorer(); renderProps(); updateGizmo(); updateStatus(); updateButtons(); dirty = true;
   if (narrow() && id != null) setDock('props');
 }
-function selectWorld() { sel = null; selWorld = true; for (const n of nodes.values()) n.userData.outline.visible = false; renderExplorer(); renderProps(); updateGizmo(); updateStatus(); updateButtons(); dirty = true; if (narrow()) setDock('props'); }
+function selectAll() {
+  picked = new Set(S.objects.filter((o) => !ATTACHED.has(o.kind)).map((o) => o.id));
+  sel = [...picked][picked.size - 1] ?? null;
+  selWorld = false;
+  for (const [nid, n] of nodes) n.userData.outline.visible = picked.has(nid) && mode !== 'play';
+  renderExplorer(); renderProps(); updateGizmo(); updateStatus(); updateButtons(); dirty = true;
+}
+function selectWorld() { sel = null; picked.clear(); selWorld = true; for (const n of nodes.values()) n.userData.outline.visible = false; renderExplorer(); renderProps(); updateGizmo(); updateStatus(); updateButtons(); dirty = true; if (narrow()) setDock('props'); }
 function touch(o) { refreshNode(o); updateGizmo(); syncVfxScript(); }
 // The Effect's script box is read-only, so it is not covered by syncPropValues -
 // refresh it here instead of re-rendering the form and losing the caret.
@@ -5379,7 +5432,9 @@ function updateGizmo() {
   gizmoRoot.visible = !!g;
   if (!g) { dirty = true; return; }
   g.visible = true;
-  gizmoRoot.position.set(o.x / 100, o.y / 100, o.z / 100);
+  // with several picked the handle sits in the middle of the lot
+  const c = picked.size > 1 && tool !== 'scale' ? selCenter() : { x: o.x, y: o.y, z: o.z };
+  gizmoRoot.position.set(c.x / 100, c.y / 100, c.z / 100);
   gizmoRoot.rotation.set(0, tool === 'scale' ? -(o.yaw || 0) * D2R : 0, 0);
   gizmoRoot.updateMatrixWorld(true);
   dirty = true;
@@ -5438,32 +5493,76 @@ cv.addEventListener('pointerdown', (e) => {
   const o = byId(sel);
   if (axis && o) { beginGizmoDrag(e, axis, o); if (drag) { drag.x = e.clientX; drag.y = e.clientY; } return; }
   const hit = pickObject(e);
-  if (!hit) { drag = { type: 'click-empty', x: e.clientX, y: e.clientY }; return; }
+  if (!hit) {
+    // dragging on empty space draws a rectangle and picks what is in it
+    drag = { type: 'click-empty', x: e.clientX, y: e.clientY,
+      add: e.ctrlKey || e.metaKey || e.shiftKey, was: new Set(picked), anchor: sel };
+    return;
+  }
   const id = hit.object.userData.rootId, ob = byId(id);
-  if (id !== sel) select(id);
+  // ctrl-click adds or removes; clicking one of several already picked
+  // keeps the rest, so the whole lot can be dragged together
+  select(id, (e.ctrlKey || e.metaKey) ? 'toggle' : 'keep');
+  if (!picked.has(id)) return;
   if (tool === 'select' || tool === 'move') {
     const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -ob.y / 100);
     const p0 = new THREE.Vector3();
-    if (setRay(e).intersectPlane(plane, p0)) drag = { type: 'body', plane, p0, start: { x: ob.x, z: ob.z }, id, x: e.clientX, y: e.clientY, tree: treeSnapshot(ob), treeYaw: ob.yaw || 0 };
+    if (setRay(e).intersectPlane(plane, p0)) {
+      drag = { type: 'body', plane, p0, id, x: e.clientX, y: e.clientY, many: dragSet() };
+    }
   }
 });
+// Everything a drag has to carry: each root being moved, where it started,
+// and where the things inside it sit relative to it.
+function dragSet() {
+  return pickedRoots().map((o) => ({ o, start: Object.assign({}, o), tree: treeSnapshot(o), treeYaw: o.yaw || 0 }));
+}
+function applyDragged(list) {
+  for (const m of list) {
+    const n = nodes.get(m.o.id);
+    if (n) { n.position.set(m.o.x / 100, m.o.y / 100, m.o.z / 100); n.rotation.y = -(m.o.yaw || 0) * D2R; }
+    treeApply(m.o, m.tree, m.treeYaw);
+  }
+  updateGizmo(); syncPropValues(); updateStatus(); dirty = true;
+}
 function beginGizmoDrag(e, axis, o) {
   const ray = setRay(e);
-  const origin = new THREE.Vector3(o.x / 100, o.y / 100, o.z / 100);
+  const c = picked.size > 1 ? selCenter() : { x: o.x, y: o.y, z: o.z };
+  const origin = new THREE.Vector3(c.x / 100, c.y / 100, c.z / 100);
   if (axis === 'yaw') {
     const plane = new THREE.Plane(YUP, -origin.y), p = new THREE.Vector3();
     if (!ray.intersectPlane(plane, p)) return;
-    drag = { type: 'rot', id: o.id, plane, origin, a0: Math.atan2(p.x - origin.x, -(p.z - origin.z)), yaw0: o.yaw || 0, tree: treeSnapshot(o), treeYaw: o.yaw || 0 };
+    drag = { type: 'rot', id: o.id, plane, origin, pivot: c,
+      a0: Math.atan2(p.x - origin.x, -(p.z - origin.z)), many: dragSet() };
     return;
   }
   const dir = tool === 'scale' ? AX[axis].clone().applyAxisAngle(YUP, -(o.yaw || 0) * D2R) : AX[axis].clone();
-  drag = { type: tool === 'scale' ? 'scale' : 'move', id: o.id, axis, dir, origin, t0: axisParam(ray, origin, dir), start: Object.assign({}, o), tree: treeSnapshot(o), treeYaw: o.yaw || 0 };
+  if (tool === 'scale') {
+    // resizing several things at once has no one sensible meaning, so it
+    // stays on the anchor - the status line says so
+    const sOrigin = new THREE.Vector3(o.x / 100, o.y / 100, o.z / 100);
+    drag = { type: 'scale', id: o.id, axis, dir, origin: sOrigin, t0: axisParam(ray, sOrigin, dir),
+      start: Object.assign({}, o), tree: treeSnapshot(o), treeYaw: o.yaw || 0 };
+    return;
+  }
+  drag = { type: 'move', id: o.id, axis, dir, origin, t0: axisParam(ray, origin, dir), many: dragSet() };
 }
 cv.addEventListener('pointermove', (e) => {
   if (!drag) { hoverCursor(e); return; }
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
   if (Math.abs(dx) + Math.abs(dy) > 2) dragMoved = true;
   switch (drag.type) {
+    case 'click-empty': {
+      if (!dragMoved) break;
+      const r = cv.getBoundingClientRect();
+      const box = $('#boxSel');
+      box.classList.add('on');
+      box.style.left = (Math.min(drag.x, e.clientX) - r.left) + 'px';
+      box.style.top = (Math.min(drag.y, e.clientY) - r.top) + 'px';
+      box.style.width = Math.abs(e.clientX - drag.x) + 'px';
+      box.style.height = Math.abs(e.clientY - drag.y) + 'px';
+      break;
+    }
     case 'look': cam.yaw += dx * 0.005; cam.pitch = clamp(cam.pitch - dy * 0.005, -1.5, 1.5); drag.x = e.clientX; drag.y = e.clientY; applyCam(); updateGizmo(); break;
     case 'playlook': play.yaw += dx * 0.3; play.pitch = clamp(play.pitch - dy * 0.3, -80, 80); drag.x = e.clientX; drag.y = e.clientY; break;
     case 'pan': {
@@ -5479,29 +5578,46 @@ cv.addEventListener('pointermove', (e) => {
       drag.x = e.clientX; drag.y = e.clientY; applyCam(); updateGizmo(); break;
     }
     case 'body': {
-      const o = byId(drag.id); if (!o || !dragMoved) break;
+      if (!dragMoved || !drag.many.length) break;
       const p = new THREE.Vector3();
       if (!setRay(e).intersectPlane(drag.plane, p)) break;
-      o.x = sn(drag.start.x + (p.x - drag.p0.x) * 100); o.z = sn(drag.start.z + (p.z - drag.p0.z) * 100);
-      nodes.get(o.id).position.set(o.x / 100, o.y / 100, o.z / 100);
-      afterTransform(o); break;
+      // one delta, applied to every root picked
+      const lead = drag.many.find((m) => m.o.id === drag.id) || drag.many[0];
+      const tx = sn(lead.start.x + (p.x - drag.p0.x) * 100) - lead.start.x;
+      const tz = sn(lead.start.z + (p.z - drag.p0.z) * 100) - lead.start.z;
+      for (const m of drag.many) { m.o.x = m.start.x + tx; m.o.z = m.start.z + tz; }
+      applyDragged(drag.many); break;
     }
     case 'move': {
-      const o = byId(drag.id); if (!o) break;
+      if (!drag.many.length) break;
       const t = axisParam(setRay(e), drag.origin, drag.dir);
-      o[drag.axis] = sn(drag.start[drag.axis] + (t - drag.t0) * 100);
-      nodes.get(o.id).position.set(o.x / 100, o.y / 100, o.z / 100);
-      afterTransform(o); break;
+      const lead = drag.many.find((m) => m.o.id === drag.id) || drag.many[0];
+      const step = sn(lead.start[drag.axis] + (t - drag.t0) * 100) - lead.start[drag.axis];
+      for (const m of drag.many) m.o[drag.axis] = m.start[drag.axis] + step;
+      applyDragged(drag.many); break;
     }
     case 'rot': {
-      const o = byId(drag.id); if (!o) break;
+      if (!drag.many.length) break;
       const p = new THREE.Vector3();
       if (!setRay(e).intersectPlane(drag.plane, p)) break;
       const a = Math.atan2(p.x - drag.origin.x, -(p.z - drag.origin.z));
       let d = (a - drag.a0) / D2R; d = ((d + 540) % 360) - 180;
-      o.yaw = snRot(drag.yaw0 + d); o.yaw = ((o.yaw + 540) % 360) - 180 || 0;
-      nodes.get(o.id).rotation.y = -o.yaw * D2R;
-      afterTransform(o); break;
+      const lead = drag.many.find((m) => m.o.id === drag.id) || drag.many[0];
+      let spun = snRot((lead.treeYaw || 0) + d) - (lead.treeYaw || 0);
+      const rad = spun * D2R, cos = Math.cos(rad), sin = Math.sin(rad);
+      // several things turn about the middle of the selection, the way a
+      // group does; one thing turns where it stands
+      const piv = drag.many.length > 1 ? drag.pivot : null;
+      for (const m of drag.many) {
+        let yaw = (m.treeYaw || 0) + spun;
+        m.o.yaw = ((Math.round(yaw) + 540) % 360) - 180 || 0;
+        if (piv) {
+          const dx = m.start.x - piv.x, dz = m.start.z - piv.z;
+          m.o.x = Math.round(piv.x + dx * cos + dz * sin);
+          m.o.z = Math.round(piv.z - dx * sin + dz * cos);
+        }
+      }
+      applyDragged(drag.many); break;
     }
     case 'scale': {
       const o = byId(drag.id); if (!o) break;
@@ -5530,10 +5646,41 @@ function afterTransform(o) {
   if (drag && drag.tree && drag.id === o.id) treeApply(o, drag.tree, drag.treeYaw);
   updateGizmo(); syncPropValues(); updateStatus(); dirty = true;
 }
+// Everything whose middle falls inside the rectangle on screen. Judging
+// by the middle rather than the whole outline keeps it predictable: what
+// you see in the box is what you get.
+function pickInBox(ax, ay, bx, by) {
+  const r = cv.getBoundingClientRect();
+  const lo = { x: Math.min(ax, bx), y: Math.min(ay, by) }, hi = { x: Math.max(ax, bx), y: Math.max(ay, by) };
+  const v = new THREE.Vector3();
+  const out = [];
+  for (const o of S.objects) {
+    if (ATTACHED.has(o.kind) || o.visible === false) continue;
+    v.set(o.x / 100, o.y / 100, o.z / 100).project(camera);
+    if (v.z > 1) continue;                               // behind the camera
+    const sx = r.left + (v.x * 0.5 + 0.5) * r.width;
+    const sy = r.top + (-v.y * 0.5 + 0.5) * r.height;
+    if (sx >= lo.x && sx <= hi.x && sy >= lo.y && sy <= hi.y) out.push(o.id);
+  }
+  return out;
+}
 function endDrag(e) {
   if (!drag) return;
   const t = drag.type;
-  if (t === 'click-empty' && !dragMoved) { select(null); }
+  if (t === 'click-empty') {
+    $('#boxSel').classList.remove('on');
+    if (!dragMoved) select(null);
+    else {
+      const found = pickInBox(drag.x, drag.y, e.clientX, e.clientY);
+      picked = drag.add ? new Set([...drag.was, ...found]) : new Set(found);
+      sel = found.length ? found[found.length - 1] : (drag.add ? drag.anchor : null);
+      if (sel != null && !picked.has(sel)) sel = [...picked][picked.size - 1] ?? null;
+      selWorld = false;
+      for (const [nid, n] of nodes) n.userData.outline.visible = picked.has(nid) && mode !== 'play';
+      renderExplorer(); renderProps(); updateGizmo(); updateStatus(); updateButtons(); dirty = true;
+      if (found.length) log(`Picked ${picked.size} thing${picked.size === 1 ? '' : 's'}`);
+    }
+  }
   if (['body', 'move', 'rot', 'scale'].includes(t) && dragMoved) commit();
   drag = null;
   try { cv.releasePointerCapture(e.pointerId); } catch (err) { /* already released */ }
@@ -5711,20 +5858,39 @@ function rebrowseModel(o) {
   inp.click();
 }
 function deleteSelected() {
-  const o = byId(sel); if (!o) return;
-  const going = [o, ...descendants(o.id)];
-  for (const g of going) {
-    const n = nodes.get(g.id);
-    if (n) { worldGroup.remove(n); disposeNode(n); nodes.delete(g.id); }
-  }
+  const roots = pickedRoots(); if (!roots.length) return;
+  const going = [];
+  for (const o of roots) { going.push(o, ...descendants(o.id)); }
   const ids = new Set(going.map((g) => g.id));
+  for (const id of ids) {
+    const n = nodes.get(id);
+    if (n) { worldGroup.remove(n); disposeNode(n); nodes.delete(id); }
+  }
   S.objects = S.objects.filter((x) => !ids.has(x.id));
-  if (going.length > 1) toast(`Deleted ${o.name} and the ${going.length - 1} thing${going.length > 2 ? 's' : ''} inside it.`);
-  sel = null; renderExplorer(); renderProps(); updateGizmo(); updateStatus(); updateButtons(); commit(); dirty = true;
+  if (roots.length > 1) toast(`Deleted ${roots.length} things${ids.size > roots.length ? ' and what was inside them' : ''}.`);
+  else if (ids.size > 1) toast(`Deleted ${roots[0].name} and the ${ids.size - 1} thing${ids.size > 2 ? 's' : ''} inside it.`);
+  sel = null; picked.clear();
+  renderExplorer(); renderProps(); updateGizmo(); updateStatus(); updateButtons(); commit(); dirty = true;
 }
 function duplicateSelected() {
-  const o = byId(sel); if (!o) return;
-  if (o.kind === 'spawn') { toast('A world only needs one Spawn.'); return; }
+  const roots = pickedRoots(); if (!roots.length) return;
+  if (roots.length > 1) {
+    const copies = [];
+    for (const r of roots) { const c = copyOne(r); if (c) copies.push(c); }
+    if (!copies.length) return;
+    picked = new Set(copies.map((c) => c.id)); sel = copies[copies.length - 1];
+    for (const [nid, n] of nodes) n.userData.outline.visible = picked.has(nid) && mode !== 'play';
+    renderExplorer(); renderProps(); updateGizmo(); updateStatus(); updateButtons(); commit(); dirty = true;
+    toast(`Copied ${copies.length} things.`);
+    return;
+  }
+  const made = copyOne(roots[0]);
+  if (made) { select(made.id); renderExplorer(); commit(); }
+}
+// Copies one thing and everything inside it. Returns the copy, or null if
+// it is something a world only gets one of.
+function copyOne(o) {
+  if (o.kind === 'spawn') { toast('A world only needs one Spawn.'); return null; }
   const c = JSON.parse(JSON.stringify(o));
   c.id = nextId++; c.name = uniqueName(o.name.replace(/\d+$/, '') || KIND[o.kind].label);
   c.x += snapStep() || 100;
@@ -5740,7 +5906,7 @@ function duplicateSelected() {
     }
   };
   copyKids(o.id, c.id, snapStep() || 100);
-  select(c.id); renderExplorer(); commit();
+  return c;
 }
 
 // ---------------------------------------------------------------------
@@ -5748,8 +5914,12 @@ function duplicateSelected() {
 // ---------------------------------------------------------------------
 // Rows that have been folded shut, the way Roblox's Explorer folds a model away.
 const shutRows = new Set();
+// The ids in the order the list shows them, so a shift-click can pick the
+// run between two rows the way the eye reads it.
+let rowOrder = [];
 function renderExplorer() {
   const box = $('#explorer');
+  rowOrder = [];
   let h = `<div class="row world${selWorld ? ' sel' : ''}" data-world="1" data-drop="0"><span class="caret leaf"></span><span class="ic">🌐</span><span class="nm">World</span></div>`;
   if (!S.objects.length) h += '<div class="empty">Nothing here yet. Add a part from the left.</div>';
   const draw = (parentId, depth) => {
@@ -5757,7 +5927,8 @@ function renderExplorer() {
       if ((o.parent || 0) !== parentId) continue;
       const kids = childrenOf(o.id).length;
       const shut = shutRows.has(o.id);
-      h += `<div class="row${o.id === sel ? ' sel' : ''}${o.visible ? '' : ' hidden'}" data-id="${o.id}" data-drop="${o.id}" draggable="true" style="padding-left:${6 + depth * 14}px">` +
+      rowOrder.push(o.id);
+      h += `<div class="row${picked.has(o.id) ? ' sel' : ''}${o.id === sel && picked.size > 1 ? ' anchor' : ''}${o.visible ? '' : ' hidden'}" data-id="${o.id}" data-drop="${o.id}" draggable="true" style="padding-left:${6 + depth * 14}px">` +
         `<span class="caret${kids ? '' : ' leaf'}"${kids ? ` data-fold="${o.id}" title="${shut ? 'Open' : 'Fold away'}"` : ''}>${shut ? '▸' : '▾'}</span>` +
         `<span class="ic">${KIND[o.kind].icon}</span><span class="nm">${esc(o.name)}</span>` +
         (kids ? `<span class="kids" title="${kids} inside">${kids}</span>` : '') +
@@ -5824,7 +5995,9 @@ $('#explorer').addEventListener('click', (e) => {
   const eye = e.target.closest('[data-eye]');
   if (eye) { const o = byId(Number(eye.dataset.eye)); o.visible = !o.visible; refreshNode(o); renderExplorer(); renderProps(); commit(); return; }
   const row = e.target.closest('.row'); if (!row) return;
-  if (row.dataset.world) selectWorld(); else select(Number(row.dataset.id));
+  if (row.dataset.world) { selectWorld(); return; }
+  const how = e.shiftKey ? 'range' : (e.ctrlKey || e.metaKey) ? 'toggle' : 'set';
+  select(Number(row.dataset.id), how);
 });
 // Drag a row onto another to put it inside, the way Roblox's Explorer does.
 let dragRow = null;
@@ -6022,11 +6195,62 @@ function groupSections(html) {
   close();
   return out;
 }
+// With several things picked, show what they have in common and let the
+// shared settings be changed for all of them at once.
+function multiForm() {
+  const list = pickedObjects();
+  const roots = pickedRoots();
+  const kinds = [...new Set(list.map((o) => o.kind))];
+  const colored = list.filter((o) => o.color !== undefined);
+  const solidable = list.filter((o) => o.solid !== undefined);
+  const hideable = list.filter((o) => !ATTACHED.has(o.kind));
+  const same = (arr, k) => arr.length && arr.every((o) => o[k] === arr[0][k]);
+  const c = selCenter();
+
+  let h = `<div class="sec">${list.length} things picked</div>`;
+  h += `<div class="note">${kinds.map((k) => `${list.filter((o) => o.kind === k).length} \u00d7 ${KIND[k].label}`).join(', ')}` +
+    `${roots.length !== list.length ? ` \u00b7 ${list.length - roots.length} of them sit inside another` : ''}.` +
+    ` Middle of the lot: ${c.x}, ${c.y}, ${c.z} cm. Drag to move them together, or turn them around that middle.</div>`;
+  h += '<div class="btnrow">' +
+    '<button type="button" class="tb" data-act="multi-folder">\ud83d\udcc1 Put all in a folder</button>' +
+    '<button type="button" class="tb" data-act="multi-dup">\u29c9 Copy all</button>' +
+    '<button type="button" class="tb danger" data-act="multi-del">\u2715 Delete all</button></div>';
+
+  if (colored.length) {
+    h += '<div class="sec">Colour</div>';
+    h += fColor('multiColor', `Colour (${colored.length})`, same(colored, 'color') ? colored[0].color : '#8a8f99');
+    h += `<div class="note">Sets the colour of all ${colored.length} of them${same(colored, 'color') ? '' : ' - they are different colours now'}.</div>`;
+  }
+  if (solidable.length || hideable.length) {
+    h += '<div class="sec">All of them</div>';
+    if (solidable.length) h += fCheck('multiSolid', `Blocks the player (${solidable.length})`, same(solidable, 'solid') ? solidable[0].solid : false);
+    if (hideable.length) h += fCheck('multiVisible', `Visible (${hideable.length})`, same(hideable, 'visible') ? hideable[0].visible : true);
+  }
+  h += '<div class="sec">Each one</div>';
+  h += `<div class="note">${list.slice(0, 12).map((o) => esc(o.name)).join(', ')}${list.length > 12 ? `, and ${list.length - 12} more` : ''}. Click one in the Things list on its own to change just it.</div>`;
+  return h;
+}
+
 function renderProps() {
   const box = $('#props');
   if (selWorld) { box.innerHTML = groupSections(worldForm()); return; }
+  if (picked.size > 1) { box.innerHTML = groupSections(multiForm()); return; }
   const o = byId(sel);
   box.innerHTML = o ? groupSections(objForm(o)) : '<div class="empty">Nothing picked.<br>Click something in the world, or add a part from the left.</div>';
+}
+
+// The three shared settings, applied to everything picked at once.
+function setMultiProp(k, v) {
+  const list = pickedObjects();
+  let n = 0;
+  for (const o of list) {
+    if (k === 'multiColor' && o.color !== undefined) { o.color = v; refreshNode(o); n++; }
+    if (k === 'multiSolid' && o.solid !== undefined) { o.solid = !!v; n++; }
+    if (k === 'multiVisible' && !ATTACHED.has(o.kind)) { o.visible = !!v; refreshNode(o); n++; }
+  }
+  if (!n) return;
+  if (k === 'multiVisible') renderExplorer();
+  updateStatus(); dirty = true;
 }
 function syncPropValues() {
   const o = byId(sel); if (!o || selWorld) return;
@@ -6047,12 +6271,22 @@ $('#props').addEventListener('input', (e) => {
   const v = readVal(t); if (v === undefined) return;
   if (t.type === 'color' || t.dataset.hex) $$(`#props [data-k="${k}"]`).forEach((s) => { if (s !== t) s.value = v; });
   if (t.type === 'range') { const out = t.parentElement.querySelector('.val'); if (out) out.textContent = v; }
-  if (selWorld) setWorldProp(k, v); else setObjProp(k, v);
+  if (selWorld) setWorldProp(k, v);
+  else if (picked.size > 1 && k.startsWith('multi')) setMultiProp(k, v);
+  else setObjProp(k, v);
 });
 $('#props').addEventListener('change', () => commit());
 $('#props').addEventListener('click', (e) => {
   if (e.target.closest('[data-act="rebrowse"]')) rebrowseModel(byId(sel));
   if (e.target.closest('[data-act="script-open"]')) { const o = byId(sel); if (o && o.kind === 'script') toHost('openScript', { req: host.req++, objectId: o.id, name: o.name, file: o.file || '', fn: o.fn || '', code: o.code || '' }); }
+  const mb = e.target.closest('[data-act^="multi-"]');
+  if (mb) {
+    const act = mb.dataset.act;
+    if (act === 'multi-folder') groupIntoFolder();
+    if (act === 'multi-dup') duplicateSelected();
+    if (act === 'multi-del') deleteSelected();
+    return;
+  }
   const sc = e.target.closest('[data-act^="vfx-copy-fn"], [data-act^="vfx-copy-call"], [data-act^="vfx-insert-call"]');
   if (sc) {
     const o = byId(sel);
@@ -6197,10 +6431,13 @@ function updateButtons() {
   $('#bUndo').title = hpos > 0 ? `Undo: ${histWhat[hpos]} (Ctrl+Z)` : 'Nothing to undo';
   $('#bRedo').title = hpos < hist.length - 1 ? `Redo: ${histWhat[hpos + 1]} (Ctrl+Y)` : 'Nothing to redo';
   $('#bHist').disabled = hist.length < 2;
-  $('#bDup').disabled = $('#bDel').disabled = !byId(sel);
-  const o = byId(sel);
-  $('#bUnparent').disabled = !o || !o.parent;
-  $('#bFolder').disabled = !o || ATTACHED.has(o.kind);
+  const o = byId(sel), many = picked.size > 1;
+  $('#bDup').disabled = $('#bDel').disabled = !picked.size;
+  $('#bDup').title = many ? `Copy all ${picked.size} (Ctrl+D)` : 'Make a copy (Ctrl+D)';
+  $('#bDel').title = many ? `Delete all ${picked.size} (Del)` : 'Delete (Del)';
+  $('#bUnparent').disabled = !pickedRoots().some((x) => x.parent);
+  $('#bFolder').disabled = !pickedRoots().some((x) => !ATTACHED.has(x.kind));
+  $('#bFolder').title = many ? `Put all ${picked.size} in one folder (Ctrl+G)` : 'Put the picked thing in a new folder (Ctrl+G)';
 }
 $('#bUndo').onclick = undo; $('#bRedo').onclick = redo;
 $('#bDup').onclick = duplicateSelected; $('#bDel').onclick = deleteSelected;
@@ -6227,23 +6464,38 @@ $('#ribbonTabs').addEventListener('click', (e) => { const b = e.target.closest('
 function startRoom() { roomScene(); adoptImported({ count: S.objects.length, how: 'a fresh room' }); }
 function startEmpty() { S = { world: worldDefaults(), objects: [] }; nextId = 1; addPreset('spawn', [0, 0]); adoptImported({ count: 1, how: 'an empty world' }); }
 function groupIntoFolder() {
-  const o = byId(sel);
-  if (!o) { toast('Pick something first, then put it in a folder.'); return; }
-  if (ATTACHED.has(o.kind)) { toast('A script or an effect already belongs to a part - folders are for parts.'); return; }
-  const base = (o.name.replace(/\d+$/, '') || 'Thing') + 'Folder';
-  const f = makeObj('folder', { name: uniqueName(base), x: o.x, y: o.y, z: o.z, parent: o.parent || 0 });
+  const roots = pickedRoots().filter((o) => !ATTACHED.has(o.kind));
+  if (!roots.length) {
+    toast(picked.size ? 'A script or an effect already belongs to a part - folders are for parts.'
+      : 'Pick something first, then put it in a folder.');
+    return;
+  }
+  // the folder sits in the middle of what it holds, and under whatever
+  // they already shared as a parent
+  const mid = roots.reduce((a, o) => ({ x: a.x + o.x, y: a.y + o.y, z: a.z + o.z }), { x: 0, y: 0, z: 0 });
+  const shared = roots.every((o) => (o.parent || 0) === (roots[0].parent || 0)) ? (roots[0].parent || 0) : 0;
+  const base = roots.length > 1 ? 'Folder' : (roots[0].name.replace(/\d+$/, '') || 'Thing') + 'Folder';
+  const f = makeObj('folder', {
+    name: uniqueName(base), parent: shared,
+    x: Math.round(mid.x / roots.length), y: Math.round(mid.y / roots.length), z: Math.round(mid.z / roots.length),
+  });
   S.objects.push(f); refreshNode(f);
-  if (!setParent(o, f.id)) { S.objects.pop(); disposeNode(nodes.get(f.id)); return; }
+  let put = 0;
+  for (const o of roots) if (setParent(o, f.id)) put++;
+  if (!put) { S.objects.pop(); disposeNode(nodes.get(f.id)); nodes.delete(f.id); return; }
   select(f.id); renderExplorer(); renderProps(); commit();
-  log(`${f.name} holds ${o.name} - drag more rows onto the folder to add them`);
+  log(put > 1 ? `${f.name} holds ${put} things` : `${f.name} holds ${roots[0].name} - drag more rows onto the folder to add them`);
 }
 function unparentSelected() {
-  const o = byId(sel);
-  if (!o || !o.parent) return;
-  const was = byId(o.parent);
-  if (!setParent(o, 0)) return;
+  const roots = pickedRoots().filter((o) => o.parent);
+  if (!roots.length) return;
+  const first = roots[0], was = byId(first.parent);
+  let moved = 0;
+  for (const o of roots) if (setParent(o, 0)) moved++;
+  if (!moved) return;
   renderExplorer(); renderProps(); commit();
-  log(`${o.name} moved out of ${was ? was.name : 'its parent'} into the World`);
+  log(moved > 1 ? `${moved} things moved out into the World`
+    : `${first.name} moved out of ${was ? was.name : 'its parent'} into the World`);
 }
 $('#bRoom').onclick = startRoom;
 $('#bEmpty').onclick = startEmpty;
@@ -6417,6 +6669,7 @@ window.addEventListener('keydown', (e) => {
   if (ctrl && e.code === 'KeyY') { e.preventDefault(); redo(); return; }
   if (ctrl && e.code === 'KeyD') { e.preventDefault(); duplicateSelected(); return; }
   if (ctrl && e.code === 'KeyG') { e.preventDefault(); groupIntoFolder(); return; }
+  if (ctrl && e.code === 'KeyA') { e.preventDefault(); selectAll(); return; }
   if (e.code === 'Delete' || e.code === 'Backspace') { e.preventDefault(); deleteSelected(); return; }
   if (e.code === 'KeyF') { focusSelection(); return; }
   if (drag && drag.type === 'look') return;   // WASD/QE fly the camera while the right button is held
@@ -6433,7 +6686,13 @@ function updateStatus() {
   const o = byId(sel), el = $('#status');
   if (mode === 'play') { el.textContent = 'Playing - walk with WASD, drag the mouse to look, Esc to stop. Walls with "Blocks player" stop you. Scripts and effects only run in the real game: Save & run.'; return; }
   const t = { select: 'Select: click things, drag to slide them', move: 'Move: drag an arrow', rotate: 'Rotate: drag the ring', scale: 'Scale: drag a handle' }[tool];
-  el.textContent = o ? `${o.name}  (${o.x}, ${o.y}, ${o.z}) cm   ·   ${t}   ·   ${S.objects.length} objects` : `${t}   ·   ${S.objects.length} objects   ·   right-drag to look, W/A/S/D + Q/E to fly, F to focus`;
+  if (picked.size > 1) {
+    const c = selCenter();
+    const note = tool === 'scale' ? 'Size changes only the last one you clicked' : t;
+    el.textContent = `${picked.size} things picked  (middle ${c.x}, ${c.y}, ${c.z}) cm   ·   ${note}   ·   Ctrl+click to add, Shift+click a row for a run, Esc to drop them`;
+    return;
+  }
+  el.textContent = o ? `${o.name}  (${o.x}, ${o.y}, ${o.z}) cm   ·   ${t}   ·   ${S.objects.length} objects` : `${t}   ·   ${S.objects.length} objects   ·   Ctrl+click adds to a selection, drag empty space to pick a box   ·   right-drag to look, F to focus`;
 }
 let toastTimer = 0;
 function toast(msg, err) {
@@ -6957,7 +7216,7 @@ function makeObjQuiet(kind, name, over) {
   return o;
 }
 function adoptImported(res, label) {
-  sel = null; selWorld = false;
+  sel = null; picked.clear(); selWorld = false;
   rebuildAll(); renderExplorer(); renderProps(); applyWorld(); updateGizmo(); updateStatus();
   commit(); updateButtons();
   const sp = spawnOf();
