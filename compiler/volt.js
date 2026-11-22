@@ -29,9 +29,14 @@ const VERSION = '3.3.1';
 
 // Errors that are the Volt programmer's fault (not a bug in the compiler)
 class VoltError extends Error {
-  constructor(message, line) {
+  constructor(message, line, file) {
     super(message);
     this.line = line;
+    // Which file the line is in: '' for the program itself, otherwise the
+    // name it was imported as. Without this an error inside an imported
+    // file gets reported against a line number in the merged text, which
+    // belongs to no file anyone can open.
+    this.file = file || '';
   }
 }
 
@@ -3486,47 +3491,65 @@ function detectTarget(src) {
 // Importing the same file twice (directly, or via two other imports) is
 // fine - the second one is silently skipped, so shared libraries don't
 // produce "already a function called ..." errors.
-// Known limitation: error line numbers after a spliced-in import point at
-// the merged text, not the original file - there's no source map (yet).
-function resolveImports(source, dirs, seen) {
-  const lines = source.split('\n');
-  const out = [];
-  for (let i = 0; i < lines.length; i++) {
-    const m = /^import\s+"([^"]+)"\s*(?:\/\/.*)?$/.exec(lines[i]);   // a trailing // comment is fine
-    if (!m) { out.push(lines[i]); continue; }
+// Returns { lines, map }: the merged text, and for each merged line which
+// file and line it came from. Without that map an error inside an imported
+// file is reported at its position in the merged text - a line number that
+// belongs to no file the person can open, and that editors then pin to
+// whatever line happens to be there.
+function resolveImports(source, dirs, seen, origin) {
+  const srcLines = source.split('\n');
+  const lines = [], map = [];
+  const here = (i) => ({ file: origin || '', line: i + 1 });
+  for (let i = 0; i < srcLines.length; i++) {
+    const m = /^import\s+"([^"]+)"\s*(?:\/\/.*)?$/.exec(srcLines[i]);   // a trailing // comment is fine
+    if (!m) { lines.push(srcLines[i]); map.push(here(i)); continue; }
     const name = m[1];
     if (!dirs.length) {
-      throw new VoltError(`Can't import '${name}' - this program has no folder to look in`, i + 1);
+      throw new VoltError(`Can't import '${name}' - this program has no folder to look in`, i + 1, origin);
     }
     const full = dirs.map((d) => path.resolve(d, name)).find((x) => fs.existsSync(x));
     if (!full) {
-      throw new VoltError(`Can't import '${name}'. Put it in the same folder as your .volt file`, i + 1);
+      throw new VoltError(`Can't import '${name}'. Put it in the same folder as your .volt file`, i + 1, origin);
     }
-    if (seen.has(full)) { out.push(`// (already imported '${name}')`); continue; }
+    if (seen.has(full)) { lines.push(`// (already imported '${name}')`); map.push(here(i)); continue; }
     seen.add(full);
     const imported = fs.readFileSync(full, 'utf8').replace(/\r\n?/g, '\n');
-    out.push(`// ---- imported from '${name}' ----`);
-    out.push(resolveImports(imported, [path.dirname(full), ...dirs.slice(1)], seen));
-    out.push(`// ---- end '${name}' ----`);
+    lines.push(`// ---- imported from '${name}' ----`); map.push(here(i));
+    const inner = resolveImports(imported, [path.dirname(full), ...dirs.slice(1)], seen, name);
+    for (let k = 0; k < inner.lines.length; k++) { lines.push(inner.lines[k]); map.push(inner.map[k]); }
+    lines.push(`// ---- end '${name}' ----`); map.push(here(i));
   }
-  return out.join('\n');
+  return { lines, map };
 }
 
 // options.baseDir: the .volt file's folder, so 'image' can pack pictures into the page
 function compile(source, options = {}) {
   let normalized = source.replace(/\r\n?/g, '\n');
+  let lineMap = null;
   if (/^import\s+"/m.test(normalized)) {
     const dirs = [options.baseDir, ...(options.extraDirs || [])].filter(Boolean);
-    normalized = resolveImports(normalized, dirs, new Set());
+    const merged = resolveImports(normalized, dirs, new Set(), '');
+    normalized = merged.lines.join('\n');
+    lineMap = merged.map;
   }
-  const detected = detectTarget(normalized);
-  const tokens = lex(detected.src);
-  const ast = parse(tokens);
-  // #python means a board (MicroPython) when the program uses pins, otherwise a normal script
-  let target = detected.target;
-  if (target === 'python?') target = ast.some((n) => n.kind === 'Pin') ? 'micropython' : 'python';
-  if (EXTRA_GENERATORS[target]) return { target, code: EXTRA_GENERATORS[target](ast) };
-  return { target, code: generate(ast, target, options) };
+  try {
+    const detected = detectTarget(normalized);
+    const tokens = lex(detected.src);
+    const ast = parse(tokens);
+    // #python means a board (MicroPython) when the program uses pins, otherwise a normal script
+    let target = detected.target;
+    if (target === 'python?') target = ast.some((n) => n.kind === 'Pin') ? 'micropython' : 'python';
+    if (EXTRA_GENERATORS[target]) return { target, code: EXTRA_GENERATORS[target](ast) };
+    return { target, code: generate(ast, target, options) };
+  } catch (e) {
+    // Put the line back where the person can find it: their own file, or
+    // the imported one, rather than a position in the merged text.
+    if (lineMap && e instanceof VoltError && e.line > 0) {
+      const at = lineMap[e.line - 1];
+      if (at) { e.mergedLine = e.line; e.line = at.line; e.file = at.file; }
+    }
+    throw e;
+  }
 }
 
 // Where the compiled file goes for a given .volt file
@@ -3574,11 +3597,19 @@ function main() {
     console.log(`Compiled ${file} -> ${outFile}  (${HINTS[target] || 'see the addon that provides this target'})`);
   } catch (e) {
     if (e instanceof VoltError) {
-      console.error(`${file}, line ${e.line}: ${e.message}`);
-      const srcLine = src.split('\n')[e.line - 1];
+      // e.file is set when the error is inside a file this one imported -
+      // name that file, and quote the line from it, not from this one
+      const where = e.file ? e.file : file;
+      console.error(`${where}, line ${e.line}: ${e.message}`);
+      let text = src;
+      if (e.file) {
+        try { text = fs.readFileSync(path.resolve(path.dirname(file), e.file), 'utf8'); } catch { text = ''; }
+      }
+      const srcLine = text.replace(/\r\n?/g, '\n').split('\n')[e.line - 1];
       if (srcLine !== undefined && srcLine.trim() !== '') {
         console.error(`  ${e.line} | ${srcLine}`);
       }
+      if (e.file) console.error(`  (imported by ${file})`);
       process.exit(1);
     }
     throw e;

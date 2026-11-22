@@ -576,8 +576,25 @@ function clearError() {
   state.errorMark = null;
 }
 
-function showError(line, message) {
+// Does this open document correspond to the file the compiler named? The
+// compiler reports the path as it was imported ("Scripts/script.volt"), so
+// match on the tail of the path.
+function docIsFile(doc, file) {
+  if (!doc || !file) return false;
+  const want = String(file).replace(/\\/g, '/').toLowerCase();
+  const have = String(doc.filePath || doc.name || '').replace(/\\/g, '/').toLowerCase();
+  return have === want || have.endsWith('/' + want) || have.split('/').pop() === want.split('/').pop();
+}
+
+function showError(line, message, file) {
   clearError();
+  state.errorFile = file || '';
+  // The compile always runs on the entry document, so an error can belong
+  // to a file other than the one being looked at. Marking it here anyway -
+  // and clamping the line to fit - is how a perfectly good '}' at the end
+  // of an imported file ends up underlined in red. Say where it is instead.
+  if (file && !docIsFile(state.activeDoc, file)) return;
+  if (!line || line > editor.lineCount()) return;
   const ln = Math.max(0, Math.min(editor.lineCount() - 1, (line || 1) - 1));
   editor.addLineClass(ln, 'background', 'line-error');
   const marker = document.createElement('span');
@@ -652,9 +669,9 @@ async function compileNow() {
     $('output-info').textContent = `${lines} lines · updates as you type`;
     setStatus(`✓ No errors · compiles to ${LANGS[r.target].label}`, 'ok');
   } else {
-    showError(r.line, r.message);
+    showError(r.line, r.message, r.file);
     $('output-info').textContent = 'Fix the error to update';
-    setStatus(`✗ Line ${r.line}: ${r.message}`, 'error');
+    setStatus(`✗ ${r.file ? r.file + ' ' : ''}Line ${r.line}: ${r.message}`, 'error');
   }
   return r;
 }
@@ -666,7 +683,7 @@ async function compileAndSave() {
   showTab('bottom', 'console');
   if (!r.ok) {
     await compileNow();
-    logLine(`✗ Line ${r.line}: ${r.message}\n`, 'error');
+    logLine(`✗ ${r.file ? r.file + ' ' : ''}Line ${r.line}: ${r.message}\n`, 'error');
     jumpToError();
     return;
   }
@@ -680,6 +697,16 @@ async function compileAndSave() {
 }
 
 function jumpToError() {
+  // the error may be in another open file - go to that tab first
+  if (state.errorFile && !docIsFile(state.activeDoc, state.errorFile)) {
+    const doc = state.documents.find((d) => docIsFile(d, state.errorFile));
+    if (doc) {
+      activateDocument(doc);
+      const r = state.lastResult;
+      if (r && !r.ok) showError(r.line, r.message, r.file);
+    }
+    return;
+  }
   if (!state.errorMark) return;
   editor.setCursor(state.errorMark.line, 0);
   editor.scrollIntoView(null, 120);

@@ -512,7 +512,7 @@ function compileSource(source, filePath, assetDir) {
     const { target, code } = volt.compile(source, opts);
     return { ok: true, target, code };
   } catch (e) {
-    if (e instanceof volt.VoltError) return { ok: false, line: e.line, message: e.message };
+    if (e instanceof volt.VoltError) return { ok: false, line: e.line, message: e.message, file: e.file || '' };
     return { ok: false, line: 0, message: `Compiler problem: ${e.message}` };
   }
 }

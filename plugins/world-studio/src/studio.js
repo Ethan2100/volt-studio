@@ -1557,7 +1557,8 @@ function setMode(m) {
   $('#bLight').classList.toggle('on', m === 'preview');
   $('#bPlay').textContent = m === 'play' ? '■ Stop' : '▶ Play';
   $('#bPlay').classList.toggle('stop', m === 'play'); $('#bPlay').classList.toggle('primary', m !== 'play');
-  $('#badge').textContent = m === 'edit' ? 'Edit' : m === 'preview' ? 'Game lighting' : 'Playing';
+  $('#badge').textContent = m === 'edit' ? 'Edit' : m === 'preview' ? 'Game lighting' : 'Playing - scripts and effects do not run here';
+  $('#badge').classList.toggle('warn', m === 'play');
   $('#hud').style.display = m === 'play' ? 'block' : 'none';
   applyWorld(); updateGizmo(); updateStatus();
 }
@@ -1702,7 +1703,7 @@ window.addEventListener('blur', () => keys.clear());
 // ---------------------------------------------------------------------
 function updateStatus() {
   const o = byId(sel), el = $('#status');
-  if (mode === 'play') { el.textContent = 'Playing - walk with WASD, drag the mouse to look, Esc to stop. Walls with "Blocks player" stop you.'; return; }
+  if (mode === 'play') { el.textContent = 'Playing - walk with WASD, drag the mouse to look, Esc to stop. Walls with "Blocks player" stop you. Scripts and effects only run in the real game: Save & run.'; return; }
   const t = { select: 'Select: click things, drag to slide them', move: 'Move: drag an arrow', rotate: 'Rotate: drag the ring', scale: 'Scale: drag a handle' }[tool];
   el.textContent = o ? `${o.name}  (${o.x}, ${o.y}, ${o.z}) cm   ·   ${t}   ·   ${S.objects.length} objects` : `${t}   ·   ${S.objects.length} objects   ·   right-drag to look, W/A/S/D + Q/E to fly, F to focus`;
 }
