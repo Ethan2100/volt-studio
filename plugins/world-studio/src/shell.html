@@ -160,12 +160,6 @@
   @media (max-width: 560px) { .tb kbd, .tb .word { display: none; } }
   :root { --bg:#10141d; --panel:#171d28; --panel2:#202938; --line:#303b4d; --text:#e4eaf4; --muted:#93a1b5; --accent:#72b7ff; --accent2:#8bc5ff; --danger:#ff687a; --ok:#62d6a0; }
   #app { background:var(--bg); }
-  #topbar { min-height:34px; display:flex; align-items:center; gap:12px; padding:0 12px; background:#111722; border-bottom:1px solid #2b3545; color:var(--muted); }
-  #brand { color:#edf4ff; font-weight:700; letter-spacing:.04em; } #brand em { color:var(--accent); font-style:normal; }
-  #projectLabel { font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } #topbar .spacer { flex:1; }
-  #topbar .top-chip { border:1px solid #344257; border-radius:5px; padding:2px 7px; font-size:10px; }
-  #toolbar { min-height:48px; flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden; gap:7px; padding:7px 9px; background:#192231; border-bottom:1px solid #354257; scrollbar-width:thin; }
-  #toolbar .grp { gap:3px; padding-right:9px; margin-right:1px; }
   .tb { background:#263346; border-color:#3a4a60; border-radius:5px; min-height:30px; padding:5px 9px; }
   .tb:hover:not(:disabled) { background:#31445e; border-color:#6c91ba; }
   .tb.on { background:#203e5d; border-color:#6db6ff; color:#b9dcff; }
@@ -200,44 +194,175 @@
   .render-error small { max-width:90%; color:#8797ad; overflow-wrap:anywhere; }
   @media (max-width:1000px) { #main { grid-template-columns:112px minmax(0,1fr) 220px; } #tools { grid-template-columns:1fr; } }
   @media (max-width:800px) { #main { display:flex; flex-direction:column; } #pParts .scroll { overflow-x:auto; } #tools { display:flex; flex-direction:row; } #side { height:236px; } #viewportHint { display:none; } }
-  @media (max-width:560px) { #topbar { min-height:30px; } #projectLabel { display:none; } #toolbar { gap:4px; padding:5px; } #viewCube { display:none; } }
+  @media (max-width:560px) { #projectLabel { display:none; } #viewCube { display:none; } }
+
+  /* ================= Roblox-Studio-style ribbon, Output and tree =================
+     Tabs across the top, each holding captioned groups of labelled buttons, so
+     nothing is a bare glyph you have to hover to understand. */
+  #ribbonTabs { display:flex; align-items:center; gap:2px; padding:0 8px; min-height:28px;
+    background:#111722; border-bottom:1px solid #2b3545; }
+  .rtab { background:none; border:0; border-bottom:2px solid transparent; padding:5px 13px 4px;
+    color:var(--muted); cursor:pointer; font-size:12px; border-radius:4px 4px 0 0; }
+  .rtab:hover { color:var(--text); background:#1a2332; }
+  .rtab.on { color:var(--accent); border-bottom-color:var(--accent); background:#192231; }
+  #ribbonTabs .spacer { flex:1; }
+  #projectLabel { color:#6f7f94; font-size:10.5px; letter-spacing:.07em; text-transform:uppercase;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  #toolbar { display:block; min-height:0; padding:0; overflow:visible; border-bottom:1px solid #354257; background:#192231; }
+  .rpage { display:none; align-items:stretch; gap:0; padding:4px 8px 2px; }
+  .rpage.on { display:flex; flex-wrap:wrap; }
+  .rpage .grp { display:flex; flex-direction:column; align-items:center; gap:2px;
+    padding:0 9px; margin:0; border-right:1px solid #2b3545; }
+  .rpage .grp:last-child { border-right:0; }
+  .rpage .grow { display:flex; align-items:center; gap:3px; }
+  .gcap { font-size:9.5px; letter-spacing:.06em; text-transform:uppercase; color:#6f7f94; padding-bottom:1px; }
+
+  /* ---------- Output ---------- */
+  #pOutput { flex:none; border-top:1px solid #303d50; background:#151e2b; }
+  #pOutput > h3 { cursor:pointer; gap:7px; }
+  #pOutput[data-open="0"] #outLog { display:none; }
+  #pOutput[data-open="1"] { height:150px; }
+  #pOutput #outLog { padding:4px 0 6px; font:11.5px/1.5 Consolas,"Courier New",monospace; }
+  #outCount { color:#6f7f94; letter-spacing:0; text-transform:none; font-size:10.5px; }
+  #outCaret { color:var(--muted); }
+  #pOutput[data-open="1"] #outCaret { transform:rotate(180deg); display:inline-block; }
+  #pOutput h3 .tb { min-height:19px; padding:1px 7px; font-size:10.5px; }
+  .logline { padding:1px 10px; color:#b7c5d7; white-space:pre-wrap; word-break:break-word; user-select:text; }
+  .logline time { color:#64748c; margin-right:7px; }
+  .logline.err { color:#ff9aa6; } .logline.ok { color:#7fe0b0; }
+  #outLog .empty { font-family:"Segoe UI",system-ui,sans-serif; }
+
+  /* ---------- the Things tree ---------- */
+  .pane > h3 .hint { font-size:9.5px; letter-spacing:0; text-transform:none; color:#5d6c80; }
+  .row .caret { width:12px; flex:none; text-align:center; color:#7d8ca1; font-size:9px; cursor:pointer; }
+  .row .caret:hover { color:var(--text); }
+  .row .caret.leaf { visibility:hidden; }
+  #ctx { position:fixed; z-index:70; display:none; min-width:176px; padding:4px;
+    background:#1d2736; border:1px solid #3d4c63; border-radius:8px; box-shadow:0 12px 34px rgba(0,0,0,.5); }
+  #ctx.show { display:block; }
+  #ctx button { display:block; width:100%; text-align:left; background:none; border:0; border-radius:5px;
+    padding:5px 9px; color:var(--text); cursor:pointer; font-size:12px; }
+  #ctx button:hover { background:#2b4058; }
+  #ctx button:disabled { color:#5d6c80; cursor:default; background:none; }
+  #ctx hr { border:0; border-top:1px solid #303d50; margin:3px 2px; }
+  #ctx .danger:hover { background:#4a1f25; color:#ffb3bc; }
+
+  /* ---------- Properties: collapsible categories ---------- */
+  .cat { border-bottom:1px solid #232e3e; }
+  .cathead { display:flex; align-items:center; gap:6px; padding:6px 10px 5px; cursor:pointer;
+    color:#8bc5ff; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; background:#1b2534; }
+  .cathead:hover { background:#223047; }
+  .cathead .caret { font-size:9px; color:#7d8ca1; }
+  .cat.shut .catbody { display:none; }
+  .catbody { padding:3px 0 6px; }
+
+  @media (max-width:700px) { .gcap { display:none; } .rpage .grp { flex-direction:row; padding:0 6px; } }
 </style>
 </head>
 <body>
 <div id="app" data-dock="props">
-  <div id="topbar"><span id="brand">VOLT <em>/</em> WORLD STUDIO</span><span id="projectLabel">3D workspace · build, arrange and playtest your world</span><span class="spacer"></span><span class="top-chip">EDITOR</span></div>
+  <div id="ribbonTabs">
+    <button class="rtab on" data-rtab="home">Home</button>
+    <button class="rtab" data-rtab="build">Build</button>
+    <button class="rtab" data-rtab="view">View</button>
+    <span class="spacer"></span>
+    <span id="projectLabel">World Studio</span>
+  </div>
   <div id="toolbar">
-    <div class="grp">
-      <button class="tb icon" id="bUndo" title="Undo (Ctrl+Z)">↶</button>
-      <button class="tb icon" id="bRedo" title="Redo (Ctrl+Y)">↷</button>
-      <button class="tb icon" id="bDup" title="Make a copy (Ctrl+D)">⧉</button>
-      <button class="tb icon" id="bDel" title="Delete (Del)">✕</button>
+    <div class="rpage on" data-rpage="home">
+      <div class="grp">
+        <div class="grow">
+          <button class="tb" id="bUndo" title="Undo (Ctrl+Z)">↶<span class="word"> Undo</span></button>
+          <button class="tb" id="bRedo" title="Redo (Ctrl+Y)">↷<span class="word"> Redo</span></button>
+          <button class="tb" id="bDup" title="Make a copy (Ctrl+D)">⧉<span class="word"> Copy</span></button>
+          <button class="tb" id="bDel" title="Delete (Del)">✕<span class="word"> Delete</span></button>
+        </div>
+        <div class="gcap">Edit</div>
+      </div>
+      <div class="grp" id="gTools">
+        <div class="grow">
+          <button class="tb on" data-tool="select" title="Pick things and slide them around">↖<span class="word"> Pick</span><kbd>Q</kbd></button>
+          <button class="tb" data-tool="move" title="Drag an arrow to move">✥<span class="word"> Move</span><kbd>W</kbd></button>
+          <button class="tb" data-tool="rotate" title="Drag the ring to turn">⟳<span class="word"> Turn</span><kbd>E</kbd></button>
+          <button class="tb" data-tool="scale" title="Drag a handle to resize">⤡<span class="word"> Size</span><kbd>R</kbd></button>
+        </div>
+        <div class="gcap">Tools</div>
+      </div>
+      <div class="grp">
+        <div class="grow">
+          <select id="snap" title="Round everything off to this many cm, so walls line up (turning snaps to 15°)">
+            <option value="0">Off</option><option value="5">5 cm</option><option value="10">10 cm</option>
+            <option value="25">25 cm</option><option value="50" selected>50 cm</option><option value="100">100 cm</option>
+          </select>
+        </div>
+        <div class="gcap">Grid</div>
+      </div>
+      <div class="grp">
+        <div class="grow">
+          <button class="tb primary" id="bPlay" title="Walk around your world (Esc to stop)">▶ Play</button>
+          <button class="tb" id="bLight" title="Game lighting: see the real fog, darkness and flashlight">☀<span class="word"> Lighting</span></button>
+        </div>
+        <div class="gcap">Playtest</div>
+      </div>
+      <div class="grp">
+        <div class="grow">
+          <button class="tb primary" id="bSave" title="Write this world into your .volt file (your own code is kept)">⭳ Save world</button>
+          <button class="tb" id="bSavePlay" title="Save it and run the game in Volt Studio">▶<span class="word"> Save &amp; run</span></button>
+          <button class="tb" id="bMore" title="Everything else">⋯</button>
+        </div>
+        <div class="gcap">Game file</div>
+      </div>
     </div>
-    <div class="grp" id="gTools">
-      <button class="tb on" data-tool="select" title="Pick things and slide them around">↖<span class="word"> Pick</span><kbd>Q</kbd></button>
-      <button class="tb" data-tool="move" title="Drag an arrow to move">✥<span class="word"> Move</span><kbd>W</kbd></button>
-      <button class="tb" data-tool="rotate" title="Drag the ring to turn">⟳<span class="word"> Turn</span><kbd>E</kbd></button>
-      <button class="tb" data-tool="scale" title="Drag a handle to resize">⤡<span class="word"> Size</span><kbd>R</kbd></button>
+    <div class="rpage" data-rpage="build">
+      <div class="grp">
+        <div class="grow">
+          <button class="tb" id="bRoom" title="Four walls, a floor, a light and a spawn point">⬚ Small room</button>
+          <button class="tb" id="bEmpty" title="Nothing but a spawn point">□ Empty world</button>
+        </div>
+        <div class="gcap">Start again</div>
+      </div>
+      <div class="grp">
+        <div class="grow">
+          <button class="tb" id="bFolder" title="Put the picked thing in a new folder, so a building or prop moves as one (Ctrl+G)">📁 Put in a folder</button>
+          <button class="tb" id="bUnparent" title="Take the picked thing out of whatever it sits inside">⤒ Move out to World</button>
+        </div>
+        <div class="gcap">Picked thing</div>
+      </div>
+      <div class="grp">
+        <div class="grow">
+          <button class="tb" id="bLoad" title="Read the world back out of the .volt file in the editor">⭱ Load world</button>
+          <button class="tb" id="bCode" title="Copy it, insert it, or paste just the world into another game">&lt;/&gt; Show Volt code</button>
+        </div>
+        <div class="gcap">Game file</div>
+      </div>
     </div>
-    <div class="grp">
-      <span class="lbl">Grid</span>
-      <select id="snap" title="Round everything off to this many cm, so walls line up (turning snaps to 15°)">
-        <option value="0">Off</option><option value="5">5</option><option value="10">10</option>
-        <option value="25">25</option><option value="50" selected>50</option><option value="100">100</option>
-      </select>
-    </div>
-    <div class="spacer"></div>
-    <div class="grp">
-      <button class="tb icon" id="bLight" title="Game lighting: see the real fog, darkness and flashlight">☀</button>
-      <button class="tb primary" id="bPlay" title="Walk around your world (Esc to stop)">▶ Play</button>
-    </div>
-    <div class="grp">
-      <button class="tb primary" id="bSave" title="Write this world into your .volt file (your own code is kept)">⭳ Save world</button>
-      <button class="tb icon" id="bSavePlay" title="Save it and run the game in Volt Studio">▶|</button>
-      <button class="tb icon" id="bMore" title="Everything else">⋯</button>
+    <div class="rpage" data-rpage="view">
+      <div class="grp">
+        <div class="grow">
+          <button class="tb" id="vFrame" title="Frame all objects">⬜ Frame all</button>
+          <button class="tb" id="vFocus" title="Focus selected object (F)">◎ Focus</button>
+          <button class="tb" id="vZoomOut" title="Zoom out">−</button>
+          <button class="tb" id="vZoomIn" title="Zoom in">+</button>
+        </div>
+        <div class="gcap">Camera</div>
+      </div>
+      <div class="grp">
+        <div class="grow">
+          <button class="tb on" id="vGrid" title="Show or hide the grid">⋯ Grid</button>
+          <button class="tb on" id="vAxes" title="Show or hide the axes">✛ Axes</button>
+        </div>
+        <div class="gcap">Show</div>
+      </div>
+      <div class="grp">
+        <div class="grow">
+          <button class="tb" id="bOutput" title="Show or hide the Output messages">⌸ Output</button>
+          <button class="tb" id="bWide" title="More room for the viewport">⬌ Wide panel</button>
+        </div>
+        <div class="gcap">Panels</div>
+      </div>
     </div>
   </div>
-
   <div id="main">
     <section class="pane" id="pParts">
       <h3>Parts</h3>
@@ -250,11 +375,6 @@
         <div id="vig"></div>
         <div id="hud"></div>
         <div id="viewportTools">
-          <div class="vp-group" aria-label="Viewport actions">
-            <button class="vp-btn" id="vFrame" title="Frame all objects">Frame</button><button class="vp-btn" id="vFocus" title="Focus selected object (F)">Focus</button>
-            <button class="vp-btn on" id="vGrid" title="Show or hide grid">Grid</button><button class="vp-btn on" id="vAxes" title="Show or hide axes">Axes</button>
-          </div>
-          <div class="vp-group"><button class="vp-btn" id="vZoomOut" title="Zoom out">−</button><button class="vp-btn" id="vZoomIn" title="Zoom in">+</button></div>
           <div id="viewCube" class="vp-group" aria-label="Camera views">
             <span class="vp-btn blank"></span><button class="vp-btn" data-view="top" title="Top view">TOP</button><span class="vp-btn blank"></span>
             <button class="vp-btn" data-view="left" title="Left view">L</button><button class="vp-btn" data-view="front" title="Front view">F</button><button class="vp-btn" data-view="right" title="Right view">R</button>
@@ -264,6 +384,10 @@
         <div id="viewportHint">Right-drag: look · Middle-drag: pan · Scroll: zoom · F: focus</div>
         <div id="badge">Edit</div>
       </div>
+      <section class="pane" id="pOutput" data-open="0">
+        <h3 id="outHead">Output<span id="outCount"></span><span class="spacer"></span><button class="tb" id="bOutClear" title="Clear the messages">Clear</button><span id="outCaret">▴</span></h3>
+        <div class="scroll" id="outLog"></div>
+      </section>
       <div id="status"></div>
     </div>
 
@@ -272,7 +396,7 @@
         <button data-dock="explorer">Things</button><button data-dock="props" class="on">Properties</button>
       </div>
       <section class="pane" id="pExplorer">
-        <h3>Explorer <span class="spacer"></span></h3>
+        <h3>Things <span class="spacer"></span><span class="hint">right-click a row</span></h3>
         <div class="scroll" id="explorer"></div>
       </section>
       <section class="pane" id="pProps">
@@ -285,6 +409,7 @@
 
 <div id="modal"><div id="dlg"><header><span id="dlgTitle"></span><span class="spacer"></span><button id="dlgX" title="Close">✕</button></header>
   <div id="dlgBody"></div><footer id="dlgFoot"></footer></div></div>
+<div id="ctx"></div>
 <div id="toast"></div>
 
 <script>/*THREE*/</script>

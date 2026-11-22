@@ -70,6 +70,8 @@ const W = new Function([
   'const q = (c) => \'"\' + hex6(c, \'#999999\') + \'"\';', 'const r = (v) => Math.round(num(v));',
   grabConst('KIT'), grabFn('solidBoxes'), grabConst('spawnOf'),
   grabConst('MARK_OPEN'), grabConst('MARK_CLOSE'),
+  grabFn('plainWhere'), grabFn('plainWhat'), grabFn('plainIntro'),
+  grabFn('vfxWhere'), grabFn('vfxStatement'), grabFn('vfxFnLines'), grabFn('vfxTriggerLines'),
   grabFn('compactObj'), grabFn('worldLines'), grabFn('genGameFile'), grabFn('spliceWorld'), grabFn('genVolt'), grabFn('importSource'),
   'return { get S() { return S; }, set S(v) { S = v; }, get nextId() { return nextId; }, set nextId(v) { nextId = v; },',
   '         roomScene, makeObj, genGameFile, spliceWorld, genVolt, importSource, setParent, childrenOf, withTree, MARK_OPEN, MARK_CLOSE };',
@@ -83,8 +85,19 @@ check('it imports the player kit', file.includes('import "game.volt"'));
 check('it has settings you can change', /^WALK_SPEED = \d+/m.test(file) && /^JUMP_POWER = \d+/m.test(file));
 check('the world sits between the markers', file.indexOf(W.MARK_OPEN) < file.indexOf(W.MARK_CLOSE));
 check('it builds the world', /let Floor = block3d\(/.test(file));
-check('it lists what stops the player', /^clearSolids\(\)$/m.test(file) && /^solid\(-?\d+, -?\d+, \d+, \d+, -?\d+, -?\d+\)$/m.test(file));
-check('it starts the player somewhere', /^playerStart\(-?\d+, -?\d+, -?\d+\)$/m.test(file));
+check('it lists what stops the player', /^clearSolids\(\)$/m.test(file) && /^solid\(-?\d+, -?\d+, \d+, \d+, -?\d+, -?\d+\)(\s+\/\/.*)?$/m.test(file));
+// ---- the generated file explains itself in plain English ----
+check('it says what the measurements mean', /x is left\/right, y is up, z is back\/front/.test(file));
+check('every placed thing is introduced in words', /\/\/ Floor - a box \d+ wide, \d+ tall and \d+ deep/.test(file), (file.match(/\/\/ Floor[^\n]*/) || [''])[0]);
+check('a walk-through thing is marked as one', /\/\/ Cell - .*walk-through/.test(file), (file.match(/\/\/ Cell[^\n]*/) || [''])[0]);
+check('each solid line names the thing it came from', /^solid\([^)]*\)\s+\/\/ Floor - /m.test(file), (file.match(/^solid[^\n]*/m) || [''])[0]);
+check('a ceiling says you walk under it, not that you stand on it',
+  /^solid\([^)]*\)\s+\/\/ Ceiling - .*walk under it/m.test(file), (file.match(/^solid[^\n]*Ceiling[^\n]*/m) || [''])[0]);
+check('a crate says you can step onto it',
+  /^solid\([^)]*\)\s+\/\/ Crate - .*step onto it at 80cm/m.test(file), (file.match(/^solid[^\n]*Crate[^\n]*/m) || [''])[0]);
+check('where the player starts is said in words', /^playerStart\([^)]*\)\s+\/\/ .*facing \d+ degrees/m.test(file), (file.match(/^playerStart[^\n]*/m) || [''])[0]);
+check('nothing in the generated file has trailing whitespace', !/[ \t]+$/m.test(file), JSON.stringify((file.match(/^.*[ \t]+$/m) || [''])[0]));
+check('it starts the player somewhere', /^playerStart\(-?\d+, -?\d+, -?\d+\)(\s+\/\/.*)?$/m.test(file));
 check('it ends with a game loop', /every frame \{[\s\S]*playerStep\(\)[\s\S]*render3d/.test(file));
 
 const list = plugins.scanPlugins(path.join(root, 'plugins'), path.join(root, '.no-user-plugins'));
@@ -212,18 +225,25 @@ if (!JSDOM) {
   const dom = new JSDOM(shell, { runScripts: 'outside-only', pretendToBeVisual: true, url: 'https://world.studio/' });
   const win = dom.window;
   // a stand-in for three.js and for the 2D canvas jsdom doesn't have
-  const mock = (name) => new Proxy(function () {}, {
-    get(t, k) {
-      if (k === Symbol.toPrimitive || k === 'valueOf') return () => 0;
-      if (k === 'toString') return () => name;
-      if (k === 'then') return undefined;
-      if (!t[k]) t[k] = mock(name + '.' + String(k));
-      return t[k];
-    },
-    set(t, k, v) { t[k] = v; return true; },
-    apply() { return mock(name + '()'); },
-    construct() { return mock('new ' + name); },
-  });
+  // Properties are kept in a Map, not on the stand-in function itself: a
+  // function's own "length" and "name" are read-only, so stashing there made
+  // THREE.Vector3().length() come back as the number 0 and blow up.
+  const mock = (name) => {
+    const store = new Map();
+    return new Proxy(function () {}, {
+      get(t, k) {
+        if (k === Symbol.toPrimitive || k === 'valueOf') return () => 0;
+        if (k === 'toString') return () => name;
+        if (k === 'then') return undefined;
+        if (!store.has(k)) store.set(k, mock(name + '.' + String(k)));
+        return store.get(k);
+      },
+      set(t, k, v) { store.set(k, v); return true; },
+      has() { return true; },
+      apply() { return mock(name + '()'); },
+      construct() { return mock('new ' + name); },
+    });
+  };
   win.THREE = mock('THREE');
   win.ResizeObserver = class { observe() {} disconnect() {} };
   win.requestAnimationFrame = () => 0;
@@ -236,7 +256,7 @@ if (!JSDOM) {
 
   check('the panel starts without errors', errors.length === 0, errors[0] || '');
   check('every toolbar button is there', ['#bUndo', '#bRedo', '#bDup', '#bDel', '#bPlay', '#bSave', '#bSavePlay', '#bMore', '#bLight', '#snap'].every((id) => $(id)));
-  check('the parts strip is filled in', $('#tools').children.length === 11, 'got ' + $('#tools').children.length);
+  check('the parts strip is filled in', $('#tools').children.length === 12, 'got ' + $('#tools').children.length);
   check('characters, scripts and effects are in the strip', ['char', 'script', 'vfx'].every((k) => $(`#tools [data-add="${k}"]`)));
   check('the world is listed', $('#explorer').querySelectorAll('.row').length >= 10);
   win.__worldStudio.select(win.__worldStudio.scene.objects[7].id);
@@ -248,6 +268,107 @@ if (!JSDOM) {
   click('#dlgBody [data-act="help"]');
   check('the help page is there', $('#dlgBody').textContent.includes('Save world'));
   click('#dlgX');
+  // ---- the Roblox-style ribbon, Output pane, fold-away tree and foldable
+  // ---- property categories
+  const fire = (el, type, opts = {}) => el.dispatchEvent(new win.MouseEvent(type, Object.assign({ bubbles: true, cancelable: true }, opts)));
+  const all = (sel) => [...win.document.querySelectorAll(sel)];
+  // ---- an Effect writes its own script as you set it up ----
+  const vfxHost = win.__worldStudio.scene.objects.find((o) => o.kind === 'block');
+  win.__worldStudio.select(vfxHost.id);
+  win.__worldStudio.addPreset('vfx', null);
+  const fx = win.__worldStudio.scene.objects.find((o) => o.kind === 'vfx');
+  win.__worldStudio.select(fx.id);
+  const fxBox = () => $('#vfxScript');
+  const setField = (k, v) => { const el = $(`#props [data-k="${k}"]`); el.value = v; el.dispatchEvent(new win.Event('input', { bubbles: true })); };
+  check('an Effect shows the script it turns into', !!fxBox() && fxBox().value.includes('fn vfx_') && fxBox().value.includes('burst3d'));
+  setField('color', '#00ff00');
+  check('changing the colour rewrites the script', fxBox().value.includes('#00ff00'));
+  setField('effect', 'slash');
+  check('changing the type rewrites the script', fxBox().value.includes('slash3d'));
+  setField('when', 'use');
+  check('changing the trigger rewrites the wiring', fxBox().value.includes('held("e")') && fxBox().value.includes('playerNear('));
+  setField('when', 'fired');
+  check('"only when called" says so instead of wiring it up', fxBox().value.includes('Nothing sets') && !fxBox().value.includes('worldStep'));
+  setField('when', 'start');
+  const shown = fxBox().value.split('\n').find((l) => l.trim().startsWith('slash3d')).trim();
+  check('the file gets exactly the line the panel showed', win.__worldStudio.genVolt({ mode: 'scene' }).includes(shown), shown);
+  win.__worldStudio.select(fx.id);
+  fire($(`#explorer .row[data-id="${fx.id}"]`), 'contextmenu', { clientX: 20, clientY: 20 });
+  click('#ctx [data-cact="del"]');
+  check('the test effect is cleared away again', !win.__worldStudio.scene.objects.some((o) => o.id === fx.id));
+
+  // ---- model folders ----
+  const toGroup = win.__worldStudio.scene.objects.find((o) => o.kind === 'block');
+  win.__worldStudio.select(toGroup.id);
+  fire($(`#explorer .row[data-id="${toGroup.id}"]`), 'contextmenu', { clientX: 20, clientY: 20 });
+  check('a row offers "Put in a new folder"', !!$('#ctx [data-cact="folder"]'));
+  click('#ctx [data-cact="folder"]');
+  const folder = win.__worldStudio.scene.objects.find((o) => o.kind === 'folder');
+  check('the folder is made and the part goes inside it', folder && toGroup.parent === folder.id);
+  check('the folder is what is now picked', win.__worldStudio.sel === folder.id);
+  const withFolder = win.__worldStudio.genVolt({ world: true });
+  check('a folder becomes a group3d in the generated code', new RegExp('let \\w+ = group3d\\(').test(withFolder));
+  check('the folder itself places nothing', !new RegExp('let \\w*[Ff]older\\w* = (block3d|ball3d|cyl3d|put3d|lamp3d)').test(withFolder));
+  check('the part inside joins the group', /join3d \w+, \w+/.test(withFolder));
+  // put it back where the later checks expect it
+  fire($(`#explorer .row[data-id="${toGroup.id}"]`), 'contextmenu', { clientX: 20, clientY: 20 });
+  click('#ctx [data-cact="out"]');
+  check('a part can be taken back out of its folder', !toGroup.parent);
+
+  check('the ribbon opens on Home', $('.rpage[data-rpage="home"]').classList.contains('on') && all('.rtab').length === 3);
+  click('.rtab[data-rtab="view"]');
+  check('the View tab holds the camera and show buttons',
+    $('.rpage[data-rpage="view"]').classList.contains('on') &&
+    ['#vFrame', '#vFocus', '#vGrid', '#vAxes', '#vZoomIn', '#vZoomOut'].every((id) => $('.rpage[data-rpage="view"] ' + id)));
+  click('.rtab[data-rtab="build"]');
+  check('the Build tab holds starting over and the game file',
+    ['#bRoom', '#bEmpty', '#bUnparent', '#bLoad', '#bCode'].every((id) => $('.rpage[data-rpage="build"] ' + id)));
+  click('.rtab[data-rtab="home"]');
+  check('every ribbon group is captioned', all('.rpage .grp').every((g) => g.querySelector('.gcap')));
+  check('no ribbon button is a bare glyph with nothing to read',
+    all('.rpage .tb').every((b) => (b.textContent || '').trim().length > 2 || b.title));
+
+  check('Output starts folded away and already has a line in it',
+    $('#pOutput').dataset.open === '0' && $('#outLog').textContent.includes('World Studio ready'));
+  const logs = all('#outLog .logline').length;
+  win.__worldStudio.addPreset('spawn', [0, 0]);   // refused, with a toast
+  check('a toast is kept in Output instead of only flashing past',
+    all('#outLog .logline').length === logs + 1 && $('#outCount').textContent.includes('new'));
+  click('#bOutput');
+  check('the Output button opens it and clears the unseen count',
+    $('#pOutput').dataset.open === '1' && $('#outCount').textContent === '');
+
+  const host = win.__worldStudio.scene.objects[0];
+  win.__worldStudio.select(host.id);
+  win.__worldStudio.addPreset('script', null);
+  const hostRow = () => $(`#explorer .row[data-id="${host.id}"]`);
+  const openRows = all('#explorer .row').length;
+  check('a thing with something inside it gets a fold arrow', !hostRow().querySelector('.caret').classList.contains('leaf'));
+  fire(hostRow().querySelector('[data-fold]'), 'click');
+  check('folding a row hides what is inside it', all('#explorer .row').length === openRows - 1);
+  fire(hostRow().querySelector('[data-fold]'), 'click');
+  check('unfolding brings it back', all('#explorer .row').length === openRows);
+
+  fire(hostRow(), 'contextmenu', { clientX: 30, clientY: 30 });
+  check('right-clicking a row opens a menu',
+    $('#ctx').classList.contains('show') &&
+    ['script', 'vfx', 'dup', 'rename', 'out', 'focus', 'del'].every((a) => $(`#ctx [data-cact="${a}"]`)));
+  check('"Move out to World" is off for something already in the World', $('#ctx [data-cact="out"]').disabled);
+  const inside = win.__worldStudio.scene.objects.find((o) => o.parent === host.id);
+  click('#ctx [data-cact="focus"]');
+  fire($(`#explorer .row[data-id="${inside.id}"]`), 'contextmenu', { clientX: 30, clientY: 30 });
+  check('"Move out to World" is live for something inside a part', !$('#ctx [data-cact="out"]').disabled);
+  click('#ctx [data-cact="out"]');
+  check('it moves the thing out', !inside.parent);
+
+  win.__worldStudio.select(host.id);
+  check('properties are grouped under foldable headings', all('#props .cathead').length >= 2 && all('#props .cat').every((c) => c.querySelector('.catbody')));
+  const firstCat = all('#props .cathead')[0].dataset.cat;
+  fire($(`#props [data-cat="${firstCat}"]`), 'click');
+  check('clicking a heading folds that category', $(`#props [data-cat="${firstCat}"]`).closest('.cat').classList.contains('shut'));
+  fire($(`#props [data-cat="${firstCat}"]`), 'click');
+  check('clicking it again opens it', !$(`#props [data-cat="${firstCat}"]`).closest('.cat').classList.contains('shut'));
+
   const count = win.__worldStudio.scene.objects.length;
   click('#tools [data-add="wall"]');
   check('clicking a part adds one', win.__worldStudio.scene.objects.length === count + 1);

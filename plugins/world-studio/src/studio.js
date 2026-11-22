@@ -34,6 +34,10 @@ const KIND = {
   char: { label: 'Character', icon: '☻' },
   script: { label: 'Script', icon: '✎' },
   vfx: { label: 'Effect', icon: '✺' },
+  // A folder holds the parts of one building or prop. It has no body of its
+  // own - it is the handle you move, turn and drag the whole thing by, and it
+  // becomes a group3d in the game.
+  folder: { label: 'Folder', icon: '📁' },
 };
 // Scripts and effects have no size and no place in the world of their own -
 // they belong to whatever they sit under, like a Script inside a Part.
@@ -356,6 +360,7 @@ function boundsOf(o) {   // [w, h, d] in metres, plus a y offset, for the select
     case 'ball': return [o.r / 50, o.r / 50, o.r / 50, 0];
     case 'cyl': return [o.r / 50, o.h / 100, o.r / 50, 0];
     case 'lamp': return [0.3, 0.3, 0.3, 0];
+    case 'folder': return [0.44, 0.44, 0.44, 0.22];
     case 'script': case 'vfx': return [0.26, 0.32, 0.26, 0.62];
     case 'char':
     case 'model': {
@@ -399,6 +404,19 @@ function buildNode(o) {
       ph.position.y = 0.5; n.add(ph);
       n.userData.placeholder = true;
     }
+  } else if (o.kind === 'folder') {
+    // just a handle: a small open crate you can see while building and that
+    // is gone the moment the game runs
+    n = new THREE.Group();
+    const wire = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(0.44, 0.44, 0.44)),
+      new THREE.LineBasicMaterial({ color: 0xffc14d, transparent: true, opacity: 0.9 }));
+    wire.position.y = 0.22;
+    const core = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.16),
+      new THREE.MeshBasicMaterial({ color: 0xffc14d, transparent: true, opacity: 0.35 }));
+    core.position.y = 0.22;
+    n.add(wire, core);
+    n.userData.marker = true;
   } else if (ATTACHED.has(o.kind)) {
     // a script or an effect has no body - a small floating tag shows where
     // it is attached, and you mostly pick it from the Things list
@@ -578,7 +596,14 @@ function select(id) {
   if (narrow() && id != null) setDock('props');
 }
 function selectWorld() { sel = null; selWorld = true; for (const n of nodes.values()) n.userData.outline.visible = false; renderExplorer(); renderProps(); updateGizmo(); updateStatus(); updateButtons(); dirty = true; if (narrow()) setDock('props'); }
-function touch(o) { refreshNode(o); updateGizmo(); }
+function touch(o) { refreshNode(o); updateGizmo(); syncVfxScript(); }
+// The Effect's script box is read-only, so it is not covered by syncPropValues -
+// refresh it here instead of re-rendering the form and losing the caret.
+function syncVfxScript() {
+  const box = $('#vfxScript'); if (!box) return;
+  const o = byId(sel);
+  if (o && o.kind === 'vfx') box.value = vfxScriptPreview(o);
+}
 
 // ---------------------------------------------------------------------
 //  Gizmos (drawn on top of everything)
@@ -619,7 +644,7 @@ function gizmoSupports(o) {
   if (!o || mode === 'play') return null;
   if (tool === 'move') return moveG;
   if (tool === 'rotate') return (o.kind === 'lamp' || o.kind === 'ball') ? null : rotHolder;
-  if (tool === 'scale') return (o.kind === 'lamp' || o.kind === 'spawn') ? null : scaleG;
+  if (tool === 'scale') return (o.kind === 'lamp' || o.kind === 'spawn' || o.kind === 'folder') ? null : scaleG;
   return null;
 }
 function activeGizmo() { const g = gizmoSupports(byId(sel)); return g && gizmoRoot.visible ? g : null; }
@@ -828,6 +853,7 @@ const PRESETS = {
   char: { kind: 'char', label: 'Character', glyph: '☻', over: {}, base: 'Character' },
   script: { kind: 'script', label: 'Script', glyph: '✎', over: {}, base: 'Script' },
   vfx: { kind: 'vfx', label: 'Effect', glyph: '✺', over: {}, base: 'Effect' },
+  folder: { kind: 'folder', label: 'Folder', glyph: '📁', over: {}, base: 'Folder' },
 };
 function dropPoint(at) {   // where a new object should land: the drop point, or ~6m ahead of the camera
   let x, z;
@@ -995,26 +1021,81 @@ function duplicateSelected() {
 // ---------------------------------------------------------------------
 //  Explorer + parts + properties panels
 // ---------------------------------------------------------------------
+// Rows that have been folded shut, the way Roblox's Explorer folds a model away.
+const shutRows = new Set();
 function renderExplorer() {
   const box = $('#explorer');
-  let h = `<div class="row world${selWorld ? ' sel' : ''}" data-world="1" data-drop="0"><span class="ic">🌐</span><span class="nm">World</span></div>`;
+  let h = `<div class="row world${selWorld ? ' sel' : ''}" data-world="1" data-drop="0"><span class="caret leaf"></span><span class="ic">🌐</span><span class="nm">World</span></div>`;
   if (!S.objects.length) h += '<div class="empty">Nothing here yet. Add a part from the left.</div>';
   const draw = (parentId, depth) => {
     for (const o of S.objects) {
       if ((o.parent || 0) !== parentId) continue;
       const kids = childrenOf(o.id).length;
-      h += `<div class="row${o.id === sel ? ' sel' : ''}${o.visible ? '' : ' hidden'}" data-id="${o.id}" data-drop="${o.id}" draggable="true" style="padding-left:${8 + depth * 14}px">` +
+      const shut = shutRows.has(o.id);
+      h += `<div class="row${o.id === sel ? ' sel' : ''}${o.visible ? '' : ' hidden'}" data-id="${o.id}" data-drop="${o.id}" draggable="true" style="padding-left:${6 + depth * 14}px">` +
+        `<span class="caret${kids ? '' : ' leaf'}"${kids ? ` data-fold="${o.id}" title="${shut ? 'Open' : 'Fold away'}"` : ''}>${shut ? '▸' : '▾'}</span>` +
         `<span class="ic">${KIND[o.kind].icon}</span><span class="nm">${esc(o.name)}</span>` +
         (kids ? `<span class="kids" title="${kids} inside">${kids}</span>` : '') +
         (ATTACHED.has(o.kind) ? '' : `<span class="eye" data-eye="${o.id}" title="Show / hide">${o.visible ? '👁' : '◌'}</span>`) +
         '</div>';
-      draw(o.id, depth + 1);
+      if (!shut) draw(o.id, depth + 1);
     }
   };
   draw(0, 0);
   box.innerHTML = h;
 }
+
+// ---- right-click a row, like Roblox's Explorer ----
+function closeCtx() { $('#ctx').classList.remove('show'); }
+function openCtx(x, y, o) {
+  const inside = ATTACHED.has(o.kind) ? '' :
+    '<button data-cact="script">Add a script inside</button><button data-cact="vfx">Add an effect inside</button>' +
+    '<button data-cact="folder">Put in a new folder</button><hr>';
+  $('#ctx').innerHTML = inside +
+    '<button data-cact="dup">Make a copy</button>' +
+    '<button data-cact="rename">Rename</button>' +
+    `<button data-cact="out"${o.parent ? '' : ' disabled'}>Move out to World</button>` +
+    '<button data-cact="focus">Look at it</button>' +
+    '<hr><button class="danger" data-cact="del">Delete</button>';
+  const menu = $('#ctx');
+  menu.classList.add('show');
+  // keep it on screen
+  const w = menu.offsetWidth || 180, h = menu.offsetHeight || 190;
+  menu.style.left = Math.max(2, Math.min(x, window.innerWidth - w - 4)) + 'px';
+  menu.style.top = Math.max(2, Math.min(y, window.innerHeight - h - 4)) + 'px';
+  menu.dataset.id = o.id;
+}
+$('#explorer').addEventListener('contextmenu', (e) => {
+  const row = e.target.closest('.row[data-id]');
+  if (!row) return;
+  e.preventDefault();
+  const o = byId(Number(row.dataset.id));
+  if (!o) return;
+  select(o.id);
+  openCtx(e.clientX, e.clientY, o);
+});
+$('#ctx').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-cact]'); if (!b || b.disabled) return;
+  const o = byId(Number($('#ctx').dataset.id));
+  closeCtx();
+  if (!o) return;
+  const act = b.dataset.cact;
+  if (act === 'script' || act === 'vfx') { select(o.id); addPreset(act, null); return; }
+  if (act === 'folder') { select(o.id); return groupIntoFolder(); }
+  if (act === 'dup') return duplicateSelected();
+  if (act === 'del') return deleteSelected();
+  if (act === 'out') return unparentSelected();
+  if (act === 'focus') return focusSelection();
+  if (act === 'rename') {
+    const box = $('#props [data-k="name"]');
+    if (box) { box.focus(); box.select(); }
+  }
+});
+window.addEventListener('mousedown', (e) => { if (!e.target.closest('#ctx')) closeCtx(); });
+window.addEventListener('blur', closeCtx);
 $('#explorer').addEventListener('click', (e) => {
+  const fold = e.target.closest('[data-fold]');
+  if (fold) { const id = Number(fold.dataset.fold); shutRows.has(id) ? shutRows.delete(id) : shutRows.add(id); renderExplorer(); return; }
   const eye = e.target.closest('[data-eye]');
   if (eye) { const o = byId(Number(eye.dataset.eye)); o.visible = !o.visible; refreshNode(o); renderExplorer(); renderProps(); commit(); return; }
   const row = e.target.closest('.row'); if (!row) return;
@@ -1114,6 +1195,11 @@ function objForm(o) {
     h += '<div class="sec">Runs</div>' + fSelect('when', 'When', o.when, Object.entries(WHENS));
     if (o.when === 'frame') h += fNum('rate', 'Every N frames', Math.max(1, o.rate || 1), { min: 1, max: 600 });
     h += `<div class="note">${owner ? `Goes off at <b>${esc(owner.name)}</b>.` : 'Not inside anything, so it goes off where it stands.'} A script can set it off by name: <b>vfx_${esc(identish(o.name))}()</b>.</div>`;
+    h += '<div class="sec">Its script</div>' +
+      `<div class="codewrap"><textarea class="code" id="vfxScript" readonly spellcheck="false" rows="9">${esc(vfxScriptPreview(o))}</textarea></div>` +
+      '<div class="btnrow"><button type="button" class="tb" data-act="vfx-copy-script">⎘ Copy the script</button>' +
+      '<button type="button" class="tb" data-act="vfx-insert-script">⭳ Insert it at the cursor</button></div>' +
+      '<div class="note">This is the Volt this effect turns into, and it changes as you set the colour, size, type and trigger above. <b>Save world</b> already writes it into your game file - copy it only if you want it somewhere of your own.</div>';
     h += '<div class="sec">Preset</div><div class="btnrow"><button type="button" class="tb" data-act="vfx-import">⭳ Import…</button><button type="button" class="tb" data-act="vfx-copy">⎘ Copy</button><button type="button" class="tb" data-act="vfx-paste">⎙ Paste</button></div>' +
       '<div class="note">Presets are small .voltfx files - share one, or keep your own set.</div>';
     return h;
@@ -1162,6 +1248,10 @@ function objForm(o) {
     h += advSection(fCheck('visible', 'Visible', o.visible));
   }
   if (o.kind === 'spawn') h += '<div class="note">The player starts here, looking the way the arrow points. Turn it to change the first thing they see.</div>';
+  if (o.kind === 'folder') {
+    h += `<div class="note">A folder is the handle for one building or prop. Drag rows onto it in the Things list to put parts in, then move or turn <b>the folder</b> and everything inside comes along. The folder itself is never in the game - it becomes a <b>group3d</b>.${kids.length ? '' : ' Nothing in it yet.'}</div>`;
+    h += advSection(fCheck('visible', 'Visible', o.visible));
+  }
   return h;
 }
 
@@ -1178,11 +1268,34 @@ function worldForm() {
   return h;
 }
 
+// Roblox groups Properties under headings you can fold. The forms above still
+// emit a flat `<div class="sec">Name</div>` before each run of fields, so one
+// pass here turns each of those runs into a foldable category - no form needs
+// to know about it. The "Advanced" header keeps its own show/hide behaviour.
+const shutCats = new Set();
+function groupSections(html) {
+  const parts = html.split(/(<div class="sec(?: adv)?"[^>]*>[\s\S]*?<\/div>)/);
+  let out = '', open = false;
+  const close = () => { if (open) { out += '</div></div>'; open = false; } };
+  for (const part of parts) {
+    const m = /^<div class="sec( adv)?"[^>]*>([\s\S]*?)<\/div>$/.exec(part);
+    if (!m) { out += part; continue; }
+    close();
+    if (m[1]) { out += part; continue; }          // Advanced: left exactly as it was
+    const label = m[2], shut = shutCats.has(label);
+    out += `<div class="cat${shut ? ' shut' : ''}">` +
+      `<div class="cathead" data-cat="${esc(label)}"><span class="caret">${shut ? '▸' : '▾'}</span>${label}</div>` +
+      '<div class="catbody">';
+    open = true;
+  }
+  close();
+  return out;
+}
 function renderProps() {
   const box = $('#props');
-  if (selWorld) { box.innerHTML = worldForm(); return; }
+  if (selWorld) { box.innerHTML = groupSections(worldForm()); return; }
   const o = byId(sel);
-  box.innerHTML = o ? objForm(o) : '<div class="empty">Nothing picked.<br>Click something in the world, or add a part from the left.</div>';
+  box.innerHTML = o ? groupSections(objForm(o)) : '<div class="empty">Nothing picked.<br>Click something in the world, or add a part from the left.</div>';
 }
 function syncPropValues() {
   const o = byId(sel); if (!o || selWorld) return;
@@ -1209,7 +1322,20 @@ $('#props').addEventListener('change', () => commit());
 $('#props').addEventListener('click', (e) => {
   if (e.target.closest('[data-act="rebrowse"]')) rebrowseModel(byId(sel));
   if (e.target.closest('[data-act="script-open"]')) { const o = byId(sel); if (o && o.kind === 'script') toHost('openScript', { req: host.req++, objectId: o.id, name: o.name, file: o.file || '', fn: o.fn || '', code: o.code || '' }); }
+  const sc = e.target.closest('[data-act="vfx-copy-script"], [data-act="vfx-insert-script"]');
+  if (sc) {
+    const o = byId(sel);
+    if (o && o.kind === 'vfx') {
+      const code = vfxScriptPreview(o);
+      if (sc.dataset.act === 'vfx-copy-script') toast(copyText(code) ? 'Copied the script' : 'Could not copy - select the text and press Ctrl+C', false);
+      else if (!host.ok) toast('Open this inside Volt Studio to insert code into a file.', true);
+      else { toHost('insert', { code }); toast('Inserted at the cursor'); }
+    }
+    return;
+  }
   if (e.target.closest('[data-adv]')) { showAdvanced = !showAdvanced; renderProps(); }
+  const head = e.target.closest('[data-cat]');
+  if (head) { const k = head.dataset.cat; shutCats.has(k) ? shutCats.delete(k) : shutCats.add(k); renderProps(); }
   if (e.target.closest('[data-act="vfx-copy"]')) copyPreset(byId(sel));
   if (e.target.closest('[data-act="vfx-paste"]')) pastePreset(byId(sel));
   if (e.target.closest('[data-act="vfx-import"]')) importPreset(byId(sel));
@@ -1334,6 +1460,9 @@ function setTool(t) {
 function updateButtons() {
   $('#bUndo').disabled = hpos <= 0; $('#bRedo').disabled = hpos >= hist.length - 1;
   $('#bDup').disabled = $('#bDel').disabled = !byId(sel);
+  const o = byId(sel);
+  $('#bUnparent').disabled = !o || !o.parent;
+  $('#bFolder').disabled = !o || ATTACHED.has(o.kind);
 }
 $('#bUndo').onclick = undo; $('#bRedo').onclick = redo;
 $('#bDup').onclick = duplicateSelected; $('#bDel').onclick = deleteSelected;
@@ -1347,6 +1476,69 @@ $$('[data-view]').forEach((b) => b.addEventListener('click', () => { viewPreset(
 $('#vZoomIn').onclick = () => { const f = fwd3(), d = clamp(focusDist() * 0.18, 0.25, 4); cam.x += f.x * d; cam.y += f.y * d; cam.z += f.z * d; applyCam(); updateGizmo(); };
 $('#vZoomOut').onclick = () => { const f = fwd3(), d = clamp(focusDist() * 0.18, 0.25, 4); cam.x -= f.x * d; cam.y -= f.y * d; cam.z -= f.z * d; applyCam(); updateGizmo(); };
 $('#bPlay').onclick = () => { if (mode === 'play') stopPlay(); else startPlay(); };
+
+// ---- ribbon tabs: Home / Build / View ----
+function setRibbon(name) {
+  $$('.rtab').forEach((b) => b.classList.toggle('on', b.dataset.rtab === name));
+  $$('.rpage').forEach((pg) => pg.classList.toggle('on', pg.dataset.rpage === name));
+  resize();
+}
+$('#ribbonTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-rtab]'); if (b) setRibbon(b.dataset.rtab); });
+
+// Starting over, shared by the Build tab and the ... menu so there is one copy of each.
+function startRoom() { roomScene(); adoptImported({ count: S.objects.length, how: 'a fresh room' }); }
+function startEmpty() { S = { world: worldDefaults(), objects: [] }; nextId = 1; addPreset('spawn', [0, 0]); adoptImported({ count: 1, how: 'an empty world' }); }
+function groupIntoFolder() {
+  const o = byId(sel);
+  if (!o) { toast('Pick something first, then put it in a folder.'); return; }
+  if (ATTACHED.has(o.kind)) { toast('A script or an effect already belongs to a part - folders are for parts.'); return; }
+  const base = (o.name.replace(/\d+$/, '') || 'Thing') + 'Folder';
+  const f = makeObj('folder', { name: uniqueName(base), x: o.x, y: o.y, z: o.z, parent: o.parent || 0 });
+  S.objects.push(f); refreshNode(f);
+  if (!setParent(o, f.id)) { S.objects.pop(); disposeNode(nodes.get(f.id)); return; }
+  select(f.id); renderExplorer(); renderProps(); commit();
+  log(`${f.name} holds ${o.name} - drag more rows onto the folder to add them`);
+}
+function unparentSelected() {
+  const o = byId(sel);
+  if (!o || !o.parent) return;
+  const was = byId(o.parent);
+  if (!setParent(o, 0)) return;
+  renderExplorer(); renderProps(); commit();
+  log(`${o.name} moved out of ${was ? was.name : 'its parent'} into the World`);
+}
+$('#bRoom').onclick = startRoom;
+$('#bEmpty').onclick = startEmpty;
+$('#bUnparent').onclick = unparentSelected;
+$('#bFolder').onclick = groupIntoFolder;
+$('#bLoad').onclick = () => loadFromFile();
+$('#bCode').onclick = () => showCode();
+$('#bWide').onclick = () => { toggleWide(); $('#bWide').classList.toggle('on', wide); };
+
+// ---- Output: the messages that used to only flash past as a toast ----
+let logCount = 0;
+function setOutput(open) {
+  $('#pOutput').dataset.open = open ? '1' : '0';
+  $('#bOutput').classList.toggle('on', !!open);
+  if (open) { logCount = 0; $('#outCount').textContent = ''; $('#outLog').scrollTop = $('#outLog').scrollHeight; }
+  resize();
+}
+const outOpen = () => $('#pOutput').dataset.open === '1';
+function log(msg, kind) {
+  const box = $('#outLog');
+  const empty = box.querySelector('.empty'); if (empty) empty.remove();
+  const at = new Date().toTimeString().slice(0, 8);
+  const line = document.createElement('div');
+  line.className = 'logline' + (kind ? ' ' + kind : '');
+  line.innerHTML = `<time>${at}</time>${esc(msg)}`;
+  box.appendChild(line);
+  while (box.children.length > 300) box.firstChild.remove();
+  box.scrollTop = box.scrollHeight;
+  if (!outOpen()) { logCount++; $('#outCount').textContent = ` (${logCount} new)`; }
+}
+$('#outHead').addEventListener('click', (e) => { if (e.target.closest('#bOutClear')) return; setOutput(!outOpen()); });
+$('#bOutClear').onclick = () => { $('#outLog').innerHTML = '<div class="empty">Nothing yet.</div>'; logCount = 0; $('#outCount').textContent = ''; };
+$('#bOutput').onclick = () => setOutput(!outOpen());
 function setMode(m) {
   mode = m;
   $('#bLight').classList.toggle('on', m === 'preview');
@@ -1390,7 +1582,7 @@ function solidBoxes() {
       hx = bx / 2; hz = bz / 2; bot = o.y; top = o.y + by;
     }
     else continue;
-    out.push({ x: Math.round(o.x), z: Math.round(o.z), hx: Math.round(hx), hz: Math.round(hz), bot: Math.round(bot), top: Math.round(top) });
+    out.push({ name: o.name, kind: o.kind, x: Math.round(o.x), z: Math.round(o.z), hx: Math.round(hx), hz: Math.round(hz), bot: Math.round(bot), top: Math.round(top) });
   }
   return out;
 }
@@ -1469,6 +1661,7 @@ function flyEditorCamera(dt) {
 // ---------------------------------------------------------------------
 const typing = (e) => /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) && !(e.target.type === 'checkbox' || e.target.type === 'range');
 window.addEventListener('keydown', (e) => {
+  if ($('#ctx').classList.contains('show') && e.key === 'Escape') { closeCtx(); return; }
   if ($('#modal').classList.contains('show')) { if (e.key === 'Escape') closeDialog(); return; }
   if (typing(e)) { if (e.key === 'Escape') e.target.blur(); return; }
   keys.add(e.code);
@@ -1481,6 +1674,7 @@ window.addEventListener('keydown', (e) => {
   if (ctrl && e.code === 'KeyZ') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if (ctrl && e.code === 'KeyY') { e.preventDefault(); redo(); return; }
   if (ctrl && e.code === 'KeyD') { e.preventDefault(); duplicateSelected(); return; }
+  if (ctrl && e.code === 'KeyG') { e.preventDefault(); groupIntoFolder(); return; }
   if (e.code === 'Delete' || e.code === 'Backspace') { e.preventDefault(); deleteSelected(); return; }
   if (e.code === 'KeyF') { focusSelection(); return; }
   if (drag && drag.type === 'look') return;   // WASD/QE fly the camera while the right button is held
@@ -1503,6 +1697,7 @@ let toastTimer = 0;
 function toast(msg, err) {
   const t = $('#toast'); t.textContent = msg; t.className = err ? 'err' : ''; t.style.display = 'block';
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.style.display = 'none'; }, err ? 5500 : 3200);
+  log(msg, err ? 'err' : 'ok');   // and it stays in Output, so it can be read after it fades
 }
 function openDialog(title, bodyHtml, buttons) {
   $('#dlgTitle').textContent = title; $('#dlgBody').innerHTML = bodyHtml;
@@ -1579,6 +1774,98 @@ const r = (v) => Math.round(num(v));
 // The world lives between these two lines in your .volt file. Saving the
 // world rewrites only what is between them, so the settings above and the
 // game you wrote below are never touched.
+// ---------------------------------------------------------------------
+//  An Effect, turned into Volt. The generated game file and the live
+//  preview in Properties both come through here, so what you read in the
+//  panel is character-for-character what gets written into your file.
+// ---------------------------------------------------------------------
+// ---------------------------------------------------------------------
+//  Saying in words what a line of the generated file does. The statements
+//  themselves are ordinary Volt - these are the comments beside them, so
+//  the file can be read by someone who has never seen World Studio.
+// ---------------------------------------------------------------------
+function plainWhere(o) {
+  const bits = [];
+  const x = r(o.x), y = r(o.y), z = r(o.z);
+  if (!x && !z) bits.push('in the middle');
+  else {
+    if (x) bits.push(Math.abs(x) + 'cm ' + (x > 0 ? 'right' : 'left'));
+    if (z) bits.push(Math.abs(z) + 'cm ' + (z > 0 ? 'forward' : 'back'));
+  }
+  if (y) bits.push(Math.abs(y) + 'cm ' + (y > 0 ? 'up' : 'down'));
+  return bits.join(', ');
+}
+function plainWhat(o) {
+  const d = r(o.d), w = r(o.w), h = r(o.h);
+  if (o.kind === 'block') return `a box ${w} wide, ${h} tall and ${d} deep`;
+  if (o.kind === 'ball') return `a ball ${r(o.r) * 2}cm across`;
+  if (o.kind === 'cyl') return `a pillar ${r(o.r) * 2}cm across and ${r(o.h)}cm tall`;
+  if (o.kind === 'lamp') return `a light reaching ${r(o.range)}cm`;
+  if (o.kind === 'char') return `the character ${o.file}${o.anim ? ', ' + o.anim : ''}`;
+  if (o.kind === 'model') return `the model ${o.file}`;
+  return KIND[o.kind] ? KIND[o.kind].label.toLowerCase() : o.kind;
+}
+// One comment line introducing a thing: what it is, where it stands, and
+// whether the player can walk through it.
+function plainIntro(o) {
+  const where = plainWhere(o);
+  const solid = (o.kind === 'block' || o.kind === 'ball' || o.kind === 'cyl' || o.kind === 'model' || o.kind === 'char')
+    ? (o.solid ? '' : ', walk-through') : '';
+  return `// ${o.name} - ${plainWhat(o)}, ${where}${solid}`;
+}
+
+function vfxWhere(o) {
+  const up = o.parent ? byId(o.parent) : null;
+  return up ? { x: r(up.x), y: r(up.y) + r(o.up || 0), z: r(up.z) }
+            : { x: r(o.x), y: r(o.y) + r(o.up || 0), z: r(o.z) };
+}
+// The one statement that actually makes the effect happen.
+function vfxStatement(o) {
+  const at = vfxWhere(o), owner = o.parent ? byId(o.parent) : null;
+  const kind = fxKind(o), aim = r((owner ? (owner.yaw || 0) : (o.yaw || 0)) * 10);
+  if (kind === 'slash') return `slash3d ${at.x}, ${at.y}, ${at.z}, ${aim}, ${Math.max(10, r(o.size))}, ${q(o.color)}`;
+  if (kind === 'magic') return `magic3d ${at.x}, ${at.y}, ${at.z}, ${Math.max(10, r(o.size))}, ${q(o.color)}, ${Math.max(100, r(o.ms))}`;
+  if (kind === 'shock') return `shock3d ${at.x}, ${at.y}, ${at.z}, ${Math.max(10, r(o.size))}, ${q(o.color)}`;
+  if (kind === 'beam') {
+    const rad = (owner ? (owner.yaw || 0) : (o.yaw || 0)) * D2R, far = Math.max(20, r(o.len));
+    const tx = at.x + Math.round(Math.sin(rad) * far), tz = at.z - Math.round(Math.cos(rad) * far);
+    return `beam3d ${at.x}, ${at.y}, ${at.z}, ${tx}, ${at.y}, ${tz}, ${Math.max(1, r(o.thick))}, ${q(o.color)}`;
+  }
+  return `burst3d ${at.x}, ${at.y}, ${at.z}, ${q(o.color)}, ${clamp(r(o.count), 1, 300)}, ${Math.max(10, r(o.speed))}`;
+}
+// The whole function, with the comment above it.
+function vfxFnLines(o, fname) {
+  const owner = o.parent ? byId(o.parent) : null;
+  return [
+    `// ${o.name}${owner ? ' (inside ' + owner.name + ')' : ''} - ${(VFX_PRESETS[o.effect] || {}).label || o.effect}`,
+    `fn ${fname}() {`,
+    '  ' + vfxStatement(o),
+    '}',
+  ];
+}
+// How it gets set off: the lines that go in worldStart() or worldStep().
+function vfxTriggerLines(o, call) {
+  const up = o.parent ? byId(o.parent) : o;
+  if (o.when === 'start') return ['fn worldStart() {', `  ${call}`, '}'];
+  if (o.when === 'fired') return [`// Nothing sets ${call} off on its own - call it from one of your own`, '// scripts whenever you want it to happen.'];
+  const body = [];
+  if (o.when === 'frame') {
+    const every = Math.max(0, r(o.rate || 0));
+    if (every > 1) body.push(`  if ws_tick % ${every} == 0 {`, `    ${call}`, '  }');
+    else body.push(`  ${call}`);
+  } else if (o.when === 'near') {
+    body.push(`  if playerNear(${r(up.x)}, ${r(up.z)}, 150) {`, `    ${call}`, '  }');
+  } else if (o.when === 'use') {
+    body.push(`  if playerNear(${r(up.x)}, ${r(up.z)}, 150) and held("e") {`, `    ${call}`, '  }');
+  }
+  return ['fn worldStep() {', '  ws_tick += 1', ...body, '}'];
+}
+// What the Properties panel shows: the function plus the trigger around it.
+function vfxScriptPreview(o) {
+  const fname = 'vfx_' + identish(o.name);
+  return [...vfxFnLines(o, fname), '', ...vfxTriggerLines(o, fname + '()')].join('\n');
+}
+
 const MARK_OPEN = '// >>> world-studio';
 const MARK_CLOSE = '// <<< world-studio';
 
@@ -1607,6 +1894,8 @@ function worldLines() {
   const scriptFiles = [...new Set(S.objects.filter((o) => o.kind === 'script' && o.file).map((o) => o.file))];
   for (const file of scriptFiles) L.push('import ' + JSON.stringify(file));
   if (scriptFiles.length) L.push('');
+  const bar = (t) => { L.push(''); L.push('// ' + '-'.repeat(66)); L.push('//  ' + t); L.push('// ' + '-'.repeat(66)); };
+  bar('The world itself: sky colour, how far you can see, how bright it is.');
   let wl = 'world3d ' + q(w.bg);
   if (w.fog > 0) wl += ' fog ' + r(w.fog);
   wl += ' ambient ' + r(w.ambient) + ' fov ' + r(w.fov);
@@ -1625,10 +1914,13 @@ function worldLines() {
   }
 
   // ---- the things themselves ----
+  bar('Everything in the world. Measurements are centimetres, and a thing\n//  is placed by its middle: x is left/right, y is up, z is back/front.');
   L.push('');
   for (const o of shapes) {
+    if (o.kind === 'folder') continue;             // a folder has no body - see the groups below
     if (o.kind === 'model' && !o.file) continue;   // nothing to place without a file
     const n = idn.get(o.id);
+    L.push(plainIntro(o));
     if (o.kind === 'block') L.push(`let ${n} = block3d(${r(o.x)}, ${r(o.y)}, ${r(o.z)}, ${r(o.w)}, ${r(o.h)}, ${r(o.d)}, ${q(o.color)})`);
     else if (o.kind === 'ball') L.push(`let ${n} = ball3d(${r(o.x)}, ${r(o.y)}, ${r(o.z)}, ${r(o.r)}, ${q(o.color)})`);
     else if (o.kind === 'cyl') L.push(`let ${n} = cyl3d(${r(o.x)}, ${r(o.y)}, ${r(o.z)}, ${r(o.r)}, ${r(o.h)}, ${q(o.color)})`);
@@ -1639,7 +1931,7 @@ function worldLines() {
       if (o.anim && !isAnimal(o.file)) L.push(`anim3d ${n}, ${JSON.stringify(o.anim)}`);
     }
     if (o.kind !== 'lamp') {
-      if (o.yaw) L.push(`turn3d ${n}, ${r(o.yaw * 10)}`);
+      if (o.yaw) L.push(`turn3d ${n}, ${r(o.yaw * 10)}` + `   // turned ${r(o.yaw)} degrees`);
       if (o.glow) L.push(`glow3d ${n}, ${q(o.glow)}`);
       if (o.shine) L.push(`shine3d ${n}, ${r(o.rough)}, ${r(o.metal)}`);
     }
@@ -1650,16 +1942,14 @@ function worldLines() {
   const groupIdent = new Map();
   const parents = shapes.filter((o) => childrenOf(o.id).some((c) => !ATTACHED.has(c.kind)));
   if (parents.length) {
-    L.push('');
-    L.push('// Things with other things inside them: the group is what you move');
-    L.push('// or turn, and everything in it comes along.');
+    bar('Things with other things inside them. The group is what you move\n//  or turn, and everything in it comes along. A Folder in World Studio\n//  is a group with nothing of its own - the handle for a building.');
     // deepest first, so a child's group exists before it joins its parent's
     const byDepth = parents.slice().sort((a, b) => depthOf(b) - depthOf(a));
     for (const o of byDepth) {
       const g = identFor(identish(o.name) + '_group', used);
       groupIdent.set(o.id, g);
       L.push(`let ${g} = group3d(${r(o.x)}, ${r(o.y)}, ${r(o.z)})`);
-      if (idn.get(o.id)) L.push(`join3d ${idn.get(o.id)}, ${g}`);
+      if (o.kind !== 'folder' && idn.get(o.id)) L.push(`join3d ${idn.get(o.id)}, ${g}`);
       for (const c of childrenOf(o.id)) {
         if (ATTACHED.has(c.kind)) continue;
         L.push(`join3d ${groupIdent.get(c.id) || idn.get(c.id)}, ${g}`);
@@ -1673,41 +1963,35 @@ function worldLines() {
 
   // ---- what the player bumps into ----
   const boxes = solidBoxes();
-  L.push('');
-  L.push('// What the player bumps into: middle, half-width, half-depth, bottom, top (cm).');
-  L.push('// Anything with "Solid" turned off is left out of this list.');
+  bar('What the player bumps into. Each line is one solid thing:\n//  solid(middle x, middle z, half the width, half the depth, bottom, top).\n//  Knowing the top means they can stand on it; knowing the bottom means\n//  a high thing is something they walk under. Anything with "Solid"\n//  turned off in World Studio is scenery and is not in this list.');
   L.push('clearSolids()');
-  for (const b of boxes) L.push(`solid(${b.x}, ${b.z}, ${b.hx}, ${b.hz}, ${b.bot}, ${b.top})`);
+  for (const b of boxes) {
+    const tall = b.top - b.bot;
+    // say the useful thing about it, not the same sentence for a crate and a ceiling
+    let how;
+    if (b.bot >= 190) how = `you walk under it (it starts ${b.bot}cm up)`;
+    else if (b.top <= 120) how = `you can step onto it at ${b.top}cm`;
+    else how = `${tall}cm tall, so it stops you`;
+    L.push(`solid(${b.x}, ${b.z}, ${b.hx}, ${b.hz}, ${b.bot}, ${b.top})` +
+      `   // ${b.name} - ${b.hx * 2}cm by ${b.hz * 2}cm, ${how}`);
+  }
+  if (!boxes.length) L.push('// (nothing is solid yet - the player walks through everything)');
 
   const sp = spawnOf();
-  L.push('');
-  L.push('// Where the player starts (move the Spawn in World Studio to change it)');
-  L.push(`playerStart(${sp ? r(sp.x) : 0}, ${sp ? r(sp.z) : 400}, ${sp ? r((sp.yaw || 0) * 10) : 0})`);
+  const spx = sp ? r(sp.x) : 0, spz = sp ? r(sp.z) : 400, spd = sp ? r(sp.yaw || 0) : 0;
+  bar('Where the player starts, and which way they are looking.\n//  Move the Spawn in World Studio to change it.');
+  L.push(`playerStart(${spx}, ${spz}, ${spd * 10})` +
+    `   // ${plainWhere({ x: spx, y: 0, z: spz })}, facing ${spd} degrees`);
 
   // ---- effects ----
-  const where = (o) => { const up = o.parent ? byId(o.parent) : null; return up ? { x: r(up.x), y: r(up.y) + r(o.up || 0), z: r(up.z) } : { x: r(o.x), y: r(o.y) + r(o.up || 0), z: r(o.z) }; };
   const effects = S.objects.filter((o) => o.kind === 'vfx');
   const fxName = new Map();
   if (effects.length) {
-    L.push('');
-    L.push('// ---- effects ----');
+    bar('Effects: a burst of light or specks. Each one is a function you can\n//  call by name from any of your own code, as well as from the triggers\n//  further down.');
     for (const o of effects) {
       const f = 'vfx_' + idn.get(o.id);
       fxName.set(o.id, f);
-      const at = where(o);
-      const owner = o.parent ? byId(o.parent) : null;
-      L.push(`// ${o.name}${owner ? ' (inside ' + owner.name + ')' : ''} - ${(VFX_PRESETS[o.effect] || {}).label || o.effect}`);
-      L.push(`fn ${f}() {`);
-      const kind = fxKind(o), aim = r((owner ? (owner.yaw || 0) : (o.yaw || 0)) * 10);
-      if (kind === 'slash') L.push(`  slash3d ${at.x}, ${at.y}, ${at.z}, ${aim}, ${Math.max(10, r(o.size))}, ${q(o.color)}`);
-      else if (kind === 'magic') L.push(`  magic3d ${at.x}, ${at.y}, ${at.z}, ${Math.max(10, r(o.size))}, ${q(o.color)}, ${Math.max(100, r(o.ms))}`);
-      else if (kind === 'shock') L.push(`  shock3d ${at.x}, ${at.y}, ${at.z}, ${Math.max(10, r(o.size))}, ${q(o.color)}`);
-      else if (kind === 'beam') {
-        const rad = (owner ? (owner.yaw || 0) : (o.yaw || 0)) * D2R, far = Math.max(20, r(o.len));
-        const tx = at.x + Math.round(Math.sin(rad) * far), tz = at.z - Math.round(Math.cos(rad) * far);
-        L.push(`  beam3d ${at.x}, ${at.y}, ${at.z}, ${tx}, ${at.y}, ${tz}, ${Math.max(1, r(o.thick))}, ${q(o.color)}`);
-      } else L.push(`  burst3d ${at.x}, ${at.y}, ${at.z}, ${q(o.color)}, ${clamp(r(o.count), 1, 300)}, ${Math.max(10, r(o.speed))}`);
-      L.push('}');
+      for (const line of vfxFnLines(o, f)) L.push(line);
     }
   }
 
@@ -1715,8 +1999,7 @@ function worldLines() {
   const scripts = S.objects.filter((o) => o.kind === 'script');
   const scName = new Map();
   if (scripts.length) {
-    L.push('');
-    L.push('// ---- scripts ----');
+    bar('Scripts: your own Volt, one function each. Edit these freely -\n//  World Studio keeps whatever you write in here.');
     for (const o of scripts) {
       const f = 'script_' + idn.get(o.id);
       scName.set(o.id, f);
@@ -1741,10 +2024,7 @@ function worldLines() {
   const atStart = [...effects, ...scripts].filter((o) => o.when === 'start');
   const running = [...effects, ...scripts].filter((o) => o.when === 'frame' || o.when === 'near' || o.when === 'use');
   const nameOf = (o) => (o.kind === 'vfx' ? fxName.get(o.id) : scName.get(o.id));
-  L.push('');
-  L.push('// ---- when the scripts and effects run ----');
-  L.push('// worldStart() runs once, worldStep() runs every frame - the game file');
-  L.push('// below calls both for you.');
+  bar('When all of that runs. worldStart() happens once as the game opens,\n//  worldStep() happens every frame - the game file calls both for you.');
   L.push('let ws_tick = 0');
   L.push('fn worldStart() {');
   if (!atStart.length) L.push('  // nothing is set to run at the start yet');
@@ -2034,8 +2314,8 @@ $('#bMore').onclick = () => {
     if (act === 'lighting') setMode(mode === 'preview' ? 'edit' : 'preview');
     if (act === 'load') loadFromFile();
     if (act === 'code') showCode();
-    if (act === 'room') { roomScene(); adoptImported({ count: S.objects.length, how: 'a fresh room' }); }
-    if (act === 'empty') { S = { world: worldDefaults(), objects: [] }; nextId = 1; addPreset('spawn', [0, 0]); adoptImported({ count: 1, how: 'an empty world' }); }
+    if (act === 'room') startRoom();
+    if (act === 'empty') startEmpty();
     if (act === 'wide') toggleWide();
     if (act === 'help') showHelp();
   };
@@ -2104,6 +2384,8 @@ function init() {
   rebuildAll(); renderExplorer(); renderProps(); applyWorld(); updateGizmo(); updateStatus();
   hist = [snapshot()]; hpos = 0; updateButtons();
   if (narrow()) setDock('props');
+  $('#outLog').innerHTML = '<div class="empty">Nothing yet. Saves, imports and errors show up here.</div>';
+  log(`World Studio ready - ${S.objects.length} things in the world.`);
   resize();
   frameAll();
   requestAnimationFrame(frame);
