@@ -59,10 +59,23 @@ for (const [target, cmds] of Object.entries(runners)) {
   const file = path.join(dir, `t.${target === 'python' ? 'py' : target === 'ruby' ? 'rb' : 'js'}`);
   fs.writeFileSync(file, code);
   let out = null;
+  // On Windows "python" is often an App Execution Alias that prints a
+  // nudge to the Store instead of running anything - that is not an
+  // interpreter, so treat it as missing rather than as a failing test.
+  const notReal = (t) => !String(t).trim() || /Microsoft Store|was not found|No Python/i.test(t);
   for (const cmd of cmds) {
-    try { out = execFileSync(cmd, [file], { encoding: 'utf8' }).trim(); break; } catch (e) { if (e.code !== 'ENOENT') { out = String(e.stdout) + String(e.stderr); break; } }
+    try { out = execFileSync(cmd, [file], { encoding: 'utf8' }); break; }
+    catch (e) {
+      if (e.code === 'ENOENT') continue;                       // try the next name
+      const got = String(e.stdout || '') + String(e.stderr || '');
+      if (notReal(got)) continue;
+      out = got; break;
+    }
   }
   if (out === null) { console.log(`skip  ${target} (not installed)`); continue; }
+  // Python and Ruby end their lines with \r\n on Windows; compare the text,
+  // not the platform's line endings
+  out = out.replace(/\r\n?/g, '\n').trim();
   const ok = out === expected;
   if (!ok) failed++;
   console.log(`${ok ? 'pass' : 'FAIL'}  ${target}${ok ? '' : `\n${out}`}`);
