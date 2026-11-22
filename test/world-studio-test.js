@@ -278,25 +278,28 @@ if (!JSDOM) {
   win.__worldStudio.addPreset('vfx', null);
   const fx = win.__worldStudio.scene.objects.find((o) => o.kind === 'vfx');
   win.__worldStudio.select(fx.id);
-  const fxBox = () => $('#vfxScript');
+  const fxFn = () => $('#vfxScriptFn');
+  const fxCall = () => $('#vfxScriptCall');
   const setField = (k, v) => { const el = $(`#props [data-k="${k}"]`); el.value = v; el.dispatchEvent(new win.Event('input', { bubbles: true })); };
-  check('an Effect shows the script it turns into', !!fxBox() && fxBox().value.includes('fn vfx_') && fxBox().value.includes('burst3d'));
+  check('an Effect shows the effect function on its own', !!fxFn() && fxFn().value.includes('fn vfx_') && fxFn().value.includes('burst3d'));
+  check('and the way it is set off in a separate box', !!fxCall() && !fxCall().value.includes('fn vfx_'),
+    'the call box must never carry the function - that is what caused "already exists"');
   setField('color', '#00ff00');
-  check('changing the colour rewrites the script', fxBox().value.includes('#00ff00'));
+  check('changing the colour rewrites the script', fxFn().value.includes('#00ff00'));
   setField('effect', 'slash');
-  check('changing the type rewrites the script', fxBox().value.includes('slash3d'));
+  check('changing the type rewrites the script', fxFn().value.includes('slash3d'));
   setField('when', 'use');
-  check('changing the trigger rewrites the wiring', fxBox().value.includes('held("e")') && fxBox().value.includes('playerNear('));
+  check('changing the trigger rewrites the wiring', fxCall().value.includes('held("e")') && fxCall().value.includes('playerNear('));
   check('the trigger is shown as lines for worldStep, not a second worldStep',
-    fxBox().value.includes('go inside worldStep()') && !/^fn worldStep\(\)/m.test(fxBox().value), fxBox().value);
-  check('the effect function is still shown whole', /^fn vfx_\w+\(\) \{$/m.test(fxBox().value));
+    fxCall().value.includes('go inside worldStep()') && !/^fn worldStep\(\)/m.test(fxCall().value), fxCall().value);
+  check('the effect function is still shown whole', /^fn vfx_\w+\(\) \{$/m.test(fxFn().value));
   setField('when', 'start');
   check('"at the start" points at worldStart, without redefining it',
-    fxBox().value.includes('inside worldStart()') && !/^fn worldStart\(\)/m.test(fxBox().value), fxBox().value);
+    fxCall().value.includes('inside worldStart()') && !/^fn worldStart\(\)/m.test(fxCall().value), fxCall().value);
   setField('when', 'fired');
-  check('"only when called" says so instead of wiring it up', fxBox().value.includes('Nothing sets') && !fxBox().value.includes('worldStep'));
+  check('"only when called" says so instead of wiring it up', fxCall().value.includes('Nothing sets') && !fxCall().value.includes('worldStep'));
   setField('when', 'start');
-  const shown = fxBox().value.split('\n').find((l) => l.trim().startsWith('slash3d')).trim();
+  const shown = fxFn().value.split('\n').find((l) => l.trim().startsWith('slash3d')).trim();
   check('the file gets exactly the line the panel showed', win.__worldStudio.genVolt({ mode: 'scene' }).includes(shown), shown);
   win.__worldStudio.select(fx.id);
   fire($(`#explorer .row[data-id="${fx.id}"]`), 'contextmenu', { clientX: 20, clientY: 20 });

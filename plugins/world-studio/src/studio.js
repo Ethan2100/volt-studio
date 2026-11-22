@@ -600,9 +600,12 @@ function touch(o) { refreshNode(o); updateGizmo(); syncVfxScript(); }
 // The Effect's script box is read-only, so it is not covered by syncPropValues -
 // refresh it here instead of re-rendering the form and losing the caret.
 function syncVfxScript() {
-  const box = $('#vfxScript'); if (!box) return;
+  const fnBox = $('#vfxScriptFn'), callBox = $('#vfxScriptCall');
+  if (!fnBox && !callBox) return;
   const o = byId(sel);
-  if (o && o.kind === 'vfx') box.value = vfxScriptPreview(o);
+  if (!o || o.kind !== 'vfx') return;
+  if (fnBox) fnBox.value = vfxFnText(o);
+  if (callBox) callBox.value = vfxTriggerText(o);
 }
 
 // ---------------------------------------------------------------------
@@ -1195,11 +1198,17 @@ function objForm(o) {
     h += '<div class="sec">Runs</div>' + fSelect('when', 'When', o.when, Object.entries(WHENS));
     if (o.when === 'frame') h += fNum('rate', 'Every N frames', Math.max(1, o.rate || 1), { min: 1, max: 600 });
     h += `<div class="note">${owner ? `Goes off at <b>${esc(owner.name)}</b>.` : 'Not inside anything, so it goes off where it stands.'} A script can set it off by name: <b>vfx_${esc(identish(o.name))}()</b>.</div>`;
-    h += '<div class="sec">Its script</div>' +
-      `<div class="codewrap"><textarea class="code" id="vfxScript" readonly spellcheck="false" rows="9">${esc(vfxScriptPreview(o))}</textarea></div>` +
-      '<div class="btnrow"><button type="button" class="tb" data-act="vfx-copy-script">⎘ Copy the script</button>' +
-      '<button type="button" class="tb" data-act="vfx-insert-script">⭳ Insert it at the cursor</button></div>' +
-      '<div class="note">This is the Volt this effect turns into, and it changes as you set the colour, size, type and trigger above. <b>Save world</b> already writes it into your game file - copy it only if you want it somewhere of your own.</div>';
+    h += '<div class="sec">The effect itself</div>' +
+      `<div class="codewrap"><textarea class="code" id="vfxScriptFn" readonly spellcheck="false" rows="5">${esc(vfxFnText(o))}</textarea></div>` +
+      '<div class="note"><b>Save world already puts this in your game file.</b> Do not paste it anywhere else in this game - a second copy is the error <i>"already exists"</i>. Copy it only to take the effect to a different game.</div>' +
+      '<div class="btnrow"><button type="button" class="tb" data-act="vfx-copy-fn">⎘ Copy, for another game</button></div>';
+    h += '<div class="sec">Setting it off</div>' +
+      `<div class="codewrap"><textarea class="code" id="vfxScriptCall" readonly spellcheck="false" rows="6">${esc(vfxTriggerText(o))}</textarea></div>` +
+      `<div class="note">${o.when === 'fired'
+        ? 'Nothing runs this on its own. Put the call inside a Script, and World Studio will run the Script for you.'
+        : 'World Studio writes this into your game file too. Copy it only if you would rather set the effect off from a Script of your own - then change <b>When</b> above to <i>Only when something else calls it</i>, so it does not happen twice.'}</div>` +
+      '<div class="btnrow"><button type="button" class="tb" data-act="vfx-copy-call">⎘ Copy</button>' +
+      '<button type="button" class="tb" data-act="vfx-insert-call">⭳ Insert at the cursor</button></div>';
     h += '<div class="sec">Preset</div><div class="btnrow"><button type="button" class="tb" data-act="vfx-import">⭳ Import…</button><button type="button" class="tb" data-act="vfx-copy">⎘ Copy</button><button type="button" class="tb" data-act="vfx-paste">⎙ Paste</button></div>' +
       '<div class="note">Presets are small .voltfx files - share one, or keep your own set.</div>';
     return h;
@@ -1322,14 +1331,18 @@ $('#props').addEventListener('change', () => commit());
 $('#props').addEventListener('click', (e) => {
   if (e.target.closest('[data-act="rebrowse"]')) rebrowseModel(byId(sel));
   if (e.target.closest('[data-act="script-open"]')) { const o = byId(sel); if (o && o.kind === 'script') toHost('openScript', { req: host.req++, objectId: o.id, name: o.name, file: o.file || '', fn: o.fn || '', code: o.code || '' }); }
-  const sc = e.target.closest('[data-act="vfx-copy-script"], [data-act="vfx-insert-script"]');
+  const sc = e.target.closest('[data-act^="vfx-copy-fn"], [data-act^="vfx-copy-call"], [data-act^="vfx-insert-call"]');
   if (sc) {
     const o = byId(sel);
     if (o && o.kind === 'vfx') {
-      const code = vfxScriptPreview(o);
-      if (sc.dataset.act === 'vfx-copy-script') toast(copyText(code) ? 'Copied the script' : 'Could not copy - select the text and press Ctrl+C', false);
-      else if (!host.ok) toast('Open this inside Volt Studio to insert code into a file.', true);
-      else { toHost('insert', { code }); toast('Inserted at the cursor'); }
+      const act = sc.dataset.act;
+      const code = act === 'vfx-copy-fn' ? vfxFnText(o) : vfxTriggerText(o);
+      if (act === 'vfx-insert-call') {
+        if (!host.ok) toast('Open this inside Volt Studio to insert code into a file.', true);
+        else { toHost('insert', { code }); toast('Inserted at the cursor'); }
+      } else {
+        toast(copyText(code) ? 'Copied' : 'Could not copy - select the text and press Ctrl+C', false);
+      }
     }
     return;
   }
@@ -1871,11 +1884,13 @@ function vfxTriggerLines(o, call) {
   }
   return [...head, `  if playerNear(${r(up.x)}, ${r(up.z)}, 150) and held("e") {`, `    ${call}`, '  }'];
 }
-// What the Properties panel shows: the function plus the trigger around it.
-function vfxScriptPreview(o) {
-  const fname = 'vfx_' + identish(o.name);
-  return [...vfxFnLines(o, fname), '', ...vfxTriggerLines(o, fname + '()')].join('\n');
-}
+// The Properties panel shows these as two separate boxes, with a Copy
+// button each. They used to be one block with one Copy, which meant the
+// copy carried `fn vfx_X()` - a function Save world has ALREADY written
+// into the game file - so pasting it anywhere in the same game gave
+// "'vfx_X' already exists".
+function vfxFnText(o) { return vfxFnLines(o, 'vfx_' + identish(o.name)).join('\n'); }
+function vfxTriggerText(o) { return vfxTriggerLines(o, 'vfx_' + identish(o.name) + '()').join('\n'); }
 
 const MARK_OPEN = '// >>> world-studio';
 const MARK_CLOSE = '// <<< world-studio';
