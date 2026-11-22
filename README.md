@@ -15,7 +15,7 @@ It also drives servos, stepper motors (28BYJ-48), buttons, LEDs, buzzers and sen
 
 ## Install
 
-1. Run **Volt Studio Setup 1.5.0.exe**.
+1. Run **Volt Studio Setup 1.5.1.exe**.
 2. If Windows shows "Windows protected your PC", click **More info → Run anyway** (the app isn't code-signed).
 3. Click through the installer. You can choose a desktop shortcut and whether `.volt` files open in Volt Studio.
 
