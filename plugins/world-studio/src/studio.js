@@ -205,14 +205,57 @@ function roomScene() {
 // ---------------------------------------------------------------------
 //  Undo / redo (whole-scene snapshots) + light local autosave
 // ---------------------------------------------------------------------
-let hist = [], hpos = -1;
+let hist = [], hpos = -1, histWhat = [];
 const snapshot = () => JSON.stringify({ world: S.world, objects: S.objects, nextId });
+
+// What changed between two snapshots, in words. Worked out here rather
+// than passed in by each of the eighteen callers of commit(), so the list
+// can never drift from what actually happened.
+const MOVED = ['x', 'y', 'z', 'up'], SIZED = ['w', 'h', 'd', 'r', 'size', 'len', 'thick'];
+function describeChange(before, after) {
+  if (!before) return 'Opened the world';
+  let a, b;
+  try { a = JSON.parse(before); b = JSON.parse(after); } catch { return 'Changed something'; }
+  const was = new Map(a.objects.map((o) => [o.id, o]));
+  const now = new Map(b.objects.map((o) => [o.id, o]));
+  const added = b.objects.filter((o) => !was.has(o.id));
+  const gone = a.objects.filter((o) => !now.has(o.id));
+  if (added.length === 1 && !gone.length) return `Added ${added[0].name}`;
+  if (added.length > 1 && !gone.length) return `Added ${added.length} things`;
+  if (gone.length === 1 && !added.length) return `Deleted ${gone[0].name}`;
+  if (gone.length > 1 && !added.length) return `Deleted ${gone.length} things`;
+  if (added.length && gone.length) return 'Replaced the world';
+  for (const o of b.objects) {
+    const old = was.get(o.id);
+    if (!old || JSON.stringify(old) === JSON.stringify(o)) continue;
+    const keys = [...new Set([...Object.keys(old), ...Object.keys(o)])]
+      .filter((k) => JSON.stringify(old[k]) !== JSON.stringify(o[k]));
+    const name = o.name || old.name;
+    if (keys.includes('name')) return `Renamed ${old.name} to ${o.name}`;
+    if (keys.includes('parent')) {
+      const into = o.parent ? (now.get(o.parent) || {}).name : null;
+      return into ? `Put ${name} inside ${into}` : `Moved ${name} out to the World`;
+    }
+    if (keys.some((k) => MOVED.includes(k))) return `Moved ${name}`;
+    if (keys.some((k) => SIZED.includes(k))) return `Resized ${name}`;
+    if (keys.includes('yaw')) return `Turned ${name}`;
+    if (keys.includes('color') || keys.includes('glow')) return `Recoloured ${name}`;
+    if (keys.includes('visible')) return `${o.visible ? 'Showed' : 'Hid'} ${name}`;
+    if (keys.includes('solid')) return `${o.solid ? 'Made' : 'Stopped'} ${name} ${o.solid ? 'solid' : 'blocking'}`;
+    return `Changed ${name}`;
+  }
+  if (JSON.stringify(a.world) !== JSON.stringify(b.world)) return 'Changed the world settings';
+  return 'Changed something';
+}
+
 function commit() {
   const s = snapshot();
   if (hist[hpos] === s) return;
+  const what = describeChange(hist[hpos], s);
   hist = hist.slice(0, hpos + 1);
-  hist.push(s);
-  if (hist.length > 200) hist.shift();
+  histWhat = histWhat.slice(0, hpos + 1);
+  hist.push(s); histWhat.push(what);
+  if (hist.length > 200) { hist.shift(); histWhat.shift(); }
   hpos = hist.length - 1;
   try { localStorage.setItem('voltWorldStudio.scene', s); } catch (e) { /* sandboxed: no storage - the .volt file is the save */ }
   updateButtons();
@@ -224,8 +267,31 @@ function restore(s) {
   if (sel != null && !byId(sel)) sel = null;
   rebuildAll(); renderExplorer(); renderProps(); updateGizmo(); applyWorld(); updateStatus();
 }
-function undo() { if (hpos > 0) { hpos--; restore(hist[hpos]); updateButtons(); } }
-function redo() { if (hpos < hist.length - 1) { hpos++; restore(hist[hpos]); updateButtons(); } }
+function undo() { if (hpos > 0) { const w = histWhat[hpos]; hpos--; restore(hist[hpos]); updateButtons(); log(`Undid: ${w}`); } }
+function redo() { if (hpos < hist.length - 1) { hpos++; restore(hist[hpos]); updateButtons(); log(`Redid: ${histWhat[hpos]}`); } }
+// Jump straight to a point in the list, the way Roblox Studio's history
+// dropdown does, instead of pressing Ctrl+Z twenty times.
+function gotoHist(i) {
+  if (i < 0 || i >= hist.length || i === hpos) return closeHist();
+  const back = i < hpos;
+  hpos = i; restore(hist[hpos]); updateButtons(); closeHist();
+  log(`${back ? 'Went back to' : 'Went forward to'}: ${histWhat[hpos]}`);
+}
+function closeHist() { $('#histMenu').classList.remove('show'); }
+function openHist() {
+  const menu = $('#histMenu');
+  const rows = [];
+  for (let i = hist.length - 1; i >= 0; i--) {
+    rows.push(`<button data-hist="${i}" class="${i === hpos ? 'now' : ''}${i > hpos ? ' ahead' : ''}">` +
+      `<span class="tick">${i === hpos ? '\u25cf' : ''}</span>${esc(histWhat[i] || 'Change')}` +
+      `${i === hpos ? '<span class="here">now</span>' : ''}</button>`);
+  }
+  menu.innerHTML = `<div class="hhead">${hist.length} step${hist.length === 1 ? '' : 's'} \u00b7 click one to go there</div>` + rows.join('');
+  menu.classList.add('show');
+  const b = $('#bHist').getBoundingClientRect();
+  menu.style.left = Math.max(4, Math.min(b.left, window.innerWidth - menu.offsetWidth - 6)) + 'px';
+  menu.style.top = (b.bottom + 4) + 'px';
+}
 
 // ---------------------------------------------------------------------
 //  Three.js world
@@ -1094,7 +1160,7 @@ $('#ctx').addEventListener('click', (e) => {
     if (box) { box.focus(); box.select(); }
   }
 });
-window.addEventListener('mousedown', (e) => { if (!e.target.closest('#ctx')) closeCtx(); });
+window.addEventListener('mousedown', (e) => { if (!e.target.closest('#ctx')) closeCtx(); if (!e.target.closest('#histMenu, #bHist')) closeHist(); });
 window.addEventListener('blur', closeCtx);
 $('#explorer').addEventListener('click', (e) => {
   const fold = e.target.closest('[data-fold]');
@@ -1472,6 +1538,9 @@ function setTool(t) {
 }
 function updateButtons() {
   $('#bUndo').disabled = hpos <= 0; $('#bRedo').disabled = hpos >= hist.length - 1;
+  $('#bUndo').title = hpos > 0 ? `Undo: ${histWhat[hpos]} (Ctrl+Z)` : 'Nothing to undo';
+  $('#bRedo').title = hpos < hist.length - 1 ? `Redo: ${histWhat[hpos + 1]} (Ctrl+Y)` : 'Nothing to redo';
+  $('#bHist').disabled = hist.length < 2;
   $('#bDup').disabled = $('#bDel').disabled = !byId(sel);
   const o = byId(sel);
   $('#bUnparent').disabled = !o || !o.parent;
@@ -1524,6 +1593,8 @@ $('#bRoom').onclick = startRoom;
 $('#bEmpty').onclick = startEmpty;
 $('#bUnparent').onclick = unparentSelected;
 $('#bFolder').onclick = groupIntoFolder;
+$('#bHist').onclick = (e) => { e.stopPropagation(); $('#histMenu').classList.contains('show') ? closeHist() : openHist(); };
+$('#histMenu').addEventListener('click', (e) => { const b = e.target.closest('[data-hist]'); if (b) gotoHist(Number(b.dataset.hist)); });
 $('#bLoad').onclick = () => loadFromFile();
 $('#bCode').onclick = () => showCode();
 $('#bWide').onclick = () => { toggleWide(); $('#bWide').classList.toggle('on', wide); };
@@ -1676,6 +1747,7 @@ function flyEditorCamera(dt) {
 const typing = (e) => /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) && !(e.target.type === 'checkbox' || e.target.type === 'range');
 window.addEventListener('keydown', (e) => {
   if ($('#ctx').classList.contains('show') && e.key === 'Escape') { closeCtx(); return; }
+  if ($('#histMenu').classList.contains('show') && e.key === 'Escape') { closeHist(); return; }
   if ($('#modal').classList.contains('show')) { if (e.key === 'Escape') closeDialog(); return; }
   if (typing(e)) { if (e.key === 'Escape') e.target.blur(); return; }
   keys.add(e.code);
@@ -2409,7 +2481,7 @@ function init() {
   } catch (e) { /* no storage in the sandbox - that's fine */ }
   if (!loaded) roomScene();
   rebuildAll(); renderExplorer(); renderProps(); applyWorld(); updateGizmo(); updateStatus();
-  hist = [snapshot()]; hpos = 0; updateButtons();
+  hist = [snapshot()]; histWhat = ['Opened the world']; hpos = 0; updateButtons();
   if (narrow()) setDock('props');
   $('#outLog').innerHTML = '<div class="empty">Nothing yet. Saves, imports and errors show up here.</div>';
   log(`World Studio ready - ${S.objects.length} things in the world.`);

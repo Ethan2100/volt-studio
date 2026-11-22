@@ -259,6 +259,19 @@
 
   @media (max-width:700px) { .gcap { display:none; } .rpage .grp { flex-direction:row; padding:0 6px; } }
   #badge.warn { background:#43361a; border-color:#7a6326; color:#ffd98a; max-width:none; }
+  /* the history list, like Roblox Studio's undo dropdown */
+  #histMenu { position:fixed; z-index:70; display:none; min-width:236px; max-height:60vh; overflow:auto;
+    padding:4px; background:#1d2736; border:1px solid #3d4c63; border-radius:8px; box-shadow:0 12px 34px rgba(0,0,0,.5); }
+  #histMenu.show { display:block; }
+  #histMenu .hhead { padding:5px 9px 6px; color:#6f7f94; font-size:10px; letter-spacing:.06em;
+    text-transform:uppercase; border-bottom:1px solid #2b3545; margin-bottom:3px; }
+  #histMenu button { display:flex; align-items:center; gap:7px; width:100%; text-align:left; background:none;
+    border:0; border-radius:5px; padding:5px 9px; color:var(--text); cursor:pointer; font-size:12px; }
+  #histMenu button:hover { background:#2b4058; }
+  #histMenu button.ahead { color:#6f7f94; font-style:italic; }
+  #histMenu button.now { background:#24405e; color:#cfe6ff; }
+  #histMenu .tick { width:9px; flex:none; color:var(--accent); font-size:8px; }
+  #histMenu .here { margin-left:auto; font-size:9.5px; letter-spacing:.06em; text-transform:uppercase; color:#8bc5ff; }
 </style>
 </head>
 <body>
@@ -278,6 +291,7 @@
           <button class="tb" id="bRedo" title="Redo (Ctrl+Y)">↷<span class="word"> Redo</span></button>
           <button class="tb" id="bDup" title="Make a copy (Ctrl+D)">⧉<span class="word"> Copy</span></button>
           <button class="tb" id="bDel" title="Delete (Del)">✕<span class="word"> Delete</span></button>
+          <button class="tb" id="bHist" title="Everything you have done - click a step to go back to it">↺↓<span class="word"> History</span></button>
         </div>
         <div class="gcap">Edit</div>
       </div>
@@ -411,6 +425,7 @@
 <div id="modal"><div id="dlg"><header><span id="dlgTitle"></span><span class="spacer"></span><button id="dlgX" title="Close">✕</button></header>
   <div id="dlgBody"></div><footer id="dlgFoot"></footer></div></div>
 <div id="ctx"></div>
+<div id="histMenu"></div>
 <div id="toast"></div>
 
 <script>/*THREE*/</script>

@@ -306,6 +306,59 @@ if (!JSDOM) {
   click('#ctx [data-cact="del"]');
   check('the test effect is cleared away again', !win.__worldStudio.scene.objects.some((o) => o.id === fx.id));
 
+  // ---- the history list says what each step was ----
+  // the button toggles, so shut it before reopening or the list goes stale
+  // a property is applied on 'input' but only committed to history on
+  // 'change' - the real editor fires both
+  const editField = (k, v) => {
+    const el = $(`#props [data-k="${k}"]`);
+    el.value = v;
+    el.dispatchEvent(new win.Event('input', { bubbles: true }));
+    el.dispatchEvent(new win.Event('change', { bubbles: true }));
+  };
+  const histShown = () => $('#histMenu').classList.contains('show');
+  const histLabels = () => {
+    if (histShown()) click('#bHist');
+    click('#bHist');
+    return [...win.document.querySelectorAll('#histMenu [data-hist]')]
+      .map((b) => b.textContent.replace(/[\u25cf]/g, '').replace(/now$/, '').trim());
+  };
+  const beforeHist = win.__worldStudio.scene.objects.length;
+  win.__worldStudio.addPreset('wall', [300, 300]);
+  const added = win.__worldStudio.scene.objects[win.__worldStudio.scene.objects.length - 1];
+  check('adding something is recorded by name', histLabels()[0] === `Added ${added.name}`, histLabels()[0]);
+  win.__worldStudio.select(added.id);
+  editField('name', 'BackWall');
+  check('renaming says what it was and what it is now', /^Renamed .+ to BackWall$/.test(histLabels()[0]), histLabels()[0]);
+  editField('color', '#123456');
+  check('a colour change is recorded as one', histLabels()[0] === 'Recoloured BackWall', histLabels()[0]);
+  editField('x', '450');
+  check('a move is recorded as a move', histLabels()[0] === 'Moved BackWall', histLabels()[0]);
+  editField('w', '275');
+  check('a resize is told apart from a move', histLabels()[0] === 'Resized BackWall', histLabels()[0]);
+
+  histLabels();
+  check('the newest step is first and the current one is marked',
+    !!win.document.querySelector('#histMenu .now'), 'no current step marked');
+  check('undo names what it would undo', /^Undo: Resized BackWall/.test($('#bUndo').title), $('#bUndo').title);
+
+  // jump three steps back in one click
+  const target = [...win.document.querySelectorAll('#histMenu [data-hist]')].find((b) => /Recoloured BackWall/.test(b.textContent));
+  fire(target, 'click');
+  check('clicking a step goes straight there', win.__worldStudio.scene.objects.find((o) => o.id === added.id).x !== 450,
+    'x should be back to what it was before the move');
+  check('the steps after it are still there to go forward to', $('#bRedo').disabled === false);
+  check('redo names what it would redo', /^Redo: Moved BackWall/.test($('#bRedo').title), $('#bRedo').title);
+  check('the menu closes once a step is picked', !win.document.querySelector('#histMenu').classList.contains('show'));
+
+  // and deleting is recorded too
+  win.__worldStudio.select(added.id);
+  fire($(`#explorer .row[data-id="${added.id}"]`), 'contextmenu', { clientX: 20, clientY: 20 });
+  click('#ctx [data-cact="del"]');
+  check('deleting is recorded by name', histLabels()[0] === 'Deleted BackWall', histLabels()[0]);
+  if (histShown()) click('#bHist');   // close it again
+  check('the world is back to what it was', win.__worldStudio.scene.objects.length === beforeHist, `${beforeHist} -> ${win.__worldStudio.scene.objects.length}`);
+
   // ---- model folders ----
   const toGroup = win.__worldStudio.scene.objects.find((o) => o.kind === 'block');
   win.__worldStudio.select(toGroup.id);
