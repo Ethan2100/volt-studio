@@ -1843,22 +1843,33 @@ function vfxFnLines(o, fname) {
     '}',
   ];
 }
-// How it gets set off: the lines that go in worldStart() or worldStep().
+// How it gets set off. A game file has exactly ONE worldStart() and ONE
+// worldStep(), shared by every script and effect in the world, so this
+// returns the lines that go *inside* one of them - never a second copy of
+// the function, which is what someone pasting this would otherwise end up
+// defining twice.
 function vfxTriggerLines(o, call) {
   const up = o.parent ? byId(o.parent) : o;
-  if (o.when === 'start') return ['fn worldStart() {', `  ${call}`, '}'];
-  if (o.when === 'fired') return [`// Nothing sets ${call} off on its own - call it from one of your own`, '// scripts whenever you want it to happen.'];
-  const body = [];
+  if (o.when === 'fired') {
+    return [`// Nothing sets ${call} off on its own - call it from one of your own`,
+      '// scripts whenever you want it to happen.'];
+  }
+  if (o.when === 'start') {
+    return ['// Runs once as the game opens. This line goes inside worldStart():', `  ${call}`];
+  }
+  const head = ['// ' + (WHENS[o.when] || o.when) + '. These lines go inside worldStep():'];
   if (o.when === 'frame') {
     const every = Math.max(0, r(o.rate || 0));
-    if (every > 1) body.push(`  if ws_tick % ${every} == 0 {`, `    ${call}`, '  }');
-    else body.push(`  ${call}`);
-  } else if (o.when === 'near') {
-    body.push(`  if playerNear(${r(up.x)}, ${r(up.z)}, 150) {`, `    ${call}`, '  }');
-  } else if (o.when === 'use') {
-    body.push(`  if playerNear(${r(up.x)}, ${r(up.z)}, 150) and held("e") {`, `    ${call}`, '  }');
+    if (every > 1) {
+      return [...head, '// (worldStep() counts ws_tick for you.)',
+        `  if ws_tick % ${every} == 0 {`, `    ${call}`, '  }'];
+    }
+    return [...head, `  ${call}`];
   }
-  return ['fn worldStep() {', '  ws_tick += 1', ...body, '}'];
+  if (o.when === 'near') {
+    return [...head, `  if playerNear(${r(up.x)}, ${r(up.z)}, 150) {`, `    ${call}`, '  }'];
+  }
+  return [...head, `  if playerNear(${r(up.x)}, ${r(up.z)}, 150) and held("e") {`, `    ${call}`, '  }'];
 }
 // What the Properties panel shows: the function plus the trigger around it.
 function vfxScriptPreview(o) {

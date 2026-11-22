@@ -287,6 +287,12 @@ if (!JSDOM) {
   check('changing the type rewrites the script', fxBox().value.includes('slash3d'));
   setField('when', 'use');
   check('changing the trigger rewrites the wiring', fxBox().value.includes('held("e")') && fxBox().value.includes('playerNear('));
+  check('the trigger is shown as lines for worldStep, not a second worldStep',
+    fxBox().value.includes('go inside worldStep()') && !/^fn worldStep\(\)/m.test(fxBox().value), fxBox().value);
+  check('the effect function is still shown whole', /^fn vfx_\w+\(\) \{$/m.test(fxBox().value));
+  setField('when', 'start');
+  check('"at the start" points at worldStart, without redefining it',
+    fxBox().value.includes('inside worldStart()') && !/^fn worldStart\(\)/m.test(fxBox().value), fxBox().value);
   setField('when', 'fired');
   check('"only when called" says so instead of wiring it up', fxBox().value.includes('Nothing sets') && !fxBox().value.includes('worldStep'));
   setField('when', 'start');
