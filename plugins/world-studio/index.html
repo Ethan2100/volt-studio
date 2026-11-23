@@ -4699,6 +4699,8 @@ const KIND = {
   char: { label: 'Character', icon: '☻' },
   script: { label: 'Script', icon: '✎' },
   vfx: { label: 'Effect', icon: '✺' },
+  ability: { label: 'Ability', icon: '✦' },
+  item: { label: 'Item', icon: '◈' },
   // A folder holds the parts of one building or prop. It has no body of its
   // own - it is the handle you move, turn and drag the whole thing by, and it
   // becomes a group3d in the game.
@@ -4706,7 +4708,22 @@ const KIND = {
 };
 // Scripts and effects have no size and no place in the world of their own -
 // they belong to whatever they sit under, like a Script inside a Part.
-const ATTACHED = new Set(['script', 'vfx']);
+const ATTACHED = new Set(['script', 'vfx', 'ability']);
+
+// Which key sets an ability off. 1-9 double as the backpack slots, so an
+// ability on one of those is the thing that slot does.
+const ABILITY_KEYS = {
+  e: 'E', q: 'Q', f: 'F', r: 'R', c: 'C', v: 'V',
+  1: 'Key 1', 2: 'Key 2', 3: 'Key 3', 4: 'Key 4', 5: 'Key 5',
+  none: 'Nothing - something else calls it',
+};
+// What an ability does when it goes off.
+const ABILITY_DOES = {
+  damage: 'Hurt everything close by',
+  heal: 'Heal the player',
+  both: 'Hurt everything close by, and heal the player',
+  nothing: 'Just the effect, no damage',
+};
 
 // The characters the character-pack plugin ships, and what they can do.
 // The panel can't read files itself, so the bytes are fetched through the
@@ -4846,6 +4863,13 @@ function makeObj(kind, over = {}) {
     Object.assign(o, { effect: over.effect || 'sparks', when: 'start', color: preset.color, up: preset.up || 0, rate: preset.rate || 0,
       count: preset.count || 40, speed: preset.speed || 300, size: preset.size || 240, ms: preset.ms || 1200, len: preset.len || 900, thick: preset.thick || 24 });
   }
+  if (kind === 'ability') Object.assign(o, {
+    key: 'e', does: 'damage', damage: 20, reach: 300, heal: 20, cool: 800,
+    effect: 'magic', color: '#9d6bff', size: 300, ms: 900, count: 40, speed: 320, len: 900, thick: 24, up: 5,
+  });
+  if (kind === 'item') Object.assign(o, { count: 1, color: '#ff6b6b', pickup: false, heals: 0, y: 60 });
+  // A part can be something you fight: 0 health means it is only scenery.
+  if (kind === 'block' || kind === 'ball' || kind === 'cyl' || kind === 'model' || kind === 'char') o.hp = 0;
   Object.assign(o, over);
   if (!o.name) o.name = uniqueName(KIND[kind].label);
   return o;
@@ -5094,6 +5118,7 @@ function boundsOf(o) {   // [w, h, d] in metres, plus a y offset, for the select
     case 'cyl': return [o.r / 50, o.h / 100, o.r / 50, 0];
     case 'lamp': return [0.3, 0.3, 0.3, 0];
     case 'folder': return [0.44, 0.44, 0.44, 0.22];
+    case 'item': return [0.3, 0.3, 0.3, 0];
     case 'script': case 'vfx': return [0.26, 0.32, 0.26, 0.62];
     case 'char':
     case 'model': {
@@ -5137,6 +5162,15 @@ function buildNode(o) {
       ph.position.y = 0.5; n.add(ph);
       n.userData.placeholder = true;
     }
+  } else if (o.kind === 'item') {
+    n = new THREE.Group();
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.12, 14, 10),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(o.color || '#ff6b6b') }));
+    const ring = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(0.3, 0.3, 0.3)),
+      new THREE.LineBasicMaterial({ color: new THREE.Color(o.color || '#ff6b6b'), transparent: true, opacity: 0.6 }));
+    n.add(ball, ring);
+    n.userData.marker = !o.pickup;      // a backpack-only item is an editor marker
   } else if (o.kind === 'folder') {
     // just a handle: a small open crate you can see while building and that
     // is gone the moment the game runs
@@ -5375,12 +5409,12 @@ function touch(o) { refreshNode(o); updateGizmo(); syncVfxScript(); }
 // The Effect's script box is read-only, so it is not covered by syncPropValues -
 // refresh it here instead of re-rendering the form and losing the caret.
 function syncVfxScript() {
-  const fnBox = $('#vfxScriptFn'), callBox = $('#vfxScriptCall');
-  if (!fnBox && !callBox) return;
   const o = byId(sel);
-  if (!o || o.kind !== 'vfx') return;
-  if (fnBox) fnBox.value = vfxFnText(o);
-  if (callBox) callBox.value = vfxTriggerText(o);
+  if (!o) return;
+  const set = (id, text) => { const b = $(id); if (b) b.value = text; };
+  if (o.kind === 'vfx') { set('#vfxScriptFn', vfxFnText(o)); set('#vfxScriptCall', vfxTriggerText(o)); }
+  if (o.kind === 'ability') { set('#abilityFn', abilityFnText(o)); set('#abilityCall', abilityTriggerText(o)); }
+  if (o.kind === 'item') { set('#itemCode', itemText(o)); }
 }
 
 // ---------------------------------------------------------------------
@@ -5725,6 +5759,8 @@ const PRESETS = {
   char: { kind: 'char', label: 'Character', glyph: '☻', over: {}, base: 'Character' },
   script: { kind: 'script', label: 'Script', glyph: '✎', over: {}, base: 'Script' },
   vfx: { kind: 'vfx', label: 'Effect', glyph: '✺', over: {}, base: 'Effect' },
+  ability: { kind: 'ability', label: 'Ability', glyph: '✦', over: {}, base: 'Ability' },
+  item: { kind: 'item', label: 'Item', glyph: '◈', over: {}, base: 'Item' },
   folder: { kind: 'folder', label: 'Folder', glyph: '📁', over: {}, base: 'Folder' },
 };
 function dropPoint(at) {   // where a new object should land: the drop point, or ~6m ahead of the camera
@@ -6064,6 +6100,39 @@ function objForm(o) {
     fSelect('parent', 'Inside', String(o.parent || 0), parentOptions(o));
   if (kids.length) h += `<div class="note">${kids.length} thing${kids.length > 1 ? 's' : ''} inside: ${kids.map((k) => esc(k.name)).join(', ')}. Moving or turning this one takes them along.</div>`;
 
+  if (o.kind === 'ability') {
+    h += '<div class="sec">What it does</div>';
+    h += fSelect('key', 'Set off by', o.key, Object.entries(ABILITY_KEYS));
+    h += fSelect('does', 'Does', o.does, Object.entries(ABILITY_DOES));
+    if (o.does === 'damage' || o.does === 'both') {
+      h += fNum('damage', 'Damage', o.damage, { min: 0 });
+      h += fNum('reach', 'How far it reaches (cm)', o.reach, { min: 10, step: 10 });
+    }
+    if (o.does === 'heal' || o.does === 'both') h += fNum('heal', 'Heals you by', o.heal, { min: 0 });
+    h += fNum('cool', 'Wait between uses (ms)', o.cool, { min: 0, step: 100 });
+    h += '<div class="sec">What it looks like</div>';
+    h += fSelect('effect', 'Looks like', o.effect, Object.entries(VFX_PRESETS).map(([k, v]) => [k, v.label]));
+    h += fColor('color', 'Colour', o.color);
+    h += fNum('size', 'How big (cm)', o.size, { min: 10, step: 10 });
+    h += `<div class="note">${o.key === 'none'
+      ? `Nothing sets this off. Call <b>ability_${esc(identish(o.name))}()</b> from a Script.`
+      : `Press <b>${esc(ABILITY_KEYS[o.key] || o.key)}</b> in the game to use it.`} Anything with health inside ${o.reach}cm takes ${o.damage} damage. Give a part health in its own Properties to make it something you can fight.</div>`;
+    h += abilityScriptSection(o);
+    return h;
+  }
+
+  if (o.kind === 'item') {
+    h += '<div class="sec">The item</div>';
+    h += fNum('count', 'How many you start with', o.count, { min: 0 });
+    h += fColor('color', 'Colour in the backpack', o.color);
+    h += fNum('heals', 'Heals you by when used', o.heals, { min: 0 });
+    h += fCheck('pickup', 'Lying in the world to be picked up', o.pickup);
+    if (o.pickup) h += fNum('y', 'Height off the ground (cm)', o.y, { min: 0, step: 5 });
+    h += `<div class="note">Shows up in the backpack along the bottom of the screen${o.count ? ` with ${o.count} of them` : ', once you find one'}. Number keys 1-9 pick a slot.${o.heals ? ` Pressing <b>F</b> while holding it heals you ${o.heals} and uses one up.` : ''}${o.pickup ? ' A glowing marker sits in the world where this is, and walking into it puts one in your backpack.' : ''}</div>`;
+    h += itemScriptSection(o);
+    return h;
+  }
+
   if (o.kind === 'script') {
     h += '<div class="sec">Runs</div>' + fSelect('when', 'When', o.when, Object.entries(WHENS));
     const owner = o.parent ? byId(o.parent) : null;
@@ -6150,6 +6219,11 @@ function objForm(o) {
       fNum('scale', 'Size (%)', o.scale, { min: 1 }) +
       '<div class="sec">Game</div>' + fCheck('solid', 'Solid', o.solid);
     h += advSection(fCheck('visible', 'Visible', o.visible));
+  }
+  if (o.hp !== undefined) {
+    h += '<div class="sec">Fighting</div>';
+    h += fNum('hp', 'Health (0 = just scenery)', o.hp, { min: 0 });
+    if (o.hp > 0) h += `<div class="note">An ability that reaches this far can hurt it. A small bar shows over it once it is damaged, and it bursts when its health runs out. ${esc(o.name)} starts with ${o.hp}.</div>`;
   }
   if (o.kind === 'spawn') h += '<div class="note">The player starts here, looking the way the arrow points. Turn it to change the first thing they see.</div>';
   if (o.kind === 'folder') {
@@ -6287,6 +6361,17 @@ $('#props').addEventListener('click', (e) => {
     if (act === 'multi-del') deleteSelected();
     return;
   }
+  const ac = e.target.closest('[data-act^="ability-copy"], [data-act^="item-copy"]');
+  if (ac) {
+    const o = byId(sel);
+    if (o) {
+      const act = ac.dataset.act;
+      const code = act === 'ability-copy-fn' ? abilityFnText(o)
+        : act === 'ability-copy-call' ? abilityTriggerText(o) : itemText(o);
+      toast(copyText(code) ? 'Copied' : 'Could not copy - select the text and press Ctrl+C', false);
+    }
+    return;
+  }
   const sc = e.target.closest('[data-act^="vfx-copy-fn"], [data-act^="vfx-copy-call"], [data-act^="vfx-insert-call"]');
   if (sc) {
     const o = byId(sel);
@@ -6382,6 +6467,11 @@ function setObjProp(k, v) {
     renderProps(); touch(o); return;
   }
   if (k === 'when') { o.when = v; renderProps(); return; }
+  // these change which other fields make sense, so the form is redrawn
+  if (k === 'does') { o.does = v; renderProps(); return; }
+  if (k === 'key') { o.key = v; renderProps(); return; }
+  if (k === 'pickup') { o.pickup = !!v; refreshNode(o); renderProps(); return; }
+  if (k === 'hp') { o.hp = Math.max(0, Math.round(Number(v) || 0)); renderProps(); updateStatus(); dirty = true; return; }
   if (k === 'file' && o.kind === 'char') {
     o.file = v;
     const can = animsOf(v);
@@ -6771,6 +6861,9 @@ function identFor(name, used) {
   return s;
 }
 const q = (c) => '"' + hex6(c, '#999999') + '"';
+// q() is for colours - it turns anything that is not a colour into grey.
+// Names, keys and other plain words need this one instead.
+const qs = (t) => JSON.stringify(String(t));
 const r = (v) => Math.round(num(v));
 // The world lives between these two lines in your .volt file. Saving the
 // world rewrites only what is between them, so the settings above and the
@@ -6877,6 +6970,107 @@ function vfxTriggerLines(o, call) {
 // copy carried `fn vfx_X()` - a function Save world has ALREADY written
 // into the game file - so pasting it anywhere in the same game gave
 // "'vfx_X' already exists".
+// ---------------------------------------------------------------------
+//  Abilities and items, turned into Volt. Same arrangement as effects:
+//  one place that writes the code, used by the saved game file and by
+//  the preview in Properties, so the two cannot disagree.
+// ---------------------------------------------------------------------
+function abilityIdent(o) { return 'ability_' + identish(o.name); }
+
+// Roughly how wide a thing is, used as how close a hit has to land.
+function sizeAcross(o) {
+  if (o.kind === 'block') return Math.max(r(o.w), r(o.d));
+  if (o.kind === 'ball') return r(o.r) * 2;
+  if (o.kind === 'cyl') return r(o.r) * 2;
+  if (o.kind === 'char' || o.kind === 'model') return Math.max(60, Math.round(r(o.scale || 100) * 0.8));
+  return 100;
+}
+
+// The effect the ability throws, centred on the player.
+function abilityEffectLine(o) {
+  const at = `PLAYER_X, PLAYER_Y + ${r(o.up || 0)}, PLAYER_Z`;
+  const kind = fxKind(o), size = Math.max(10, r(o.size));
+  if (kind === 'slash') return `slash3d ${at}, PLAYER_YAW, ${size}, ${q(o.color)}`;
+  if (kind === 'magic') return `magic3d ${at}, ${size}, ${q(o.color)}, ${Math.max(100, r(o.ms))}`;
+  if (kind === 'shock') return `shock3d ${at}, ${size}, ${q(o.color)}`;
+  if (kind === 'beam') return `beam3d ${at}, PLAYER_X, PLAYER_Y + ${r(o.up || 0)}, PLAYER_Z - ${Math.max(20, r(o.len))}, ${Math.max(1, r(o.thick))}, ${q(o.color)}`;
+  return `burst3d ${at}, ${q(o.color)}, ${clamp(r(o.count), 1, 300)}, ${Math.max(10, r(o.speed))}`;
+}
+
+function abilityFnLines(o) {
+  const f = abilityIdent(o);
+  const L = [`// ${o.name} - ${(ABILITY_DOES[o.does] || o.does).toLowerCase()}`, `fn ${f}() {`];
+  if (r(o.cool) > 0) {
+    L.push(`  if not ready(${qs(o.name)}) {`, '    return', '  }',
+      `  startCooldown(${qs(o.name)}, ${r(o.cool)})`);
+  }
+  L.push('  ' + abilityEffectLine(o));
+  if (o.does === 'damage' || o.does === 'both') {
+    L.push(`  damageArea(PLAYER_X, PLAYER_Z, ${Math.max(10, r(o.reach))}, ${Math.max(0, r(o.damage))})`);
+  }
+  if (o.does === 'heal' || o.does === 'both') L.push(`  healPlayer(${Math.max(0, r(o.heal))})`);
+  L.push('}');
+  return L;
+}
+
+function abilityTriggerLines(o) {
+  const f = abilityIdent(o) + '()';
+  if (o.key === 'none') {
+    return [`// Nothing sets ${f} off on its own - call it from one of your`, '// own scripts whenever you want it to happen.'];
+  }
+  return [`// ${ABILITY_KEYS[o.key] || o.key} uses it. These lines go inside worldStep():`,
+    `  if held(${qs(o.key)}) {`, `    ${f}`, '  }'];
+}
+
+function itemGiveLine(o) {
+  return `give(${qs(o.name)}, ${Math.max(0, r(o.count))}, ${q(o.color)})`;
+}
+function itemLines(o) {
+  const L = [`// ${o.name}${r(o.heals) > 0 ? ' - heals ' + r(o.heals) : ''}`];
+  if (r(o.count) > 0) L.push(itemGiveLine(o));
+  else L.push(`// (you start with none - pick one up in the world)`);
+  return L;
+}
+// What happens in worldStep for an item: picking it up, and using it.
+function itemStepLines(o, ident) {
+  const L = [];
+  if (o.pickup) {
+    L.push(`  if playerNear(${r(o.x)}, ${r(o.z)}, 120) and countOf(${qs(o.name)}) == 0 {`,
+      `    give(${qs(o.name)}, 1, ${q(o.color)})`);
+    if (ident) L.push(`    show3d pick_${ident}, 0`);
+    L.push('  }');
+  }
+  if (r(o.heals) > 0) {
+    L.push(`  if held("f") and holding() == ${qs(o.name)} {`,
+      `    if takeOne(${qs(o.name)}) {`, `      healPlayer(${r(o.heals)})`, '    }', '  }');
+  }
+  return L;
+}
+
+function abilityFnText(o) { return abilityFnLines(o).join('\n'); }
+function abilityTriggerText(o) { return abilityTriggerLines(o).join('\n'); }
+function itemText(o) {
+  const step = itemStepLines(o);
+  return itemLines(o).join('\n') + (step.length ? '\n\n// These lines go inside worldStep():\n' + step.join('\n') : '');
+}
+
+// The two read-only boxes an Ability shows, matching an Effect's.
+function abilityScriptSection(o) {
+  return '<div class="sec">The ability itself</div>' +
+    `<div class="codewrap"><textarea class="code" id="abilityFn" readonly spellcheck="false" rows="8">${esc(abilityFnText(o))}</textarea></div>` +
+    '<div class="note"><b>Save world already puts this in your game file.</b> Copy it only to take the ability to a different game.</div>' +
+    '<div class="btnrow"><button type="button" class="tb" data-act="ability-copy-fn">\u2398 Copy, for another game</button></div>' +
+    '<div class="sec">Setting it off</div>' +
+    `<div class="codewrap"><textarea class="code" id="abilityCall" readonly spellcheck="false" rows="5">${esc(abilityTriggerText(o))}</textarea></div>` +
+    '<div class="btnrow"><button type="button" class="tb" data-act="ability-copy-call">\u2398 Copy</button></div>';
+}
+function itemScriptSection(o) {
+  return '<div class="sec">Its script</div>' +
+    `<div class="codewrap"><textarea class="code" id="itemCode" readonly spellcheck="false" rows="8">${esc(itemText(o))}</textarea></div>` +
+    '<div class="note"><b>Save world writes this for you.</b> It changes as you change the numbers above.</div>' +
+    '<div class="btnrow"><button type="button" class="tb" data-act="item-copy">\u2398 Copy</button></div>';
+}
+
 function vfxFnText(o) { return vfxFnLines(o, 'vfx_' + identish(o.name)).join('\n'); }
 function vfxTriggerText(o) { return vfxTriggerLines(o, 'vfx_' + identish(o.name) + '()').join('\n'); }
 
@@ -6905,9 +7099,11 @@ function worldLines() {
   for (const o of S.objects) if (ATTACHED.has(o.kind)) idn.set(o.id, identFor(o.name, used));
 
   L.push(MARK_OPEN + '  (World Studio writes this part - press "Save world" to update it)');
+  const fighters = S.objects.filter((o) => o.kind === 'ability' || o.kind === 'item' || r(o.hp) > 0);
+  if (fighters.length) L.push('import "combat.volt"   // health, damage, the backpack and the HUD');
   const scriptFiles = [...new Set(S.objects.filter((o) => o.kind === 'script' && o.file).map((o) => o.file))];
   for (const file of scriptFiles) L.push('import ' + JSON.stringify(file));
-  if (scriptFiles.length) L.push('');
+  if (scriptFiles.length || fighters.length) L.push('');
   const bar = (t) => { L.push(''); L.push('// ' + '-'.repeat(66)); L.push('//  ' + t); L.push('// ' + '-'.repeat(66)); };
   bar('The world itself: sky colour, how far you can see, how bright it is.');
   let wl = 'world3d ' + q(w.bg);
@@ -7038,6 +7234,38 @@ function worldLines() {
   const atStart = [...effects, ...scripts].filter((o) => o.when === 'start');
   const running = [...effects, ...scripts].filter((o) => o.when === 'frame' || o.when === 'near' || o.when === 'use');
   const nameOf = (o) => (o.kind === 'vfx' ? fxName.get(o.id) : scName.get(o.id));
+  const hurtable = S.objects.filter((o) => r(o.hp) > 0 && !ATTACHED.has(o.kind) && o.kind !== 'spawn');
+  const abilities = S.objects.filter((o) => o.kind === 'ability');
+  const items = S.objects.filter((o) => o.kind === 'item');
+  if (hurtable.length || abilities.length || items.length) {
+    bar('Fighting: what can be hurt, what you can do, what you carry.\n//  The health bar, the backpack along the bottom and the numbers that\n//  pop up over a hit are all drawn by drawCombat().');
+    if (hurtable.length) {
+      L.push('// Things with health. The number each one gives back is how the');
+      L.push('// rest of the code refers to it.');
+      for (const o of hurtable) {
+        const reach = Math.max(20, Math.round(sizeAcross(o) / 2));
+        L.push(`let hp_${idn.get(o.id)} = target(${qs(o.name)}, ${r(o.x)}, ${r(o.y)}, ${r(o.z)}, ${r(o.hp)}, ${reach})`);
+      }
+      L.push('');
+    }
+    if (items.length) {
+      L.push('// What you start with in your backpack, and anything lying about.');
+      for (const o of items) {
+        for (const line of itemLines(o)) L.push(line);
+        if (o.pickup) {
+          L.push(`let pick_${idn.get(o.id)} = ball3d(${r(o.x)}, ${r(o.y)}, ${r(o.z)}, 12, ${q(o.color)})`);
+          L.push(`glow3d pick_${idn.get(o.id)}, ${q(o.color)}`);
+        }
+      }
+      L.push('');
+    }
+    for (const o of abilities) {
+      for (const line of abilityFnLines(o)) L.push(line);
+      L.push('');
+    }
+    while (L.length && L[L.length - 1] === '') L.pop();
+  }
+
   bar('When all of that runs. worldStart() happens once as the game opens,\n//  worldStep() happens every frame - the game file calls both for you.');
   L.push('let ws_tick = 0');
   L.push('fn worldStart() {');
@@ -7046,7 +7274,17 @@ function worldLines() {
   L.push('}');
   L.push('fn worldStep() {');
   L.push('  ws_tick += 1');
-  if (!running.length) L.push('  // nothing is set to run while the game is on yet');
+  if (hurtable.length || abilities.length || items.length) {
+    L.push('  stepCombat()        // cooldowns, the hurt flash, the floating numbers');
+  }
+  for (const o of abilities) {
+    if (o.key === 'none') continue;
+    L.push(`  if held(${qs(o.key)}) {`, `    ${abilityIdent(o)}()`, '  }');
+  }
+  for (const o of items) for (const line of itemStepLines(o, idn.get(o.id))) L.push(line);
+  if (!running.length && !abilities.length && !items.length && !hurtable.length) {
+    L.push('  // nothing is set to run while the game is on yet');
+  }
   for (const o of running) {
     const up = o.parent ? byId(o.parent) : o;
     const call = `${nameOf(o)}()`;
@@ -7064,6 +7302,12 @@ function worldLines() {
       L.push('  }');
     }
   }
+  L.push('}');
+  L.push('// The HUD goes on top of the world, so this one is called after');
+  L.push('// render3d rather than with the others.');
+  L.push('fn worldDraw() {');
+  if (hurtable.length || abilities.length || items.length) L.push('  drawCombat()');
+  else L.push('  // nothing to draw over the world yet');
   L.push('}');
 
   L.push('');
@@ -7109,6 +7353,7 @@ function genGameFile(opt) {
   L.push('  playerStep()         // look, walk, jump, fall');
   L.push('  worldStep()          // the scripts and effects in the world above');
   L.push('  render3d             // draw the world - your own drawing goes after this');
+  L.push('  worldDraw()          // the health bar, backpack and damage numbers');
   if (opt.hud) L.push('  write "WASD + mouse  ·  Shift run  ·  Space jump" at 160, 6 centered shadow');
   L.push('}');
   return L.join('\n') + '\n';
@@ -7249,6 +7494,20 @@ function worldSummary() {
 
 // The ordinary case: the file already has the markers, so only the world
 // between them changes and the person's own code is left alone.
+// The HUD has to be drawn after render3d, which happens in the part of
+// the file that belongs to the person - World Studio never rewrites it.
+// A game file made before there was anything to draw has no worldDraw()
+// call in its loop, so say so rather than leaving them wondering why the
+// health bar never turns up.
+function warnMissingDraw(merged) {
+  const fights = S.objects.some((o) => o.kind === 'ability' || o.kind === 'item' || r(o.hp) > 0);
+  if (!fights) return;
+  const mine = merged.split(MARK_CLOSE).pop();      // only their half of the file
+  if (/\bworldDraw\s*\(/.test(mine)) return;
+  toast('Add worldDraw() after render3d in your game loop, or the health bar and backpack will not show.', true);
+  log('The HUD needs one more line. In your own part of the file, inside `every frame`, put worldDraw() just after render3d.', 'err');
+}
+
 function saveWorld(run) {
   if (!host.ok) { showCode(); return; }
   getSource().then((src) => {
@@ -7256,6 +7515,7 @@ function saveWorld(run) {
     if (merged != null) {
       toHost('replace', { code: merged, run: !!run });
       toast('Saved the world into your file - ' + worldSummary() + ', and your own code is untouched.');
+      warnMissingDraw(merged);
       return;
     }
     askToCreate(src, run);

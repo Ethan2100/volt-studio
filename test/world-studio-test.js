@@ -256,7 +256,7 @@ if (!JSDOM) {
 
   check('the panel starts without errors', errors.length === 0, errors[0] || '');
   check('every toolbar button is there', ['#bUndo', '#bRedo', '#bDup', '#bDel', '#bPlay', '#bSave', '#bSavePlay', '#bMore', '#bLight', '#snap'].every((id) => $(id)));
-  check('the parts strip is filled in', $('#tools').children.length === 12, 'got ' + $('#tools').children.length);
+  check('the parts strip is filled in', $('#tools').children.length === 14, 'got ' + $('#tools').children.length);
   check('characters, scripts and effects are in the strip', ['char', 'script', 'vfx'].every((k) => $(`#tools [data-add="${k}"]`)));
   check('the world is listed', $('#explorer').querySelectorAll('.row').length >= 10);
   win.__worldStudio.select(win.__worldStudio.scene.objects[7].id);
@@ -361,8 +361,7 @@ if (!JSDOM) {
   WS.select(null);
   check('clicking nothing drops the selection', win.document.querySelectorAll('#explorer .row.sel').length === 0);
 
-  // ---- the history list says what each step was ----
-  // the button toggles, so shut it before reopening or the list goes stale
+  // ---- fighting: health, abilities, the backpack ----
   // a property is applied on 'input' but only committed to history on
   // 'change' - the real editor fires both
   const editField = (k, v) => {
@@ -371,6 +370,92 @@ if (!JSDOM) {
     el.dispatchEvent(new win.Event('input', { bubbles: true }));
     el.dispatchEvent(new win.Event('change', { bubbles: true }));
   };
+  const plain = win.__worldStudio.genVolt({ mode: 'game' });
+  check('a world with no fighting in it does not drag the combat kit in',
+    !plain.includes('combat.volt'), 'imported combat.volt for nothing');
+
+  const victim = win.__worldStudio.scene.objects.find((o) => o.name === 'Crate');
+  win.__worldStudio.select(victim.id);
+  editField('hp', '60');
+  const withHp = win.__worldStudio.genVolt({ mode: 'game' });
+  check('giving a part health brings the combat kit in', withHp.includes('import "combat.volt"'));
+  check('and makes it something that can be hurt',
+    /let hp_Crate = target\("Crate", -?\d+, -?\d+, -?\d+, 60, \d+\)/.test(withHp),
+    (withHp.match(/.*target\(.*/) || [''])[0]);
+  check('the name is written as a name, not turned into a colour',
+    !/target\("#/.test(withHp), (withHp.match(/.*target\(.*/) || [''])[0]);
+
+  win.__worldStudio.select(null);
+  win.__worldStudio.addPreset('ability', [0, 0]);
+  const abil = win.__worldStudio.scene.objects.find((o) => o.kind === 'ability');
+  win.__worldStudio.select(abil.id);
+  editField('name', 'Fireball');
+  win.__worldStudio.select(abil.id);
+  editField('does', 'both');
+  editField('damage', '25');
+  editField('reach', '450');
+  editField('heal', '10');   // only shown once "does" includes healing
+  const abilFn = () => $('#abilityFn');
+  check('an ability shows the code it turns into', !!abilFn() && /^fn ability_Fireball\(\) \{$/m.test(abilFn().value), abilFn() && abilFn().value);
+  check('it waits between uses', /if not ready\("Fireball"\)/.test(abilFn().value) && /startCooldown\("Fireball", \d+\)/.test(abilFn().value));
+  check('it hurts what is in reach', /damageArea\(PLAYER_X, PLAYER_Z, 450, 25\)/.test(abilFn().value), abilFn().value);
+  check('and heals the player too', /healPlayer\(10\)/.test(abilFn().value));
+  check('the way it is set off is a separate box, with no function in it',
+    !!$('#abilityCall') && !$('#abilityCall').value.includes('fn ability_'));
+  check('its key is written as a key, not a colour', /held\("e"\)/.test($('#abilityCall').value), $('#abilityCall').value);
+  editField('does', 'nothing');
+  check('an ability that only looks pretty does no damage', !/damageArea/.test(abilFn().value), abilFn().value);
+  win.__worldStudio.select(abil.id);
+  editField('does', 'damage');
+  editField('key', 'none');   // redraws the form
+  check('"nothing sets it off" says so instead of wiring a key',
+    /Nothing sets/.test($('#abilityCall').value) && !/held\(/.test($('#abilityCall').value));
+  win.__worldStudio.select(abil.id);
+  editField('key', 'q');
+
+  win.__worldStudio.addPreset('item', [300, 150]);
+  const item = win.__worldStudio.scene.objects.find((o) => o.kind === 'item');
+  win.__worldStudio.select(item.id);
+  editField('name', 'Potion');
+  win.__worldStudio.select(item.id);
+  editField('count', '2');
+  editField('heals', '30');
+  check('an item shows its code', !!$('#itemCode') && /give\("Potion", 2, "#/.test($('#itemCode').value), $('#itemCode').value);
+  check('and how it is used', /holding\(\) == "Potion"/.test($('#itemCode').value) && /healPlayer\(30\)/.test($('#itemCode').value));
+
+  const full = win.__worldStudio.genVolt({ mode: 'game' });
+  check('the ability is written into the game file', /fn ability_Fireball\(\) \{/.test(full));
+  check('its key is checked every frame', /if held\("q\"\)/.test(full) || /if held\("q"\)/.test(full), (full.match(/.*held\("q.*/) || [''])[0]);
+  check('the backpack is filled at the start', /give\("Potion", 2, "#/.test(full));
+  check('the combat tick runs every frame', /stepCombat\(\)/.test(full));
+  check('the HUD is drawn after the world', full.indexOf('render3d') < full.indexOf('worldDraw()') && /fn worldDraw\(\) \{/.test(full));
+  check('drawCombat is what worldDraw does', /fn worldDraw\(\) \{\n  drawCombat\(\)/.test(full), (full.match(/fn worldDraw[\s\S]{0,40}/) || [''])[0]);
+
+  // an item lying in the world gets something to walk into
+  win.__worldStudio.select(item.id);
+  const pk = $('#props [data-k="pickup"]');
+  pk.checked = true;
+  pk.dispatchEvent(new win.Event('input', { bubbles: true }));
+  pk.dispatchEvent(new win.Event('change', { bubbles: true }));
+  const withPick = win.__worldStudio.genVolt({ mode: 'game' });
+  check('a dropped item is something you can see', /let pick_Potion = ball3d\(300, \d+, 150, 12, "#/.test(withPick), (withPick.match(/.*pick_Potion.*/) || [''])[0]);
+  check('walking into it picks it up', /playerNear\(300, 150, 120\)/.test(withPick));
+  check('and it disappears when you do', /show3d pick_Potion, 0/.test(withPick));
+
+  // put the scene back for the checks that follow
+  for (const o of [abil, item]) {
+    win.__worldStudio.select(o.id);
+    fire($(`#explorer .row[data-id="${o.id}"]`), 'contextmenu', { clientX: 20, clientY: 20 });
+    click('#ctx [data-cact="del"]');
+  }
+  win.__worldStudio.select(victim.id);
+  editField('hp', '0');
+  check('taking the health away drops the combat kit again',
+    !win.__worldStudio.genVolt({ mode: 'game' }).includes('combat.volt'));
+  win.__worldStudio.select(null);
+
+  // ---- the history list says what each step was ----
+  // the button toggles, so shut it before reopening or the list goes stale
   const histShown = () => $('#histMenu').classList.contains('show');
   const histLabels = () => {
     if (histShown()) click('#bHist');

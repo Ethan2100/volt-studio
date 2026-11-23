@@ -807,6 +807,27 @@ Studio can read a world out of plain `block3d` / `ball3d` / `cyl3d` /
 `lamp3d` / `put3d` lines, which is how it opens a game someone wrote by
 hand.
 
+### Fighting, in World Studio
+
+You do not have to write any of the above by hand. The Parts strip has
+two more tiles, and every part has a health box:
+
+| In the panel | What Save world writes |
+|---|---|
+| **Health** on any part (0 = scenery) | `let hp_Crate = target("Crate", x, y, z, hp, reach)` - it can be hurt, shows a bar once damaged, and bursts when it runs out |
+| **Ability** | `fn ability_Fireball()` with its wait, its effect and its damage, plus `if held("e")` in `worldStep()` |
+| **Item** | `give("Potion", 2, "#ff6b6b")`, and if it is lying in the world, a glowing ball you walk into to pick up |
+
+The import, `stepCombat()` and the HUD are added for you as soon as
+anything in the world fights. One line is yours to add, because it lives
+in your half of the file: **`worldDraw()` straight after `render3d`** in
+your `every frame` block. New game files get it already; World Studio
+tells you if an older one is missing it.
+
+An ability's **Set off by** picks the key. Keys 1-9 are also the backpack
+slots, so an ability on `1` is what slot 1 does. **Nothing** means no key
+is wired up and you call `ability_Fireball()` yourself from a Script.
+
 ## Fighting: import "combat.volt"
 
 The other half of the game kit. `game.volt` walks the player around;
