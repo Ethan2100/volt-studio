@@ -13,6 +13,12 @@ A desktop editor for the **Volt** language. Write Volt once, and the first line 
 
 It also drives servos, stepper motors (28BYJ-48), buttons, LEDs, buzzers and sensors on Arduino boards.
 
+## Download
+
+**[Download the latest Windows installer](https://github.com/Ethan2100/volt-studio/releases/latest)**
+
+Open the link, then download **Volt Studio Setup `<version>`.exe** from the release assets. If no release is published yet, use the **Actions → Build and release** workflow described below; it will publish the installer here automatically.
+
 ## Install
 
 1. Run **Volt Studio Setup 1.9.0.exe**.
@@ -73,6 +79,7 @@ This creates `dist\Volt Studio Setup <version>.exe` using `installer/installer.n
 | `preload.js` | The safe bridge between the page and the main process |
 | `lib/micropython.js` | Sends `main.py` to MicroPython boards over USB |
 | `renderer/` | The editor page: `index.html`, `styles.css`, `renderer.js`, `volt-mode.js` (syntax colours) |
+| `plugins/` | Built-in plugins and integrations |
 | `examples/` | Example programs shown in the Examples tab |
 | `docs/REFERENCE.md` | The full Volt reference (also shown in the app's Reference tab) |
 | `docs/ASSETS.md` | Project asset import formats, previews, and known limitations |
