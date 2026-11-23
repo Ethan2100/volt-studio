@@ -1035,7 +1035,7 @@ const TARGET_NAMES = {
 const BUILTINS = {
   random: 2, abs: 1, min: 2, max: 2, constrain: 3, map: 5, number: 1, text: 1, length: 1, upper: 1, lower: 1, contains: 2, part: 3, sign: 1, held: 1, saved: 2, touchscreen: 0,
   // 3D and engine helpers (sin3/cos3/atan2 use tenths of a degree and thousandths - see the 3D section of the reference)
-  block3d: 7, ball3d: 5, cyl3d: 6, lamp3d: 6, put3d: 6, group3d: 3, mousedx: 0, mousedy: 0, locked3d: 0, clicked3d: 0, hot3d: 4, sky3d: 1, crisp: 1, sin3: 1, cos3: 1, atan2: 2,
+  block3d: 7, ball3d: 5, cyl3d: 6, lamp3d: 6, put3d: 6, group3d: 3, mousedx: 0, mousedy: 0, locked3d: 0, clicked3d: 0, hot3d: 4, sky3d: 1, screenx3d: 3, screeny3d: 3, onscreen3d: 3, crisp: 1, sin3: 1, cos3: 1, atan2: 2,
   // everyday math (decimal sin/cos in degrees)
   sqrt: 1, sin: 1, cos: 1,
   // small gamedev helpers - plain math, so they work on every target
@@ -1846,15 +1846,31 @@ function generate(ast, target = 'cpp', options = {}) {
     return [...names];
   }
 
-  function checkName(name, line, isParam = false) {
+  // `local` is true for anything that belongs to the piece of code being
+  // written rather than to the whole program: a function's parameters, a
+  // `let` inside a function or block, a loop's counter.
+  //
+  // Those may share a name with a top-level variable. Without that, every
+  // name a library happens to use inside its own functions is taken for
+  // the whole program - `let i = 0` in your own game would fail because
+  // game.volt counts with `i` somewhere inside itself, and the error
+  // would point into a file you did not write. Two names only clash when
+  // they are declared in the same place.
+  // kind: 'local' for a let or loop counter inside a function or block -
+  // checked against the scope it is being declared in, which is already
+  // the current one. 'param' for a function's parameters, which are
+  // checked before their scope exists, so nothing to compare against.
+  function checkName(name, line, kind = false) {
     if (RESERVED.has(name) || name.startsWith('_')) {
       throw new VoltError(`'${name}' is a reserved name (Volt or one of its languages already uses it), please pick another`, line);
     }
     if (rb && /^[A-Z]/.test(name)) {
       throw new VoltError(`In #ruby, names must start with a lowercase letter ('${name}' would be a Ruby constant)`, line);
     }
-    // (a function parameter may share its name with a top-level variable; inside the function it means the parameter)
-    if (pins.has(name) || funcs.has(name) || images.has(name) || models.has(name) || sprites.has(name) || audios.has(name) || (!isParam && lookupVar(name))) {
+    const clash = kind === 'param' ? false
+      : kind === 'local' ? scopes[scopes.length - 1].has(name)
+      : !!lookupVar(name);
+    if (pins.has(name) || funcs.has(name) || images.has(name) || models.has(name) || sprites.has(name) || audios.has(name) || clash) {
       throw new VoltError(`'${name}' already exists`, line);
     }
   }
@@ -2386,6 +2402,16 @@ function generate(ast, target = 'cpp', options = {}) {
           gameOnly(`'${e.name}'`, e.line);
           uses3d = true;
           return { code: `__${e.name}(${c.join(', ')})`, type: 'num' };
+        // where a point in the 3D world lands on the 2D HUD layer
+        case 'screenx3d':
+        case 'screeny3d':
+          gameOnly(`'${e.name}'`, e.line);
+          uses3d = true;
+          return { code: `__${e.name}(${c.join(', ')})`, type: 'num' };
+        case 'onscreen3d':
+          gameOnly(`'${e.name}'`, e.line);
+          uses3d = true;
+          return { code: `__onscreen3d(${c.join(', ')})`, type: 'bool' };
         // maths for 3D: angles in tenths of a degree, results in thousandths (sin3(900) is 1000)
         case 'sin3':
         case 'cos3':
@@ -2575,7 +2601,7 @@ function generate(ast, target = 'cpp', options = {}) {
           checkAssignType(s.name, scopes[0].get(s.name), value.type, s.line);
           return [`${p}${global(s.name)} = ${code}${END}`];
         }
-        checkName(s.name, s.line);
+        checkName(s.name, s.line, scopes.length > 1 ? 'local' : false);
         const type = value.type === 'bool' ? 'num' : value.type;
         scopes[scopes.length - 1].set(s.name, type);
         if (cpp) return [`${p}${type === 'text' ? 'String' : 'long'} ${s.name} = ${code};`];
@@ -2764,7 +2790,7 @@ function generate(ast, target = 'cpp', options = {}) {
         const b = bare(genNumber(s.end, "'for'"));
         const v = s.name;
         scopes.push(new Map());
-        checkName(v, s.line);
+        checkName(v, s.line, 'local');
         scopes.pop();
         loopDepth++;
         const bodyLines = genBlock(s.body, depth + 1, [v], 'num');
@@ -3019,7 +3045,7 @@ function generate(ast, target = 'cpp', options = {}) {
         listsOk(s.line);
         const list = bare(genExpr(s.list).code);
         scopes.push(new Map());
-        checkName(s.name, s.line);
+        checkName(s.name, s.line, 'local');
         scopes.pop();
         loopDepth++;
         const body = genBlock(s.body, depth + 1, [s.name], 'any');
@@ -3214,7 +3240,7 @@ function generate(ast, target = 'cpp', options = {}) {
   const prototypes = [];
   for (const fn of funcs.values()) {
     for (const param of fn.params) {
-      checkName(param, fn.line, true);
+      checkName(param, fn.line, 'param');
       if (fn.params.filter((x) => x === param).length > 1) {
         throw new VoltError(`'${fn.name}' has two parameters called '${param}'`, fn.line);
       }

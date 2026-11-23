@@ -73,6 +73,7 @@
     ms: '500', seconds: '1', level: '50', strength: '50', amount: '50',
     halfwidth: '100', halfdepth: '100', bottom: '0', top: '200',
     thick: '20', len: '600', life: '800', gravity: '0',
+    reach: '200', hp: '40', damage: '10', slot: '0', n: '0', percent: '50',
   };
   function argValue(arg, info) {
     const a = String(arg).trim();

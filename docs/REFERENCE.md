@@ -465,6 +465,8 @@ These already exist and are easy to miss, so they are listed together here.
 |---|---|
 | `mousedx()` / `mousedy()` | How far the mouse moved since you last asked. This is how you turn the camera. |
 | `locked3d()` | 1 once the mouse is captured for looking around. |
+| `screenx3d(x, y, z)` / `screeny3d(x, y, z)` | Where a point in the world lands on the flat layer `box` and `write` draw on. This is how a name, a health bar or a damage number sits over something in the world. |
+| `onscreen3d(x, y, z)` | `true` when that point is in front of the camera and on screen. Check it before drawing, or things behind you appear mirrored on screen. |
 
 **You do not have to ask for the mouse.** Clicking anywhere in a 3D game captures it
 automatically, and `mousedx()` / `mousedy()` start reporting movement from then on. Pressing
@@ -804,6 +806,105 @@ the markers - that's how the editor reads it back with everything it knows
 Studio can read a world out of plain `block3d` / `ball3d` / `cyl3d` /
 `lamp3d` / `put3d` lines, which is how it opens a game someone wrote by
 hand.
+
+## Fighting: import "combat.volt"
+
+The other half of the game kit. `game.volt` walks the player around;
+`combat.volt` lets things hurt each other, carries a backpack, and draws
+the HUD that shows both. Import it after `game.volt`.
+
+```volt
+#html
+canvas 320, 180
+import "game.volt"
+import "combat.volt"
+
+let Goblin = block3d(0, 60, -400, 60, 120, 60, "#5d8a4a")
+let g = target("Goblin", 0, 60, -400, 40, 90)    // 40 health, 90cm wide
+give("Potion", 3, "#ff6b6b")
+playerStart(0, 200, 0)
+
+every frame {
+  playerStep()
+  stepCombat()                                   // cooldowns, flash, floating numbers
+  if held("e") and ready("Zap") {
+    startCooldown("Zap", 600)
+    magic3d PLAYER_X, PLAYER_Y + 5, PLAYER_Z, 300, "#9d6bff", 700
+    damageArea(PLAYER_X, PLAYER_Z, 400, 12)
+  }
+  render3d
+  drawCombat()                                   // the HUD goes on top of the world
+}
+```
+
+Call `stepCombat()` once a frame before `render3d`, and `drawCombat()`
+after it.
+
+### Things that can be hurt
+
+| Command | What it does |
+|---|---|
+| `target(name, x, y, z, hp, reach)` | Says something can be hurt, and gives back its number. `reach` is how close a hit has to land, in cm |
+| `alive(i)` | `true` while that one still has health |
+| `hurtTarget(i, amount)` | Takes health off one. `true` if that killed it |
+| `damageArea(x, z, reach, amount)` | Hurts everything within `reach` cm of a spot. Gives back how many it hit |
+| `nearestTarget(x, z, reach)` | The closest living one, or -1 |
+| `aliveCount()` | How many are still standing |
+| `moveTarget(i, x, y, z)` | Keeps its spot in step with the block you are moving |
+
+### The player
+
+| Command | What it does |
+|---|---|
+| `hurtPlayer(amount)` | Takes health off, flashes the screen, and kills them at 0 |
+| `healPlayer(amount)` | Gives health back, never past `PLAYER_MAX_HP` |
+| `revivePlayer()` | Full health, back on their feet |
+| `PLAYER_HP` `PLAYER_MAX_HP` | Read them for your own HUD |
+| `PLAYER_DEAD` | `true` while they are down |
+
+### Abilities
+
+| Command | What it does |
+|---|---|
+| `ready(name)` | `true` when that ability can be used again |
+| `startCooldown(name, ms)` | Starts the wait. Call it right after using the ability |
+| `coolPercent(name, ms)` | 0 to 100, for drawing a dial |
+
+### The backpack
+
+Slots along the bottom of the screen; number keys 1-9 pick one.
+
+| Command | What it does |
+|---|---|
+| `give(name, count, "#colour")` | Puts something in. The same name stacks up |
+| `takeOne(name)` | Uses one. `false` if there was none |
+| `countOf(name)` | How many you have |
+| `holding()` | The name in the picked slot, `""` if the bag is empty |
+| `pickSlot(n)` | Picks a slot, counting from 0 |
+
+### Numbers that float
+
+| Command | What it does |
+|---|---|
+| `damageNumber(x, y, z, amount, "#colour")` | A number that pops up there and drifts away. Hits do this for you |
+| `floatText(x, y, z, "Miss", "#colour")` | The same, with words |
+
+### Settings
+
+Change any of these from your own file, after the import.
+
+| Setting | Default | What it does |
+|---|---|---|
+| `PLAYER_MAX_HP` | 100 | How much health the player has |
+| `RESPAWN_MS` | 2000 | How long they lie dead. 0 keeps them down |
+| `HURT_FLASH_MS` | 260 | How long the screen flashes red |
+| `HUD_W` `HUD_H` | 320, 180 | The size you gave `canvas` |
+| `HUD_COLOR` | `"#ffd23f"` | The colour of the picked backpack slot |
+| `SHOW_HEALTH_BAR` | true | The player's bar, bottom left |
+| `SHOW_HOTBAR` | true | The backpack slots |
+| `SHOW_DAMAGE_NUMBERS` | true | Numbers over a hit |
+| `SHOW_ENEMY_BARS` | true | A small bar over a hurt enemy |
+| `DEATH_SPARKS` | true | A burst of sparks where something dies |
 
 ## Game types (structs)
 
