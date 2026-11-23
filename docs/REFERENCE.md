@@ -339,7 +339,9 @@ every frame {                         // 60 times a second
 | `sprite hero = tiles at x, y size w, h` | Cuts a rectangle out of a picture. Add `frames 4` when the animation frames sit side by side |
 | `draw hero at x, y` | Draws a sprite. Options, in any order: `frame n`, `flipped` or `flip (condition)`, `angle 90`, `size 2` (whole times bigger), `scale 150` (percent, grows from the middle), `alpha 50` (0-100), `flash (condition)` (pure white, for hits), `tint "#ff8a3d"` (recolours it; great for white glow and smoke pictures), `glow` (adds its light to what's underneath, for fire, magic and lamps) |
 | `paint "#14111a"` | Fills the whole screen with a colour |
-| `box x, y, w, h color "#ff4d6d"` | A filled rectangle. Colours like `"#00000080"` are see-through |
+| `box x, y, w, h color "#ff4d6d"` | A filled rectangle. Colours like `"#00000080"` are see-through. Add `round 6` for soft corners, `edge 2` for a line around it and `edgecolor "#000000"` to colour that line |
+| `circle x, y, r color "#4dd2ff"` | A filled circle. `x, y` is the middle and `r` is how far out it goes. Takes `edge` and `edgecolor` too |
+| `poly x, y, r, sides color "#ffd23f"` | A regular shape: `3` a triangle, `6` a hexagon, `8` an octagon. `r` is from the middle to a corner. Add `angle 30` to turn it (0 puts a point straight up), plus `edge` and `edgecolor` |
 | `write "text" at x, y` | Pixel-font text. Options: `color "#ffd23f"`, `size 2`, `centered`, `right`, `shadow`. `\n` starts a new line |
 | `write "text" at x, y font "serif"` | A real font instead of the pixel one. Named ones: `sans`, `serif`, `mono`, `round`, `slab`, `fancy` - or give a font name like `"Georgia"`. Add `bold` for heavy. `size` works the same, so swapping a font in does not move everything else |
 | `camera x, y` | Moves the view, for worlds bigger than the screen. Use `camera 0, 0` before drawing the score and hearts |
@@ -927,6 +929,27 @@ Change any of these from your own file, after the import.
 | `SHOW_DAMAGE_NUMBERS` | true | Numbers over a hit |
 | `SHOW_ENEMY_BARS` | true | A small bar over a hurt enemy |
 | `DEATH_SPARKS` | true | A burst of sparks where something dies |
+
+### How the backpack bar looks
+
+The bar along the bottom draws itself. These say what it looks like, and
+World Studio writes them for you when you put a Backpack bar in StarterGui.
+
+| Setting | Default | What it does |
+|---|---|---|
+| `HOTBAR_STYLE` | `"plain"` | `plain` dark rounded squares, `gold` ornate frames, `round` circles, `hex` six-sided, `slim` no boxes at all |
+| `HOTBAR_SIZE` | 22 | How big one slot is |
+| `HOTBAR_GAP` | 3 | The space left between slots |
+| `HOTBAR_SLOTS` | 0 | How many slots to draw. 0 means one per thing you carry |
+| `HOTBAR_ROWS` | 1 | 2 or 3 stacks them up, the way Divinity does |
+| `HOTBAR_NUMBERS` | true | The 1-9 then 0 keys in the corner of each slot |
+| `HOTBAR_COUNTS` | true | How many of that thing you have |
+| `HOTBAR_NAME` | true | The name of what you are holding, above the bar |
+| `HOTBAR_WHERE` | `"bottom"` | `bottom`, `top`, `left`, `right` or `middle` |
+| `HOTBAR_X` `HOTBAR_Y` | -1 | Put it exactly here instead. -1 means work it out from `HOTBAR_WHERE` |
+| `HOTBAR_BACK` | `"#0b0f16cc"` | The colour inside an empty slot |
+| `HOTBAR_RIM` | `"#2a3142"` | The line around a slot |
+| `HOTBAR_PICKED` | `"#ffd23f"` | The line around the slot you are holding |
 
 ### StarterGui, StarterPack and StarterPlayer
 

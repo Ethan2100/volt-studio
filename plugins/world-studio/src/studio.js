@@ -55,6 +55,14 @@ const HUD_LOOKS = {
   icon: 'Picture',
   slots: 'Backpack slots',
 };
+// The shapes a backpack bar can be drawn in.
+const HOTBAR_STYLES = {
+  plain: 'Plain - dark rounded squares',
+  gold: 'Gold - ornate fantasy frames',
+  round: 'Round - circles',
+  hex: 'Hex - six-sided, sci-fi',
+  slim: 'Slim - no boxes, just the things',
+};
 const HUD_ANCHORS = {
   tl: 'Top left', tc: 'Top middle', tr: 'Top right',
   c: 'Middle',
@@ -87,6 +95,54 @@ const ABILITY_DOES = {
   heal: 'Heal the player',
   both: 'Hurt everything close by, and heal the player',
   nothing: 'Just the effect, no damage',
+};
+
+// Ready-made things to put on the screen.
+const HUD_OVER = {
+  health: { look: 'bar', shows: 'health', anchor: 'bl', hx: 8, hy: 16, w: 94, h: 8, color: '#4ade80', name: 'HealthBar' },
+  slots: { look: 'slots', anchor: 'bc', hx: 0, hy: 8, style: 'plain', name: 'Backpack' },
+  score: { look: 'text', shows: 'words', words: 'Score 0', anchor: 'tl', hx: 8, hy: 8, color: '#ffd23f', name: 'Score' },
+};
+
+// Ready-made abilities. Picking one fills in everything below it, so a
+// working ability is one click instead of eight boxes.
+const ABILITY_RECIPES = {
+  '': 'Start from nothing',
+  fireball: 'Fireball - a hot blast in front of you',
+  slash: 'Sword slash - close, fast, cheap',
+  lightning: 'Lightning - far, hard, slow to come back',
+  shockwave: 'Shockwave - knocks everything around you',
+  lifesteal: 'Life steal - hurts them, heals you',
+  mend: 'Mend - heals you, hurts nobody',
+  flash: 'Flash - just the effect, no damage',
+};
+const ABILITY_OVER = {
+  fireball: { key: 'e', does: 'damage', damage: 35, reach: 240, cool: 900, effect: 'fire', color: '#ff7a29', size: 120 },
+  slash: { key: '1', does: 'damage', damage: 18, reach: 140, cool: 350, effect: 'slash', color: '#dfe7ff', size: 90 },
+  lightning: { key: 'q', does: 'damage', damage: 60, reach: 420, cool: 2400, effect: 'beam', color: '#8ad7ff', size: 150 },
+  shockwave: { key: 'r', does: 'damage', damage: 25, reach: 320, cool: 1600, effect: 'shock', color: '#b36bff', size: 200 },
+  lifesteal: { key: 'v', does: 'both', damage: 22, reach: 180, heal: 12, cool: 1200, effect: 'circle', color: '#ff4d6d', size: 110 },
+  mend: { key: 'c', does: 'heal', damage: 0, reach: 100, heal: 35, cool: 4000, effect: 'heal', color: '#4ade80', size: 90 },
+  flash: { key: '2', does: 'nothing', damage: 0, reach: 100, cool: 500, effect: 'sparks', color: '#ffd23f', size: 80 },
+};
+
+// Ready-made things to carry, the same idea for the backpack.
+const ITEM_RECIPES = {
+  '': 'Start from nothing',
+  sword: 'Sword - one, carried from the start',
+  potion: 'Health potion - press F to drink one',
+  bomb: 'Bombs - a handful of them',
+  key: 'Key - one, lying in the world to find',
+  coin: 'Coins - lying in the world to pick up',
+  bread: 'Bread - heals a little',
+};
+const ITEM_OVER = {
+  sword: { count: 1, color: '#d9e2ec', heals: 0, pickup: false },
+  potion: { count: 3, color: '#ff4d6d', heals: 40, pickup: false },
+  bomb: { count: 5, color: '#8affc1', heals: 0, pickup: false },
+  key: { count: 0, color: '#ffd23f', heals: 0, pickup: true, y: 60 },
+  coin: { count: 0, color: '#f2c14e', heals: 0, pickup: true, y: 50 },
+  bread: { count: 2, color: '#c89b3c', heals: 15, pickup: false },
 };
 
 // The characters the character-pack plugin ships, and what they can do.
@@ -208,13 +264,21 @@ function withTree(o, change) {
   treeApply(o, snap, wasYaw);
 }
 
-function uniqueName(base) {
+function uniqueName(base, skipId) {
   base = base.replace(/\s+/g, '');
-  const used = new Set(S.objects.map((o) => o.name.toLowerCase()));
+  const used = new Set(S.objects.filter((o) => o.id !== skipId).map((o) => o.name.toLowerCase()));
   if (!used.has(base.toLowerCase())) return base;
   let i = 2;
   while (used.has((base + i).toLowerCase())) i++;
   return base + i;
+}
+// True while a thing still carries the name the studio gave it, so picking
+// a ready-made one can rename it without ever overwriting a name you typed.
+function looksUnnamed(o) {
+  if (/^(Ability|Item)\d*$/.test(o.name)) return true;
+  const plain = (m) => Object.values(m).map((t) => String(t).split(' - ')[0].replace(/\s+/g, ''));
+  const made = [...plain(ABILITY_RECIPES), ...plain(ITEM_RECIPES)];
+  return made.some((n) => n && new RegExp('^' + n + '\\d*$').test(o.name));
 }
 function makeObj(kind, over = {}) {
   const o = { id: nextId++, kind, name: '', x: 0, y: 0, z: 0, yaw: 0, visible: true, parent: 0 };
@@ -231,14 +295,19 @@ function makeObj(kind, over = {}) {
       count: preset.count || 40, speed: preset.speed || 300, size: preset.size || 240, ms: preset.ms || 1200, len: preset.len || 900, thick: preset.thick || 24 });
   }
   if (kind === 'ability') Object.assign(o, {
+    recipe: '',
     key: 'e', does: 'damage', damage: 20, reach: 300, heal: 20, cool: 800,
     effect: 'magic', color: '#9d6bff', size: 300, ms: 900, count: 40, speed: 320, len: 900, thick: 24, up: 5,
   });
-  if (kind === 'item') Object.assign(o, { count: 1, color: '#ff6b6b', pickup: false, heals: 0, y: 60 });
+  if (kind === 'item') Object.assign(o, { recipe: '', count: 1, color: '#ff6b6b', pickup: false, heals: 0, y: 60 });
   if (kind === 'hud') Object.assign(o, {
     look: 'bar', anchor: 'bl', hx: 8, hy: 16, w: 94, h: 8,
     color: '#4ade80', back: '#000000', fade: 60, font: '', size: 1, bold: false,
     shows: 'health', words: 'Score', target: '', file: '',
+    // the backpack bar
+    style: 'plain', slotSize: 22, slotGap: 3, slotRows: 1, slotCount: 0,
+    keys: true, counts: true, nameAbove: true,
+    rim: '#2a3142', picked: '#ffd23f',
   });
   // A part can be something you fight: 0 health means it is only scenery.
   if (kind === 'block' || kind === 'ball' || kind === 'cyl' || kind === 'model' || kind === 'char') o.hp = 0;
@@ -1138,6 +1207,25 @@ const PRESETS = {
   hud: { kind: 'hud', label: 'HUD', glyph: '▧', over: {}, base: 'Hud' },
   folder: { kind: 'folder', label: 'Folder', glyph: '📁', over: {}, base: 'Folder' },
 };
+// One click gives a working ability, item or HUD piece rather than a blank
+// one to fill in. The same recipes the Properties panel offers.
+function addReadyMade(kind, recipe) {
+  const over = kind === 'ability' ? ABILITY_OVER[recipe]
+    : kind === 'item' ? ITEM_OVER[recipe] : HUD_OVER[recipe];
+  const names = kind === 'ability' ? ABILITY_RECIPES : kind === 'item' ? ITEM_RECIPES : null;
+  const label = over && over.name ? over.name
+    : names ? String(names[recipe] || '').split(' - ')[0] : KIND[kind].label;
+  const o = makeObj(kind, Object.assign({ recipe: names ? recipe : '' }, over || {}, { name: '' }));
+  o.name = uniqueName(label || KIND[kind].label);
+  o.parent = 0;
+  S.objects.push(o);
+  refreshNode(o);
+  openBox[kind === 'hud' ? 'gui' : 'pack'] = true;
+  select(o.id);
+  renderExplorer();
+  commit();
+  toast(`${o.name} added - change anything in Properties`);
+}
 function dropPoint(at) {   // where a new object should land: the drop point, or ~6m ahead of the camera
   let x, z;
   if (at) { x = at[0]; z = at[1]; }
@@ -1333,8 +1421,13 @@ let rowOrder = [];
 // belong to the player rather than to the map, so they cannot be renamed,
 // moved or deleted by accident.
 const BOXES = [
-  { id: 'gui', label: 'StarterGui', icon: '▧', kinds: ['hud'], empty: 'Nothing on screen yet. Add a HUD from the left.' },
-  { id: 'pack', label: 'StarterPack', icon: '🎒', kinds: ['item', 'ability'], empty: 'Nothing to carry yet. Add an Item or an Ability.' },
+  { id: 'gui', label: 'StarterGui', icon: '▧', kinds: ['hud'],
+    empty: 'Nothing on screen yet.',
+    quick: [['hud', 'health', 'Health bar'], ['hud', 'slots', 'Backpack bar'], ['hud', 'score', 'Score']] },
+  { id: 'pack', label: 'StarterPack', icon: '🎒', kinds: ['item', 'ability'],
+    empty: 'Nothing to carry yet.',
+    quick: [['ability', 'fireball', 'Fireball'], ['ability', 'slash', 'Sword slash'], ['ability', 'mend', 'Mend'],
+      ['item', 'sword', 'Sword'], ['item', 'potion', 'Potion'], ['item', 'coin', 'Coins']] },
 ];
 let openBox = { gui: true, pack: true };
 
@@ -1376,6 +1469,8 @@ function renderExplorer() {
       h += `<div class="row${picked.has(o.id) ? ' sel' : ''}${o.id === sel && picked.size > 1 ? ' anchor' : ''}" data-id="${o.id}" style="padding-left:20px">` +
         `<span class="caret leaf"></span><span class="ic">${KIND[o.kind].icon}</span><span class="nm">${esc(o.name)}</span></div>`;
     }
+    if (b.quick) h += '<div class="quick">' + b.quick.map(([kind, recipe, label]) =>
+      `<button type="button" class="chip" data-quick="${kind}:${recipe}">+ ${esc(label)}</button>`).join('') + '</div>';
   }
   h += `<div class="row boxrow${selWorld && selPanel === 'player' ? ' sel' : ''}" data-player="1">` +
     '<span class="caret leaf"></span><span class="ic">🏃</span><span class="nm">StarterPlayer</span></div>';
@@ -1438,6 +1533,8 @@ $('#explorer').addEventListener('click', (e) => {
   if (eye) { const o = byId(Number(eye.dataset.eye)); o.visible = !o.visible; refreshNode(o); renderExplorer(); renderProps(); commit(); return; }
   const boxFold = e.target.closest('[data-boxfold]');
   if (boxFold) { openBox[boxFold.dataset.boxfold] = !openBox[boxFold.dataset.boxfold]; renderExplorer(); return; }
+  const quick = e.target.closest('[data-quick]');
+  if (quick) { const [kind, recipe] = quick.dataset.quick.split(':'); addReadyMade(kind, recipe); return; }
   const row = e.target.closest('.row'); if (!row) return;
   if (row.dataset.world) { selectWorld('world'); return; }
   if (row.dataset.player) { selectWorld('player'); return; }
@@ -1526,16 +1623,37 @@ function objForm(o) {
       if (o.shows === 'cool' && abil.length) h += fSelect('target', 'Which ability', o.target || abil[0][0], abil);
     }
     if (o.look === 'icon') h += fText('file', 'Picture file', o.file);
+    if (o.look === 'slots') {
+      h += fSelect('style', 'Style', o.style, Object.entries(HOTBAR_STYLES));
+      h += fNum('slotSize', 'Slot size', o.slotSize, { min: 8, max: 64 });
+      h += fNum('slotGap', 'Space between', o.slotGap, { min: 0, max: 20 });
+      h += fNum('slotRows', 'Rows', o.slotRows, { min: 1, max: 4 });
+      h += fNum('slotCount', 'Slots', o.slotCount, { min: 0, max: 20 });
+      h += `<div class="note">${r(o.slotCount) > 0
+        ? `Always ${r(o.slotCount)} slots, empty ones included.`
+        : 'One slot per thing you carry. Put a number here to keep empty slots too.'}</div>`;
+      h += fCheck('keys', 'Number keys', o.keys);
+      h += fCheck('counts', 'How many you have', o.counts);
+      h += fCheck('nameAbove', 'Name of what you hold', o.nameAbove);
+    }
     h += '<div class="sec">Where it sits</div>';
     h += fSelect('anchor', 'Corner', o.anchor, Object.entries(HUD_ANCHORS));
     h += fNum('hx', 'Across from there', o.hx);
     h += fNum('hy', 'Down from there', o.hy);
-    if (o.look !== 'text') { h += fNum('w', 'Width', o.w, { min: 1 }); h += fNum('h', 'Height', o.h, { min: 1 }); }
+    if (o.look !== 'text' && o.look !== 'slots') { h += fNum('w', 'Width', o.w, { min: 1 }); h += fNum('h', 'Height', o.h, { min: 1 }); }
+    if (o.look === 'slots') {
+      const span = hudSpan(o);
+      h += `<div class="note">The bar works out its own size from the slots: ${span.w} across and ${span.h} down.</div>`;
+    }
     h += '<div class="sec">How it looks</div>';
     h += fColor('color', o.look === 'bar' ? 'Fill colour' : 'Colour', o.color);
     if (o.look === 'bar' || o.look === 'panel' || o.look === 'slots') {
       h += fColor('back', 'Behind it', o.back);
       h += fRange('fade', 'How solid it is', o.fade, 0, 100);
+    }
+    if (o.look === 'slots') {
+      h += fColor('rim', 'Line around a slot', o.rim);
+      h += fColor('picked', 'Line around the one you hold', o.picked);
     }
     if (o.look === 'text') {
       h += fSelect('font', 'Font', o.font, Object.entries(HUD_FONTS));
@@ -1548,15 +1666,18 @@ function objForm(o) {
   }
 
   if (o.kind === 'ability') {
+    h += '<div class="sec">Make one</div>';
+    h += fSelect('recipe', 'Ready-made', o.recipe || '', Object.entries(ABILITY_RECIPES));
+    h += '<div class="note">Pick one to fill everything in below, then change whatever you like. Nothing is locked.</div>';
     h += '<div class="sec">What it does</div>';
     h += fSelect('key', 'Set off by', o.key, Object.entries(ABILITY_KEYS));
     h += fSelect('does', 'Does', o.does, Object.entries(ABILITY_DOES));
     if (o.does === 'damage' || o.does === 'both') {
       h += fNum('damage', 'Damage', o.damage, { min: 0 });
-      h += fNum('reach', 'How far it reaches (cm)', o.reach, { min: 10, step: 10 });
+      h += fNum('reach', 'Reaches (cm)', o.reach, { min: 10, step: 10 });
     }
     if (o.does === 'heal' || o.does === 'both') h += fNum('heal', 'Heals you by', o.heal, { min: 0 });
-    h += fNum('cool', 'Wait between uses (ms)', o.cool, { min: 0, step: 100 });
+    h += fNum('cool', 'Wait between (ms)', o.cool, { min: 0, step: 100 });
     h += '<div class="sec">What it looks like</div>';
     h += fSelect('effect', 'Looks like', o.effect, Object.entries(VFX_PRESETS).map(([k, v]) => [k, v.label]));
     h += fColor('color', 'Colour', o.color);
@@ -1569,12 +1690,15 @@ function objForm(o) {
   }
 
   if (o.kind === 'item') {
+    h += '<div class="sec">Make one</div>';
+    h += fSelect('recipe', 'Ready-made', o.recipe || '', Object.entries(ITEM_RECIPES));
+    h += '<div class="note">Pick one to fill everything in, then change whatever you like.</div>';
     h += '<div class="sec">The item</div>';
-    h += fNum('count', 'How many you start with', o.count, { min: 0 });
-    h += fColor('color', 'Colour in the backpack', o.color);
-    h += fNum('heals', 'Heals you by when used', o.heals, { min: 0 });
-    h += fCheck('pickup', 'Lying in the world to be picked up', o.pickup);
-    if (o.pickup) h += fNum('y', 'Height off the ground (cm)', o.y, { min: 0, step: 5 });
+    h += fNum('count', 'You start with', o.count, { min: 0 });
+    h += fColor('color', 'Colour in the bag', o.color);
+    h += fNum('heals', 'Heals you by', o.heals, { min: 0 });
+    h += fCheck('pickup', 'Lies in the world', o.pickup);
+    if (o.pickup) h += fNum('y', 'Off the ground (cm)', o.y, { min: 0, step: 5 });
     h += `<div class="note">Shows up in the backpack along the bottom of the screen${o.count ? ` with ${o.count} of them` : ', once you find one'}. Number keys 1-9 pick a slot.${o.heals ? ` Pressing <b>F</b> while holding it heals you ${o.heals} and uses one up.` : ''}${o.pickup ? ' A glowing marker sits in the world where this is, and walking into it puts one in your backpack.' : ''}</div>`;
     h += itemScriptSection(o);
     return h;
@@ -1929,7 +2053,22 @@ function setObjProp(k, v) {
     for (const f of ['count', 'speed', 'size', 'ms', 'len', 'thick']) if (preset[f] != null) o[f] = preset[f];
     renderProps(); touch(o); return;
   }
+  // a ready-made ability or item: fill everything in at once
+  if (k === 'recipe') {
+    const over = (o.kind === 'ability' ? ABILITY_OVER : ITEM_OVER)[v];
+    o.recipe = v;
+    if (over) {
+      Object.assign(o, over);
+      const names = o.kind === 'ability' ? ABILITY_RECIPES : ITEM_RECIPES;
+      const plain = String(names[v] || '').split(' - ')[0];
+      if (plain && looksUnnamed(o)) o.name = uniqueName(plain, o.id);
+      refreshNode(o); renderExplorer();
+    }
+    renderProps(); touch(o); return;
+  }
   if (k === 'when') { o.when = v; renderProps(); return; }
+  // these change which other fields make sense, so the form is redrawn
+  if (k === 'style' || k === 'look') { o[k] = v; renderProps(); touch(o); return; }
   // these change which other fields make sense, so the form is redrawn
   if (k === 'does') { o.does = v; renderProps(); return; }
   if (k === 'key') { o.key = v; renderProps(); return; }
@@ -2456,13 +2595,27 @@ function vfxTriggerLines(o, call) {
 //  written out rather than worked out here, so the generated file still
 //  reads as something a person could have typed.
 // ---------------------------------------------------------------------
+// How much room the backpack bar takes up, worked out the same way
+// combat.volt works it out, so the corner it sits in lines up.
+function hudSpan(o) {
+  const size = r(o.slotSize) || 22;
+  const gap = r(o.slotGap);
+  const rows = Math.max(1, r(o.slotRows) || 1);
+  const carried = S.objects.filter((x) => x.kind === 'item').length;
+  const slots = Math.max(1, r(o.slotCount) || carried || 4);
+  const across = Math.ceil(slots / rows);
+  return { w: across * (size + gap) - gap, h: rows * (size + gap) - gap };
+}
 function hudAt(o) {
   const a = o.anchor || 'tl', x = r(o.hx), y = r(o.hy);
-  const w = o.look === 'text' ? 0 : r(o.w), h = o.look === 'text' ? 0 : r(o.h);
+  const span = o.look === 'slots' ? hudSpan(o) : null;
+  const w = o.look === 'text' ? 0 : span ? span.w : r(o.w);
+  const h = o.look === 'text' ? 0 : span ? span.h : r(o.h);
   const ex = a[1] === 'r' || a === 'c' ? (a === 'c' ? `HUD_W / 2 - ${Math.round(w / 2)} + ${x}` : `HUD_W - ${w + x}`) : `${x}`;
   const ey = a[0] === 'b' ? `HUD_H - ${h + y}` : a === 'c' ? `HUD_H / 2 - ${Math.round(h / 2)} + ${y}` : `${y}`;
   const mid = a[1] === 'c' && a !== 'c';
-  return { x: mid ? `HUD_W / 2 + ${x}` : ex, y: ey };
+  const cx = span ? `HUD_W / 2 - ${Math.round(w / 2)} + ${x}` : `HUD_W / 2 + ${x}`;
+  return { x: mid ? cx : ex, y: ey };
 }
 // What a bar is filled from, as a fraction of its width.
 function hudFill(o, width) {
@@ -2500,9 +2653,20 @@ function hudLines(o) {
   } else if (o.look === 'icon') {
     L.push(`draw ${'icon_' + identish(o.name)} at ${at.x}, ${at.y}`);
   } else if (o.look === 'slots') {
-    L.push(`// the backpack draws itself - this only says where`);
-    L.push(`HUD_SLOT_X = ${at.x}`);
-    L.push(`HUD_SLOT_Y = ${at.y}`);
+    L.push('// the backpack draws itself - these say where it goes and how it looks');
+    L.push(`HOTBAR_STYLE = ${qs(o.style || 'plain')}`);
+    L.push(`HOTBAR_SIZE = ${r(o.slotSize) || 22}`);
+    L.push(`HOTBAR_GAP = ${r(o.slotGap)}`);
+    if (r(o.slotRows) > 1) L.push(`HOTBAR_ROWS = ${r(o.slotRows)}`);
+    if (r(o.slotCount) > 0) L.push(`HOTBAR_SLOTS = ${r(o.slotCount)}`);
+    L.push(`HOTBAR_X = ${at.x}`);
+    L.push(`HOTBAR_Y = ${at.y}`);
+    L.push(`HOTBAR_BACK = ${qFade(o.back, o.fade)}`);
+    L.push(`HOTBAR_RIM = ${qc(o.rim)}`);
+    L.push(`HOTBAR_PICKED = ${qc(o.picked)}`);
+    if (!o.keys) L.push('HOTBAR_NUMBERS = false');
+    if (!o.counts) L.push('HOTBAR_COUNTS = false');
+    if (!o.nameAbove) L.push('HOTBAR_NAME = false');
   }
   return L;
 }
@@ -2787,7 +2951,8 @@ function worldLines() {
   const starter = [...moveSet, ...lifeSet];
   const huds0 = S.objects.filter((o) => o.kind === 'hud');
   if (huds0.some((o) => (o.look === 'bar' || o.look === 'text') && o.shows === 'health')) starter.push('SHOW_HEALTH_BAR = false   // you drew your own');
-  if (huds0.some((o) => o.look === 'slots')) starter.push('SHOW_HOTBAR = false       // you drew your own');
+  // a Backpack bar in StarterGui sets the real one up rather than replacing
+  // it, so SHOW_HOTBAR stays on - see the settings it writes in worldStart.
   if (starter.length) {
     bar('StarterPlayer: how the player starts out. These run after the\n//  settings at the top of the file, so they are the ones that count.');
     for (const line of starter) L.push(line);
@@ -2835,7 +3000,9 @@ function worldLines() {
   bar('When all of that runs. worldStart() happens once as the game opens,\n//  worldStep() happens every frame - the game file calls both for you.');
   L.push('let ws_tick = 0');
   L.push('fn worldStart() {');
-  if (!atStart.length) L.push('  // nothing is set to run at the start yet');
+  const barHuds = huds.filter((o) => o.look === 'slots');
+  if (!atStart.length && !barHuds.length) L.push('  // nothing is set to run at the start yet');
+  for (const o of barHuds) for (const line of hudLines(o)) L.push('  ' + line);
   for (const o of atStart) L.push(`  ${nameOf(o)}()`);
   L.push('}');
   L.push('fn worldStep() {');
@@ -2873,7 +3040,11 @@ function worldLines() {
   L.push('// render3d rather than with the others.');
   L.push('fn worldDraw() {');
   if (hurtable.length || abilities.length || items.length || huds.length) L.push('  drawCombat()');
-  for (const o of huds) for (const line of hudLines(o)) L.push('  ' + line);
+  // the backpack bar is set up once in worldStart, so only the rest is drawn here
+  for (const o of huds) {
+    if (o.look === 'slots') continue;
+    for (const line of hudLines(o)) L.push('  ' + line);
+  }
   if (!hurtable.length && !abilities.length && !items.length && !huds.length) {
     L.push('  // nothing to draw over the world yet');
   }

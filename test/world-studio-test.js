@@ -60,21 +60,30 @@ const W = new Function([
   'const refreshNode = () => {};',
   grabConst('esc'), grabConst('clamp'), grabConst('num'), grabConst('hex6'),
   grabConst('KIND'), grabConst('ATTACHED'), grabConst('CHAR_PACK'), grabConst('CHARACTERS'), grabConst('animsOf'), grabConst('isAnimal'),
-  grabConst('CHAR_ANIMS'), grabConst('WHENS'), grabConst('VFX_PRESETS'), grabConst('FX_FIELDS'), grabConst('fxKind'), grabConst('worldDefaults'),
+  grabConst('CHAR_ANIMS'), grabConst('WHENS'), grabConst('VFX_PRESETS'),
+  grabConst('ABILITY_KEYS'), grabConst('ABILITY_DOES'), grabConst('HOTBAR_STYLES'), grabConst('HUD_LOOKS'), grabConst('HUD_ANCHORS'), grabConst('HUD_OVER'),
+  grabConst('ABILITY_RECIPES'), grabConst('ABILITY_OVER'), grabConst('ITEM_RECIPES'), grabConst('ITEM_OVER'), grabConst('FX_FIELDS'), grabConst('fxKind'), grabConst('worldDefaults'),
   'let S = { world: worldDefaults(), objects: [] };', 'let nextId = 1;', 'const modelCache = new Map();',
   grabConst('byId'), grabConst('childrenOf'), grabFn('descendants'), grabFn('depthOf'), grabFn('canParent'),
   grabFn('setParent'), grabFn('treeSnapshot'), grabFn('treeApply'), grabFn('withTree'),
   grabConst('charKey'), grabConst('identish'),
-  grabFn('uniqueName'), grabFn('makeObj'), grabFn('roomScene'), grabFn('makeObjQuiet'),
+  grabFn('uniqueName'), grabFn('looksUnnamed'), grabFn('makeObj'), grabFn('roomScene'), grabFn('makeObjQuiet'),
   grabConst('RESERVED'), grabFn('identFor'),
   'const q = (c) => \'"\' + hex6(c, \'#999999\') + \'"\';', 'const r = (v) => Math.round(num(v));',
+  grabConst('qs'), grabConst('qc'), grabFn('qFade'),
   grabConst('KIT'), grabFn('solidBoxes'), grabConst('spawnOf'),
   grabConst('MARK_OPEN'), grabConst('MARK_CLOSE'),
   grabFn('plainWhere'), grabFn('plainWhat'), grabFn('plainIntro'),
   grabFn('vfxWhere'), grabFn('vfxStatement'), grabFn('vfxFnLines'), grabFn('vfxTriggerLines'),
+  grabFn('hudSpan'), grabFn('hudAt'), grabFn('hudFill'), grabFn('hudTextValue'), grabFn('hudLines'),
+  grabFn('abilityIdent'), grabFn('sizeAcross'), grabFn('abilityEffectLine'), grabFn('abilityFnLines'),
+  grabFn('abilityTriggerLines'), grabFn('itemGiveLine'), grabFn('itemLines'), grabFn('itemStepLines'),
   grabFn('compactObj'), grabFn('worldLines'), grabFn('genGameFile'), grabFn('spliceWorld'), grabFn('genVolt'), grabFn('importSource'),
   'return { get S() { return S; }, set S(v) { S = v; }, get nextId() { return nextId; }, set nextId(v) { nextId = v; },',
-  '         roomScene, makeObj, genGameFile, spliceWorld, genVolt, importSource, setParent, childrenOf, withTree, MARK_OPEN, MARK_CLOSE };',
+  '         roomScene, makeObj, genGameFile, spliceWorld, genVolt, importSource, setParent, childrenOf, withTree, MARK_OPEN, MARK_CLOSE,',
+  '         hudLines, hudAt, hudSpan, looksUnnamed, uniqueName,',
+  '         HOTBAR_STYLES, HUD_LOOKS, HUD_OVER, ABILITY_RECIPES, ABILITY_OVER, ITEM_RECIPES, ITEM_OVER,',
+  '         VFX_PRESETS, ABILITY_KEYS, ABILITY_DOES };',
 ].join('\n\n'))();
 
 // ---- 1. the game file it writes ----
@@ -650,5 +659,117 @@ if (!JSDOM) {
   check('saving outside Volt Studio shows the code instead', $('#code') && $('#code').value.includes('import "game.volt"'));
   check('nothing threw along the way', errors.length === 0, errors[0] || '');
 }
+
+
+// ---- ready-made abilities, items and HUD pieces ----
+W.roomScene();
+for (const [key, over] of Object.entries(W.ABILITY_OVER)) {
+  check(`the ${key} ability is listed with a plain-English name`, !!W.ABILITY_RECIPES[key] && W.ABILITY_RECIPES[key].includes(' - '), W.ABILITY_RECIPES[key]);
+  check(`the ${key} ability does something`, over.cool > 0 && (over.does === 'nothing' || over.damage > 0 || over.heal > 0), JSON.stringify(over));
+  check(`the ${key} ability has an effect to see`, !!over.effect && !!over.color && over.size > 0);
+  check(`the ${key} ability names an effect the panel really has`, over.effect in W.VFX_PRESETS, over.effect);
+  check(`the ${key} ability is set off by a key the panel really has`, over.key in W.ABILITY_KEYS, over.key);
+  check(`the ${key} ability does something the panel really has`, over.does in W.ABILITY_DOES, over.does);
+}
+for (const [key, over] of Object.entries(W.ITEM_OVER)) {
+  check(`the ${key} item is listed with a plain-English name`, !!W.ITEM_RECIPES[key] && W.ITEM_RECIPES[key].includes(' - '), W.ITEM_RECIPES[key]);
+  check(`the ${key} item either starts in the bag or lies in the world`, over.count > 0 || over.pickup === true, JSON.stringify(over));
+}
+const abKeys = Object.values(W.ABILITY_OVER).map((o) => o.key);
+check('no two ready-made abilities fight over the same key', new Set(abKeys).size === abKeys.length, abKeys.join(', '));
+check('F is left free, since that is the key for using an item', !abKeys.includes('f'), abKeys.join(', '));
+check('nothing ready-made sets a field the thing does not have', Object.values(W.ABILITY_OVER).every((over) => {
+  const o = W.makeObj('ability');
+  return Object.keys(over).every((k) => k in o);
+}));
+check('no ready-made item sets a field the thing does not have', Object.values(W.ITEM_OVER).every((over) => {
+  const o = W.makeObj('item');
+  return Object.keys(over).every((k) => k in o);
+}));
+check('every ready-made HUD piece picks a look the panel knows',
+  Object.values(W.HUD_OVER).every((over) => over.look in W.HUD_LOOKS));
+
+// a name the studio gave can be replaced; one you typed is left alone
+check('a fresh ability still carries a studio name', W.looksUnnamed({ name: 'Ability' }) && W.looksUnnamed({ name: 'Ability3' }));
+check('a name from a ready-made one is still a studio name', W.looksUnnamed({ name: 'Fireball' }) && W.looksUnnamed({ name: 'Healthpotion2' }));
+check('a name you typed is left alone', !W.looksUnnamed({ name: 'Dragonbreath' }) && !W.looksUnnamed({ name: 'MyItem' }));
+
+// ---- the backpack bar ----
+const bar = W.makeObj('hud', { look: 'slots', anchor: 'bc', hx: 0, hy: 8, style: 'hex', slotSize: 30, slotGap: 4, slotRows: 2, slotCount: 8 });
+const barCode = W.hudLines(bar).join('\n');
+check('the bar writes the style you picked', /HOTBAR_STYLE = "hex"/.test(barCode), barCode);
+check('the bar writes the slot size', /HOTBAR_SIZE = 30/.test(barCode), barCode);
+check('the bar writes the gap', /HOTBAR_GAP = 4/.test(barCode), barCode);
+check('the bar writes how many rows', /HOTBAR_ROWS = 2/.test(barCode), barCode);
+check('the bar writes how many slots', /HOTBAR_SLOTS = 8/.test(barCode), barCode);
+check('the bar says where it goes', /HOTBAR_X = /.test(barCode) && /HOTBAR_Y = /.test(barCode), barCode);
+check('the bar writes its colours', /HOTBAR_RIM = "#/.test(barCode) && /HOTBAR_PICKED = "#/.test(barCode), barCode);
+check('the bar explains itself in a comment', barCode.startsWith('//'), barCode.split('\n')[0]);
+check('every name the bar writes is one combat.volt actually has',
+  barCode.split('\n').filter((l) => l.includes(' = ')).every((l) => /^HOTBAR_[A-Z]+ = /.test(l)),
+  barCode);
+
+const oneRow = W.makeObj('hud', { look: 'slots', slotRows: 1, slotCount: 0 });
+const oneCode = W.hudLines(oneRow).join('\n');
+check('one row is left out, since that is what it does anyway', !/HOTBAR_ROWS/.test(oneCode), oneCode);
+check('letting the bag decide the slots is left out too', !/HOTBAR_SLOTS/.test(oneCode), oneCode);
+
+const off = W.makeObj('hud', { look: 'slots', keys: false, counts: false, nameAbove: false });
+const offCode = W.hudLines(off).join('\n');
+check('turning the numbers off says so', /HOTBAR_NUMBERS = false/.test(offCode), offCode);
+check('turning the counts off says so', /HOTBAR_COUNTS = false/.test(offCode), offCode);
+check('turning the name off says so', /HOTBAR_NAME = false/.test(offCode), offCode);
+
+// how much room it takes, which is what the corner it sits in is measured from
+const span = W.hudSpan({ slotSize: 20, slotGap: 2, slotRows: 1, slotCount: 5 });
+check('five 20px slots with 2px between them are 108 across', span.w === 108, JSON.stringify(span));
+check('one row is as tall as one slot', span.h === 20, JSON.stringify(span));
+const span2 = W.hudSpan({ slotSize: 20, slotGap: 2, slotRows: 2, slotCount: 8 });
+check('eight slots over two rows are four across', span2.w === 86, JSON.stringify(span2));
+check('two rows are two slots tall, plus the gap', span2.h === 42, JSON.stringify(span2));
+const odd = W.hudSpan({ slotSize: 10, slotGap: 0, slotRows: 3, slotCount: 7 });
+check('a number that does not divide evenly rounds the row up', odd.w === 30, JSON.stringify(odd));
+
+// the bar sizes itself, so the bottom-middle corner really centres it
+W.S.objects = [];
+const mid = W.makeObj('hud', { look: 'slots', anchor: 'bc', hx: 0, hy: 8, slotSize: 20, slotGap: 2, slotCount: 5 });
+const at = W.hudAt(mid);
+check('a centred bar is pulled back by half its width', at.x === 'HUD_W / 2 - 54 + 0', at.x);
+check('a bar along the bottom leaves room for itself', at.y === 'HUD_H - 28', at.y);
+
+// ---- what the ready-made ones write really compiles ----
+for (const style of Object.keys(W.HOTBAR_STYLES)) {
+  W.roomScene();
+  // one of everything: a ready-made ability, a thing to carry, and the bar
+  for (const [key, over] of Object.entries(W.ABILITY_OVER)) {
+    W.S.objects.push(W.makeObj('ability', Object.assign({ recipe: key }, over, { name: 'Ab' + key })));
+  }
+  for (const [key, over] of Object.entries(W.ITEM_OVER)) {
+    W.S.objects.push(W.makeObj('item', Object.assign({ recipe: key }, over, { name: 'It' + key })));
+  }
+  W.S.objects.push(W.makeObj('hud', Object.assign({}, W.HUD_OVER.health, { name: 'Health' })));
+  W.S.objects.push(W.makeObj('hud', Object.assign({}, W.HUD_OVER.slots,
+    { name: 'Bag', style, slotSize: 24, slotGap: 2, slotRows: style === 'gold' ? 2 : 1, slotCount: style === 'hex' ? 8 : 0 })));
+  const built = W.genGameFile({ hud: true });
+  try {
+    volt.compile(built, { baseDir: null, extraDirs: plugins.libraryDirs(list) });
+    console.log(`pass  a game with every ready-made one and a ${style} backpack compiles`);
+  } catch (e) {
+    failed++;
+    console.log(`FAIL  a ${style} backpack game does not compile: ${e.file || ''} line ${e.line}: ${e.message}`);
+  }
+}
+
+// ---- the Backpack bar sets the real one up, it does not replace it ----
+W.roomScene();
+W.S.objects.push(W.makeObj('hud', Object.assign({}, W.HUD_OVER.slots, { name: 'Bag' })));
+const withBar = W.genGameFile({ hud: true });
+check('adding a Backpack bar leaves the backpack switched on', !/SHOW_HOTBAR = false/.test(withBar),
+  (withBar.match(/^SHOW_HOTBAR.*$/m) || [''])[0]);
+check('the bar is set up once at the start, not redrawn every frame',
+  /fn worldStart\(\) \{[^}]*HOTBAR_STYLE/.test(withBar) && !/fn worldDraw\(\) \{[^}]*HOTBAR_STYLE/.test(withBar));
+check('a health bar you drew yourself does switch the built-in one off',
+  (() => { W.roomScene(); W.S.objects.push(W.makeObj('hud', Object.assign({}, W.HUD_OVER.health, { name: 'HP' })));
+    return /SHOW_HEALTH_BAR = false/.test(W.genGameFile({ hud: true })); })());
 
 process.exitCode = failed ? 1 : 0;

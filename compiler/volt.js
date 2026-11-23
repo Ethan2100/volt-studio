@@ -203,7 +203,7 @@ const PIN_MODES = ['input', 'output', 'analog', 'pwm', 'servo', 'stepper'];
 const PAGE_WORDS = ['button', 'title', 'html'];
 // Game commands (#html canvas games) and list commands. Like the page words they
 // aren't keywords, so 'let box = 3' or 'fn draw()' in older programs still work.
-const GAME_WORDS = ['canvas', 'image', 'sprite', 'draw', 'paint', 'box', 'write', 'camera', 'touchpad', 'music', 'save', 'audio', 'sound', 'volume',
+const GAME_WORDS = ['canvas', 'image', 'sprite', 'draw', 'paint', 'box', 'circle', 'poly', 'write', 'camera', 'touchpad', 'music', 'save', 'audio', 'sound', 'volume',
   'world3d', 'clear3d', 'camera3d', 'render3d', 'move3d', 'turn3d', 'show3d', 'glow3d', 'torch3d', 'model3d', 'anim3d', 'fx3d', 'shine3d', 'burst3d', 'look3d',
   'toon3d', 'shot3d', 'lookat3d', 'shake3d', 'slowmo3d', 'hitstop3d', 'bars3d', 'sky3d', 'join3d',
   'slash3d', 'magic3d', 'shock3d', 'beam3d'];
@@ -725,9 +725,48 @@ function parse(tokens) {
         const [x, y] = pair();
         expect(',', "','");
         const [w, h] = pair();
+        const opts = {};
         let color = null;
-        if (isWord('color')) { next(); color = expression(); }
-        return { kind: 'Box', x, y, w, h, color, line };
+        for (;;) {
+          if (isWord('color')) { next(); color = expression(); continue; }
+          const o = ['round', 'edge', 'edgecolor'].find(isWord);
+          if (!o) break;
+          next();
+          opts[o] = expression();
+        }
+        return { kind: 'Box', x, y, w, h, color, opts, line };
+      }
+      // circle x, y, r color "#ffd23f" edge 2 edgecolor "#000"
+      case 'circle': {
+        const [x, y] = pair();
+        expect(',', "','");
+        const rad = expression();
+        const opts = {};
+        let color = null;
+        for (;;) {
+          if (isWord('color')) { next(); color = expression(); continue; }
+          const o = ['edge', 'edgecolor'].find(isWord);
+          if (!o) break;
+          next();
+          opts[o] = expression();
+        }
+        return { kind: 'Circle', x, y, r: rad, color, opts, line };
+      }
+      // poly x, y, r, sides color "#..." angle 90 edge 2 edgecolor "#..."
+      case 'poly': {
+        const [x, y] = pair();
+        expect(',', "','");
+        const [rad, sides] = pair();
+        const opts = {};
+        let color = null;
+        for (;;) {
+          if (isWord('color')) { next(); color = expression(); continue; }
+          const o = ['angle', 'edge', 'edgecolor'].find(isWord);
+          if (!o) break;
+          next();
+          opts[o] = expression();
+        }
+        return { kind: 'Poly', x, y, r: rad, sides, color, opts, line };
       }
       // write "Hello" at 10, 10 color "#ffd23f" size 2 centered shadow
       case 'write': {
@@ -1228,9 +1267,62 @@ const GAME_RUNTIME = [
   "function __need() { if (!__cx) throw new Error('Make a screen first, like: canvas 320, 180'); }",
   "function __paint(c) { __need(); __cx.fillStyle = String(c); __cx.fillRect(0, 0, __W, __H); }",
   "function __camera(x, y) { __camX = Math.round(x); __camY = Math.round(y); }",
-  "function __box(x, y, w, h, c) {",
-  "  __need(); __cx.fillStyle = c == null ? '#fff' : String(c);",
-  "  __cx.fillRect(Math.round(x) - __camX, Math.round(y) - __camY, Math.round(w), Math.round(h));",
+  "function __box(x, y, w, h, c, round, edge, ec) {",
+  "  __need();",
+  "  const px = Math.round(x) - __camX, py = Math.round(y) - __camY;",
+  "  const pw = Math.round(w), ph = Math.round(h);",
+  "  const rad = Math.max(0, Math.min(round | 0, Math.floor(Math.min(pw, ph) / 2)));",
+  "  if (!rad && !edge) {",
+  "    __cx.fillStyle = c == null ? '#fff' : String(c);",
+  "    __cx.fillRect(px, py, pw, ph);",
+  "    return;",
+  "  }",
+  "  __cx.beginPath();",
+  "  if (rad && __cx.roundRect) __cx.roundRect(px, py, pw, ph, rad);",
+  "  else if (rad) __roundPath(px, py, pw, ph, rad);",
+  "  else __cx.rect(px, py, pw, ph);",
+  "  if (c != null) { __cx.fillStyle = String(c); __cx.fill(); }",
+  "  __edge(edge, ec);",
+  "}",
+  "// a rounded rectangle by hand, for anything without roundRect",
+  "function __roundPath(x, y, w, h, r) {",
+  "  __cx.moveTo(x + r, y);",
+  "  __cx.arcTo(x + w, y, x + w, y + h, r);",
+  "  __cx.arcTo(x + w, y + h, x, y + h, r);",
+  "  __cx.arcTo(x, y + h, x, y, r);",
+  "  __cx.arcTo(x, y, x + w, y, r);",
+  "  __cx.closePath();",
+  "}",
+  "function __edge(edge, ec) {",
+  "  if (!edge) return;",
+  "  __cx.lineWidth = Math.max(1, edge | 0);",
+  "  __cx.strokeStyle = ec == null ? '#000' : String(ec);",
+  "  __cx.stroke();",
+  "}",
+  "// circle x, y, r      - x and y are the middle",
+  "function __circle(x, y, r, c, edge, ec) {",
+  "  __need();",
+  "  __cx.beginPath();",
+  "  __cx.arc(Math.round(x) - __camX, Math.round(y) - __camY, Math.max(0, Math.round(r)), 0, Math.PI * 2);",
+  "  if (c != null) { __cx.fillStyle = String(c); __cx.fill(); }",
+  "  __edge(edge, ec);",
+  "}",
+  "// poly x, y, r, sides - a regular shape: 3 a triangle, 6 a hexagon.",
+  "// angle is in degrees, and 0 puts a point straight up.",
+  "function __poly(x, y, r, sides, c, angle, edge, ec) {",
+  "  __need();",
+  "  const n = Math.max(3, sides | 0), rad = Math.max(0, Math.round(r));",
+  "  const cx = Math.round(x) - __camX, cy = Math.round(y) - __camY;",
+  "  const turn = ((angle || 0) * Math.PI) / 180 - Math.PI / 2;",
+  "  __cx.beginPath();",
+  "  for (let i = 0; i < n; i++) {",
+  "    const a = turn + (i * Math.PI * 2) / n;",
+  "    const px = cx + Math.cos(a) * rad, py = cy + Math.sin(a) * rad;",
+  "    if (i) __cx.lineTo(px, py); else __cx.moveTo(px, py);",
+  "  }",
+  "  __cx.closePath();",
+  "  if (c != null) { __cx.fillStyle = String(c); __cx.fill(); }",
+  "  __edge(edge, ec);",
   "}",
   "// 5x7 pixel font (Adafruit-GFX classic font, BSD licence): 5 columns per letter, ASCII 32-126",
   "const __FONT = '000000000000005f00000007000700147f147f14242a7f2a12231308646236495620500008070300001c2241000041221c002a1c7f1c2a08083e080800807030000808080808000060600020100804023e5149453e00427f400072494949462141494d331814127f1027454545393c4a49493141211109073649494936464949291e0000140000004034000000081422411414141414004122140802015909063e415d594e7c1211127c7f494949363e414141227f4141413e7f494949417f090909013e414151737f0808087f00417f41002040413f017f081422417f404040407f021c027f7f0408107f3e4141413e7f090909063e4151215e7f09192946264949493203017f01033f4040403f1f2040201f3f4038403f631408146303047804036159494d43007f4141410204081020004141417f04020102044040404040000307080020545478407f284444383844444428384444287f385454541800087e090218a4a49c787f0804047800447d40002040403d007f1028440000417f40007c047804787c080404783844444438fc1824241818242418fc7c08040408485454542404043f44243c4040207c1c2040201c3c4030403c44281028444c9090907c4464544c440008364100000077000000413608000201020402';",
@@ -3142,8 +3234,30 @@ function generate(ast, target = 'cpp', options = {}) {
       case 'Box': {
         gameOnly("'box'", s.line);
         const n = (e) => bare(genNumber(e, "'box'"));
+        const o = s.opts || {};
         const color = s.color ? bare(genExpr(s.color).code) : '"#fff"';
-        return [`${p}__box(${n(s.x)}, ${n(s.y)}, ${n(s.w)}, ${n(s.h)}, ${color});`];
+        const args = [n(s.x), n(s.y), n(s.w), n(s.h), color,
+          o.round ? n(o.round) : '0', o.edge ? n(o.edge) : '0',
+          o.edgecolor ? bare(genExpr(o.edgecolor).code) : 'null'];
+        const defaults = [null, null, null, null, null, '0', '0', 'null'];
+        while (args.length > 5 && args[args.length - 1] === defaults[args.length - 1]) args.pop();
+        return [`${p}__box(${args.join(', ')});`];
+      }
+
+      case 'Circle': {
+        gameOnly("'circle'", s.line);
+        const n = (e) => bare(genNumber(e, "'circle'"));
+        const o = s.opts || {};
+        return [`${p}__circle(${n(s.x)}, ${n(s.y)}, ${n(s.r)}, ${s.color ? bare(genExpr(s.color).code) : '"#fff"'}, ` +
+          `${o.edge ? n(o.edge) : '0'}, ${o.edgecolor ? bare(genExpr(o.edgecolor).code) : 'null'});`];
+      }
+
+      case 'Poly': {
+        gameOnly("'poly'", s.line);
+        const n = (e) => bare(genNumber(e, "'poly'"));
+        const o = s.opts || {};
+        return [`${p}__poly(${n(s.x)}, ${n(s.y)}, ${n(s.r)}, ${n(s.sides)}, ${s.color ? bare(genExpr(s.color).code) : '"#fff"'}, ` +
+          `${o.angle ? n(o.angle) : '0'}, ${o.edge ? n(o.edge) : '0'}, ${o.edgecolor ? bare(genExpr(o.edgecolor).code) : 'null'});`];
       }
 
       case 'WriteText': {

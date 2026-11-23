@@ -40,6 +40,24 @@ let HUD_H = 180
 let HUD_COLOR = "#ffd23f"
 let SHOW_HEALTH_BAR = true
 let SHOW_HOTBAR = true
+
+// ---------------------------------------------------------------------
+//  How the hotbar looks. Change any of these from your game file.
+// ---------------------------------------------------------------------
+let HOTBAR_STYLE = "plain"   // plain, gold, round, hex, slim
+let HOTBAR_SIZE = 22         // how big one slot is, in HUD pixels
+let HOTBAR_GAP = 3           // the space left between slots
+let HOTBAR_SLOTS = 0         // 0 means one slot per item you carry
+let HOTBAR_ROWS = 1          // 2 or 3 stacks the slots up, like Divinity
+let HOTBAR_NUMBERS = true    // the 1 2 3 keys in the corner of each slot
+let HOTBAR_COUNTS = true     // how many of that thing you have
+let HOTBAR_NAME = true       // the name of what you are holding, above the bar
+let HOTBAR_WHERE = "bottom"  // bottom, top, left, right or middle
+let HOTBAR_X = 0 - 1         // -1 means work it out from HOTBAR_WHERE
+let HOTBAR_Y = 0 - 1
+let HOTBAR_BACK = "#0b0f16cc"   // the colour inside an empty slot
+let HOTBAR_RIM = "#2a3142"      // the line around a slot
+let HOTBAR_PICKED = "#ffd23f"   // the line around the slot you are holding
 let SHOW_DAMAGE_NUMBERS = true
 let SHOW_ENEMY_BARS = true
 let DEATH_SPARKS = true     // a burst of sparks where something dies
@@ -486,22 +504,154 @@ fn drawDamageNumbers() {
 }
 
 fn drawHotbar() {
-  if length(BAG_NAME) == 0 {
+  let slots = hotbarSlots()
+  if slots == 0 {
     return
   }
-  let slots = length(BAG_NAME)
-  let wide = 22
-  let left = HUD_W / 2 - (slots * wide) / 2
+  let rows = max(1, HOTBAR_ROWS)
+  let across = ceilDiv(slots, rows)
+  let wide = HOTBAR_SIZE + HOTBAR_GAP
+  let barW = across * wide - HOTBAR_GAP
+  let barH = rows * wide - HOTBAR_GAP
+  let left = hotbarLeft(barW)
+  let top = hotbarTop(barH)
   let i = 0
+  let r = 0
+  let c = 0
   while i < slots {
-    let x = left + i * wide
-    box x, HUD_H - 26, wide - 2, 20 color "#0b0f16cc"
-    if i == BAG_SLOT {
-      box x, HUD_H - 26, wide - 2, 2 color HUD_COLOR
+    drawSlot(i, left + c * wide, top + r * wide)
+    c += 1
+    if c >= across {
+      c = 0
+      r += 1
     }
-    box x + 5, HUD_H - 20, 10, 10 color BAG_COLOR[i]
-    write "" + BAG_COUNT[i] at x + wide - 5, HUD_H - 13 color "#cfe6ff"
     i += 1
   }
-  write holding() at HUD_W / 2, HUD_H - 34 centered color "#8c93a3"
+  if HOTBAR_NAME and holding() != "" {
+    write holding() at left + barW / 2, top - 10 centered color "#cfe6ff" shadow
+  }
+}
+
+// How many slots to draw: what you are carrying, or the fixed number you set.
+fn hotbarSlots() {
+  if HOTBAR_SLOTS > 0 {
+    return HOTBAR_SLOTS
+  }
+  return length(BAG_NAME)
+}
+
+// a divided by b, rounded up, in whole numbers
+fn ceilDiv(a, b) {
+  if b <= 1 {
+    return a
+  }
+  let got = 0
+  let n = 0
+  while got < a {
+    got += b
+    n += 1
+  }
+  return n
+}
+
+fn hotbarLeft(barW) {
+  if HOTBAR_X >= 0 {
+    return HOTBAR_X
+  }
+  if HOTBAR_WHERE == "left" {
+    return 8
+  }
+  if HOTBAR_WHERE == "right" {
+    return HUD_W - barW - 8
+  }
+  return HUD_W / 2 - barW / 2
+}
+
+fn hotbarTop(barH) {
+  if HOTBAR_Y >= 0 {
+    return HOTBAR_Y
+  }
+  if HOTBAR_WHERE == "top" {
+    return 8
+  }
+  if HOTBAR_WHERE == "middle" {
+    return HUD_H / 2 - barH / 2
+  }
+  return HUD_H - barH - 8
+}
+
+// One slot: the frame in whichever style you picked, then what is in it.
+fn drawSlot(i, x, y) {
+  let size = HOTBAR_SIZE
+  let pad = max(4, size / 4)      // how far the thing sits inside its slot
+  let picked = i == BAG_SLOT
+  let rim = HOTBAR_RIM
+  if picked {
+    rim = HOTBAR_PICKED
+  }
+  let has = i < length(BAG_NAME)
+
+  if HOTBAR_STYLE == "round" {
+    let mid = size / 2
+    circle x + mid, y + mid, mid color HOTBAR_BACK edge 2 edgecolor rim
+    if picked {
+      circle x + mid, y + mid, mid + 2 edge 1 edgecolor HOTBAR_PICKED
+    }
+    if has {
+      circle x + mid, y + mid, mid - pad color BAG_COLOR[i]
+    }
+  } else if HOTBAR_STYLE == "hex" {
+    let mid = size / 2
+    poly x + mid, y + mid, mid, 6 color HOTBAR_BACK angle 30 edge 2 edgecolor rim
+    if picked {
+      poly x + mid, y + mid, mid + 2, 6 angle 30 edge 1 edgecolor HOTBAR_PICKED
+    }
+    if has {
+      poly x + mid, y + mid, mid - pad, 6 color BAG_COLOR[i] angle 30
+    }
+  } else if HOTBAR_STYLE == "gold" {
+    // two frames, one inside the other, the way fantasy games do it
+    box x, y, size, size color "#2a1d0e" round 3 edge 2 edgecolor "#c89b3c"
+    box x + 2, y + 2, size - 4, size - 4 color HOTBAR_BACK round 2 edge 1 edgecolor "#6b4f1d"
+    if picked {
+      box x - 2, y - 2, size + 4, size + 4 round 4 edge 2 edgecolor HOTBAR_PICKED
+    }
+    if has {
+      box x + pad, y + pad, size - pad * 2, size - pad * 2 color BAG_COLOR[i] round 2
+    }
+  } else if HOTBAR_STYLE == "slim" {
+    // no box at all, just the thing and a line under the one you hold
+    if has {
+      box x + pad - 1, y + pad - 1, size - pad * 2 + 2, size - pad * 2 + 2 color BAG_COLOR[i] round 2
+    }
+    if picked {
+      box x, y + size - 2, size, 2 color HOTBAR_PICKED
+    }
+  } else {
+    box x, y, size, size color HOTBAR_BACK round 4 edge 1 edgecolor rim
+    if picked {
+      box x, y, size, 2 color HOTBAR_PICKED round 1
+    }
+    if has {
+      box x + pad, y + pad, size - pad * 2, size - pad * 2 color BAG_COLOR[i] round 2
+    }
+  }
+
+  if HOTBAR_NUMBERS and slotKey(i) != "" {
+    write slotKey(i) at x + 2, y + 2 color "#b9c2d0" shadow
+  }
+  if HOTBAR_COUNTS and has and BAG_COUNT[i] > 1 {
+    write "" + BAG_COUNT[i] at x + size - 3, y + size - 13 right color "#ffffff" shadow
+  }
+}
+
+// The key you press for a slot: 1 to 9, then 0, then nothing.
+fn slotKey(i) {
+  if i < 9 {
+    return "" + (i + 1)
+  }
+  if i == 9 {
+    return "0"
+  }
+  return ""
 }
