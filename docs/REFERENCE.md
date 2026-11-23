@@ -340,7 +340,8 @@ every frame {                         // 60 times a second
 | `draw hero at x, y` | Draws a sprite. Options, in any order: `frame n`, `flipped` or `flip (condition)`, `angle 90`, `size 2` (whole times bigger), `scale 150` (percent, grows from the middle), `alpha 50` (0-100), `flash (condition)` (pure white, for hits), `tint "#ff8a3d"` (recolours it; great for white glow and smoke pictures), `glow` (adds its light to what's underneath, for fire, magic and lamps) |
 | `paint "#14111a"` | Fills the whole screen with a colour |
 | `box x, y, w, h color "#ff4d6d"` | A filled rectangle. Colours like `"#00000080"` are see-through |
-| `write "text" at x, y` | Pixel-font text. Options: `color "#ffd23f"`, `size 2`, `centered`, `shadow`. `\n` starts a new line |
+| `write "text" at x, y` | Pixel-font text. Options: `color "#ffd23f"`, `size 2`, `centered`, `right`, `shadow`. `\n` starts a new line |
+| `write "text" at x, y font "serif"` | A real font instead of the pixel one. Named ones: `sans`, `serif`, `mono`, `round`, `slab`, `fancy` - or give a font name like `"Georgia"`. Add `bold` for heavy. `size` works the same, so swapping a font in does not move everything else |
 | `camera x, y` | Moves the view, for worlds bigger than the screen. Use `camera 0, 0` before drawing the score and hearts |
 | `every frame { }` | Runs 60 times a second, at the same speed on every screen |
 | `held("left")` | `true` while a key is down (`when key "x" pressed` still runs once per press) |
@@ -926,6 +927,33 @@ Change any of these from your own file, after the import.
 | `SHOW_DAMAGE_NUMBERS` | true | Numbers over a hit |
 | `SHOW_ENEMY_BARS` | true | A small bar over a hurt enemy |
 | `DEATH_SPARKS` | true | A burst of sparks where something dies |
+
+### StarterGui, StarterPack and StarterPlayer
+
+World Studio's Things list keeps three containers under the world, the
+same three Roblox has:
+
+| Container | What goes in it |
+|---|---|
+| **StarterGui** | HUD pieces - bars, words, panels, pictures, the backpack slots |
+| **StarterPack** | Items and Abilities: what the player starts able to carry and do |
+| **StarterPlayer** | Health, how long they take to get back up, walk and run speed, jump power |
+
+A **HUD** piece hangs off a corner of the screen rather than sitting at a
+fixed spot, so it stays put whatever size the window is. Pick the corner,
+then how far across and down from it.
+
+| HUD piece | What it draws |
+|---|---|
+| Bar that fills up | A bar tied to health, how ready an ability is, or how many of an item you have |
+| Words | Text, in any font, tied to a number or just typed |
+| Panel behind things | A see-through rectangle |
+| Picture | A `.png` kept beside your `.volt` file |
+| Backpack slots | The row of slots, moved where you want it |
+
+Drawing your own health bar or backpack turns the kit's own version off,
+so they never double up. Only the StarterPlayer numbers you actually
+change get written out.
 
 ## Game types (structs)
 

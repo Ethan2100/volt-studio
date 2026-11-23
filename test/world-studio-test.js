@@ -256,7 +256,7 @@ if (!JSDOM) {
 
   check('the panel starts without errors', errors.length === 0, errors[0] || '');
   check('every toolbar button is there', ['#bUndo', '#bRedo', '#bDup', '#bDel', '#bPlay', '#bSave', '#bSavePlay', '#bMore', '#bLight', '#snap'].every((id) => $(id)));
-  check('the parts strip is filled in', $('#tools').children.length === 14, 'got ' + $('#tools').children.length);
+  check('the parts strip is filled in', $('#tools').children.length === 15, 'got ' + $('#tools').children.length);
   check('characters, scripts and effects are in the strip', ['char', 'script', 'vfx'].every((k) => $(`#tools [data-add="${k}"]`)));
   check('the world is listed', $('#explorer').querySelectorAll('.row').length >= 10);
   win.__worldStudio.select(win.__worldStudio.scene.objects[7].id);
@@ -452,6 +452,78 @@ if (!JSDOM) {
   editField('hp', '0');
   check('taking the health away drops the combat kit again',
     !win.__worldStudio.genVolt({ mode: 'game' }).includes('combat.volt'));
+  win.__worldStudio.select(null);
+
+  // ---- StarterGui, StarterPack, StarterPlayer and the HUD ----
+  const rows = () => [...win.document.querySelectorAll('#explorer .row')].map((r) => r.textContent.replace(/[\u25be\u25b8\u25cf]/g, '').trim());
+  check('the Explorer has the three containers Roblox has',
+    rows().some((t) => /StarterGui/.test(t)) && rows().some((t) => /StarterPack/.test(t)) && rows().some((t) => /StarterPlayer/.test(t)),
+    rows().slice(-4).join(' | '));
+
+  click('#explorer .row[data-player]');
+  check('StarterPlayer opens the player settings', /StarterPlayer/.test($('#props').textContent) && !!$('#props [data-k="maxHp"]'));
+  editField('maxHp', '150');
+  editField('walk', '520');
+  const playerVolt = win.__worldStudio.genVolt({ mode: 'game' });
+  check('changed player settings are written out', /PLAYER_MAX_HP = 150/.test(playerVolt) && /WALK_SPEED = 520/.test(playerVolt),
+    (playerVolt.match(/.*PLAYER_MAX_HP.*/) || [''])[0]);
+  // only inside the StarterPlayer block - the file's own settings list at
+  // the top names every one of them, changed or not
+  const starterBlock = (playerVolt.split('StarterPlayer: how the player starts out')[1] || '').split('// ---')[0];
+  check('and the ones left alone are not', !!starterBlock && !/RUN_SPEED|JUMP_POWER|RESPAWN_MS/.test(starterBlock), JSON.stringify(starterBlock));
+
+  win.__worldStudio.addPreset('hud', [0, 0]);
+  const hud = win.__worldStudio.scene.objects.find((o) => o.kind === 'hud');
+  check('a HUD piece is filed under StarterGui, not loose in the world',
+    !!win.document.querySelector(`#explorer .row[data-id="${hud.id}"]`) && !win.__worldStudio.genVolt({ mode: 'game' }).includes('block3d(0, 0, 0'));
+  win.__worldStudio.select(hud.id);
+  editField('name', 'Health');
+  win.__worldStudio.select(hud.id);
+  editField('anchor', 'bl');
+  editField('hx', '10'); editField('hy', '14'); editField('w', '110'); editField('h', '10');
+  editField('color', '#ff4d5e'); editField('back', '#000000'); editField('fade', '70');
+  const hudBox = () => $('#hudCode');
+  check('a HUD piece shows the code it turns into', !!hudBox() && /^box /m.test(hudBox().value), hudBox() && hudBox().value);
+  check('it hangs off the corner you picked', /HUD_H - 24/.test(hudBox().value), hudBox().value);
+  check('see-through is kept as a colour with eight digits', /#000000b3/.test(hudBox().value), hudBox().value);
+  check('the bar fills from the health', /PLAYER_HP \* 108\) \/ PLAYER_MAX_HP/.test(hudBox().value), hudBox().value);
+
+  const hudVolt = win.__worldStudio.genVolt({ mode: 'game' });
+  check('the HUD is drawn in worldDraw', /fn worldDraw\(\) \{[\s\S]*?box 10, HUD_H - 24/.test(hudVolt));
+  check('drawing your own health bar turns the kit\'s one off', /SHOW_HEALTH_BAR = false/.test(hudVolt));
+
+  // words, with a font
+  win.__worldStudio.addPreset('hud', [0, 0]);
+  const label = win.__worldStudio.scene.objects.filter((o) => o.kind === 'hud').pop();
+  win.__worldStudio.select(label.id);
+  editField('name', 'Title');
+  win.__worldStudio.select(label.id);
+  editField('look', 'text');
+  win.__worldStudio.select(label.id);
+  editField('shows', 'words');
+  win.__worldStudio.select(label.id);
+  editField('words', 'DUNGEON');
+  editField('anchor', 'tc');
+  win.__worldStudio.select(label.id);
+  editField('font', 'fancy');
+  editField('size', '2');
+  check('words are written with the font you picked',
+    /write "DUNGEON" at HUD_W \/ 2/.test($('#hudCode').value) && /font "fancy"/.test($('#hudCode').value) && /size 2/.test($('#hudCode').value),
+    $('#hudCode').value);
+  check('and centred, because it hangs off the middle', /centered/.test($('#hudCode').value));
+  win.__worldStudio.select(label.id);
+  editField('anchor', 'tr');
+  check('a right-hand corner ends the words at the edge instead',
+    /right/.test($('#hudCode').value) && /HUD_W - /.test($('#hudCode').value), $('#hudCode').value);
+
+  // tidy up so the checks after this see what they expect
+  for (const o of [hud, label]) {
+    win.__worldStudio.select(o.id);
+    click('#bDel');
+  }
+  click('#explorer .row[data-player]');
+  editField('maxHp', '100');
+  editField('walk', '400');
   win.__worldStudio.select(null);
 
   // ---- the history list says what each step was ----

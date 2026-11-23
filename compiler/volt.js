@@ -738,7 +738,9 @@ function parse(tokens) {
         for (;;) {
           if (isWord('centered')) { next(); opts.centered = true; continue; }
           if (isWord('shadow')) { next(); opts.shadow = true; continue; }
-          const o = ['color', 'size'].find(isWord);
+          if (isWord('bold')) { next(); opts.bold = true; continue; }
+          if (isWord('right')) { next(); opts.right = true; continue; }
+          const o = ['color', 'size', 'font'].find(isWord);
           if (!o) break;
           next();
           opts[o] = expression();
@@ -1272,11 +1274,44 @@ const GAME_RUNTIME = [
   "    for (let i = 0; i < ln.length; i++) { const ch = ln[i]; if (ch !== ' ') __cx.fillText(ch, px + i * 6 * s + 3 * s, py); }",
   "  });",
   "}",
-  "function __write(t, x, y, c, size, center, shadow) {",
+  "function __write(t, x, y, c, size, center, shadow, font, bold, right) {",
   "  __need();",
   "  const s = Math.max(1, size | 0);",
+  "  if (font) {",
+  "    if (shadow) __ftext(t, x + s, y + s, '#000', s, center, font, bold, right);",
+  "    __ftext(t, x, y, c == null ? '#fff' : String(c), s, center, font, bold, right);",
+  "    return;",
+  "  }",
+  "  // the pixel font is 6 wide a character, so ending at x is just a shift",
+  "  if (right) {",
+  "    const wide = Math.max(...String(t).split('\\n').map((l) => l.length)) * 6 * s;",
+  "    x = x - wide;",
+  "  }",
   "  if (shadow) __text(t, x + s, y + s, '#000', s, center);",
   "  __text(t, x, y, c == null ? '#fff' : String(c), s, center);",
+  "}",
+  "// write ... font \"Georgia\"   - a real font instead of the pixel one.",
+  "// Size is in the same steps as the pixel font (1 is 8 tall) so swapping",
+  "// a font in does not move everything else around.",
+  "const __FONTS = {",
+  "  serif: 'Georgia, \"Times New Roman\", serif',",
+  "  sans: 'system-ui, \"Segoe UI\", Helvetica, Arial, sans-serif',",
+  "  mono: 'Consolas, \"DejaVu Sans Mono\", \"Courier New\", monospace',",
+  "  round: '\"Trebuchet MS\", \"Segoe UI\", Verdana, sans-serif',",
+  "  slab: '\"Rockwell\", \"Courier New\", Georgia, serif',",
+  "  fancy: '\"Palatino Linotype\", \"Book Antiqua\", Palatino, Georgia, serif',",
+  "};",
+  "function __ftext(t, x, y, c, s, center, font, bold, right) {",
+  "  const fam = __FONTS[String(font).toLowerCase()] || String(font);",
+  "  __cx.save();",
+  "  __cx.font = (bold ? '700 ' : '400 ') + (8 * s) + 'px ' + fam;",
+  "  __cx.fillStyle = c;",
+  "  __cx.textAlign = center ? 'center' : right ? 'right' : 'left';",
+  "  __cx.textBaseline = 'top';",
+  "  String(t).split('\\n').forEach((ln, row) => {",
+  "    __cx.fillText(ln, Math.round(x) - __camX, Math.round(y) - __camY + row * 10 * s);",
+  "  });",
+  "  __cx.restore();",
   "}",
   "// Images load before the program starts; sprites are rectangles cut out of them",
   "const __imgs = [];",
@@ -3118,8 +3153,9 @@ function generate(ast, target = 'cpp', options = {}) {
           bare(genExpr(s.value).code), bare(genNumber(s.x, "'write'")), bare(genNumber(s.y, "'write'")),
           o.color ? bare(genExpr(o.color).code) : 'null', o.size ? bare(genNumber(o.size, "'size'")) : '1',
           String(!!o.centered), String(!!o.shadow),
+          o.font ? bare(genExpr(o.font).code) : 'null', String(!!o.bold), String(!!o.right),
         ];
-        const defaults = [null, null, null, 'null', '1', 'false', 'false'];
+        const defaults = [null, null, null, 'null', '1', 'false', 'false', 'null', 'false', 'false'];
         while (args.length > 3 && args[args.length - 1] === defaults[args.length - 1]) args.pop();
         return [`${p}__write(${args.join(', ')});`];
       }

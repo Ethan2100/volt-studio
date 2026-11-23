@@ -36,6 +36,7 @@ const KIND = {
   vfx: { label: 'Effect', icon: '✺' },
   ability: { label: 'Ability', icon: '✦' },
   item: { label: 'Item', icon: '◈' },
+  hud: { label: 'HUD', icon: '▧' },
   // A folder holds the parts of one building or prop. It has no body of its
   // own - it is the handle you move, turn and drag the whole thing by, and it
   // becomes a group3d in the game.
@@ -43,7 +44,35 @@ const KIND = {
 };
 // Scripts and effects have no size and no place in the world of their own -
 // they belong to whatever they sit under, like a Script inside a Part.
-const ATTACHED = new Set(['script', 'vfx', 'ability']);
+const ATTACHED = new Set(['script', 'vfx', 'ability', 'hud']);
+
+// What a piece of HUD can be, and where it hangs off the screen so it
+// stays put whatever size the canvas is.
+const HUD_LOOKS = {
+  bar: 'Bar that fills up',
+  text: 'Words',
+  panel: 'Panel behind things',
+  icon: 'Picture',
+  slots: 'Backpack slots',
+};
+const HUD_ANCHORS = {
+  tl: 'Top left', tc: 'Top middle', tr: 'Top right',
+  c: 'Middle',
+  bl: 'Bottom left', bc: 'Bottom middle', br: 'Bottom right',
+};
+const HUD_FONTS = {
+  '': 'Pixel (the built-in one)',
+  sans: 'Sans', serif: 'Serif', mono: 'Monospace',
+  round: 'Rounded', slab: 'Slab', fancy: 'Fancy',
+};
+// What a bar or a line of words can be tied to.
+const HUD_SHOWS = {
+  health: "The player's health",
+  words: 'Words you type',
+  count: 'How many of an item you have',
+  cool: 'How ready an ability is',
+  alive: 'How many things are still standing',
+};
 
 // Which key sets an ability off. 1-9 double as the backpack slots, so an
 // ability on one of those is the thing that slot does.
@@ -120,6 +149,9 @@ const charAsked = new Set();   // characters already requested from the editor t
 const worldDefaults = () => ({
   title: 'My 3D world', bg: '#05060a', fog: 1600, ambient: 8, fov: 75, shadows: true,
   torch: 60, torchRange: 1800, sky: -1, bloom: 0, vignette: 0, grain: 0,
+  // StarterPlayer: what the player is like when the game begins. Left at
+  // these, nothing is written and the game kit's own defaults stand.
+  maxHp: 100, respawn: 2000, walk: 400, run: 750, jump: 430,
 });
 let S = { world: worldDefaults(), objects: [] };
 let nextId = 1;
@@ -203,6 +235,11 @@ function makeObj(kind, over = {}) {
     effect: 'magic', color: '#9d6bff', size: 300, ms: 900, count: 40, speed: 320, len: 900, thick: 24, up: 5,
   });
   if (kind === 'item') Object.assign(o, { count: 1, color: '#ff6b6b', pickup: false, heals: 0, y: 60 });
+  if (kind === 'hud') Object.assign(o, {
+    look: 'bar', anchor: 'bl', hx: 8, hy: 16, w: 94, h: 8,
+    color: '#4ade80', back: '#000000', fade: 60, font: '', size: 1, bold: false,
+    shows: 'health', words: 'Score', target: '', file: '',
+  });
   // A part can be something you fight: 0 health means it is only scenery.
   if (kind === 'block' || kind === 'ball' || kind === 'cyl' || kind === 'model' || kind === 'char') o.hp = 0;
   Object.assign(o, over);
@@ -691,6 +728,7 @@ const focusDist = () => { const o = byId(sel); return o ? Math.max(1.5, Math.hyp
 // everything selected, the anchor included, so one thing picked is just
 // a set of one and the rest of the code reads the same either way.
 let sel = null, selWorld = false, tool = 'select';
+let selPanel = 'world';   // 'world' or 'player' - which settings the right pane shows
 let picked = new Set();
 const pickedObjects = () => S.objects.filter((o) => picked.has(o.id));
 // The ones to actually move: a thing inside another selected thing comes
@@ -739,7 +777,7 @@ function selectAll() {
   for (const [nid, n] of nodes) n.userData.outline.visible = picked.has(nid) && mode !== 'play';
   renderExplorer(); renderProps(); updateGizmo(); updateStatus(); updateButtons(); dirty = true;
 }
-function selectWorld() { sel = null; picked.clear(); selWorld = true; for (const n of nodes.values()) n.userData.outline.visible = false; renderExplorer(); renderProps(); updateGizmo(); updateStatus(); updateButtons(); dirty = true; if (narrow()) setDock('props'); }
+function selectWorld(which) { selPanel = which || 'world'; sel = null; picked.clear(); selWorld = true; for (const n of nodes.values()) n.userData.outline.visible = false; renderExplorer(); renderProps(); updateGizmo(); updateStatus(); updateButtons(); dirty = true; if (narrow()) setDock('props'); }
 function touch(o) { refreshNode(o); updateGizmo(); syncVfxScript(); }
 // The Effect's script box is read-only, so it is not covered by syncPropValues -
 // refresh it here instead of re-rendering the form and losing the caret.
@@ -750,6 +788,7 @@ function syncVfxScript() {
   if (o.kind === 'vfx') { set('#vfxScriptFn', vfxFnText(o)); set('#vfxScriptCall', vfxTriggerText(o)); }
   if (o.kind === 'ability') { set('#abilityFn', abilityFnText(o)); set('#abilityCall', abilityTriggerText(o)); }
   if (o.kind === 'item') { set('#itemCode', itemText(o)); }
+  if (o.kind === 'hud') { set('#hudCode', hudText(o)); }
 }
 
 // ---------------------------------------------------------------------
@@ -1096,6 +1135,7 @@ const PRESETS = {
   vfx: { kind: 'vfx', label: 'Effect', glyph: '✺', over: {}, base: 'Effect' },
   ability: { kind: 'ability', label: 'Ability', glyph: '✦', over: {}, base: 'Ability' },
   item: { kind: 'item', label: 'Item', glyph: '◈', over: {}, base: 'Item' },
+  hud: { kind: 'hud', label: 'HUD', glyph: '▧', over: {}, base: 'Hud' },
   folder: { kind: 'folder', label: 'Folder', glyph: '📁', over: {}, base: 'Folder' },
 };
 function dropPoint(at) {   // where a new object should land: the drop point, or ~6m ahead of the camera
@@ -1288,14 +1328,26 @@ const shutRows = new Set();
 // The ids in the order the list shows them, so a shift-click can pick the
 // run between two rows the way the eye reads it.
 let rowOrder = [];
+// The three containers Roblox keeps at the top of its Explorer. They are
+// not objects in the world - they are where the panel files things that
+// belong to the player rather than to the map, so they cannot be renamed,
+// moved or deleted by accident.
+const BOXES = [
+  { id: 'gui', label: 'StarterGui', icon: '▧', kinds: ['hud'], empty: 'Nothing on screen yet. Add a HUD from the left.' },
+  { id: 'pack', label: 'StarterPack', icon: '🎒', kinds: ['item', 'ability'], empty: 'Nothing to carry yet. Add an Item or an Ability.' },
+];
+let openBox = { gui: true, pack: true };
+
 function renderExplorer() {
   const box = $('#explorer');
   rowOrder = [];
-  let h = `<div class="row world${selWorld ? ' sel' : ''}" data-world="1" data-drop="0"><span class="caret leaf"></span><span class="ic">🌐</span><span class="nm">World</span></div>`;
-  if (!S.objects.length) h += '<div class="empty">Nothing here yet. Add a part from the left.</div>';
+  let h = `<div class="row world${selWorld && selPanel === 'world' ? ' sel' : ''}" data-world="1" data-drop="0"><span class="caret leaf"></span><span class="ic">🌐</span><span class="nm">World</span></div>`;
+  if (!S.objects.filter((o) => !ATTACHED.has(o.kind)).length) h += '<div class="empty">Nothing here yet. Add a part from the left.</div>';
+  const inABox = new Set(BOXES.flatMap((b) => b.kinds));
   const draw = (parentId, depth) => {
     for (const o of S.objects) {
       if ((o.parent || 0) !== parentId) continue;
+      if (inABox.has(o.kind)) continue;        // listed under its container instead
       const kids = childrenOf(o.id).length;
       const shut = shutRows.has(o.id);
       rowOrder.push(o.id);
@@ -1309,6 +1361,25 @@ function renderExplorer() {
     }
   };
   draw(0, 0);
+
+  for (const b of BOXES) {
+    const mine = S.objects.filter((o) => b.kinds.includes(o.kind));
+    const shut = !openBox[b.id];
+    h += `<div class="row boxrow" data-box="${b.id}">` +
+      `<span class="caret" data-boxfold="${b.id}">${shut ? '▸' : '▾'}</span>` +
+      `<span class="ic">${b.icon}</span><span class="nm">${b.label}</span>` +
+      (mine.length ? `<span class="kids">${mine.length}</span>` : '') + '</div>';
+    if (shut) continue;
+    if (!mine.length) h += `<div class="empty small">${b.empty}</div>`;
+    for (const o of mine) {
+      rowOrder.push(o.id);
+      h += `<div class="row${picked.has(o.id) ? ' sel' : ''}${o.id === sel && picked.size > 1 ? ' anchor' : ''}" data-id="${o.id}" style="padding-left:20px">` +
+        `<span class="caret leaf"></span><span class="ic">${KIND[o.kind].icon}</span><span class="nm">${esc(o.name)}</span></div>`;
+    }
+  }
+  h += `<div class="row boxrow${selWorld && selPanel === 'player' ? ' sel' : ''}" data-player="1">` +
+    '<span class="caret leaf"></span><span class="ic">🏃</span><span class="nm">StarterPlayer</span></div>';
+
   box.innerHTML = h;
 }
 
@@ -1365,8 +1436,12 @@ $('#explorer').addEventListener('click', (e) => {
   if (fold) { const id = Number(fold.dataset.fold); shutRows.has(id) ? shutRows.delete(id) : shutRows.add(id); renderExplorer(); return; }
   const eye = e.target.closest('[data-eye]');
   if (eye) { const o = byId(Number(eye.dataset.eye)); o.visible = !o.visible; refreshNode(o); renderExplorer(); renderProps(); commit(); return; }
+  const boxFold = e.target.closest('[data-boxfold]');
+  if (boxFold) { openBox[boxFold.dataset.boxfold] = !openBox[boxFold.dataset.boxfold]; renderExplorer(); return; }
   const row = e.target.closest('.row'); if (!row) return;
-  if (row.dataset.world) { selectWorld(); return; }
+  if (row.dataset.world) { selectWorld('world'); return; }
+  if (row.dataset.player) { selectWorld('player'); return; }
+  if (row.dataset.box) { openBox[row.dataset.box] = !openBox[row.dataset.box]; renderExplorer(); return; }
   const how = e.shiftKey ? 'range' : (e.ctrlKey || e.metaKey) ? 'toggle' : 'set';
   select(Number(row.dataset.id), how);
 });
@@ -1431,9 +1506,46 @@ function parentOptions(o) {
 
 function objForm(o) {
   const kids = childrenOf(o.id);
+  // A HUD piece lives in StarterGui, not inside a part, so it has no
+  // "Inside" to choose.
   let h = `<div class="sec">${KIND[o.kind].label}</div>` + fText('name', 'Name', o.name) +
-    fSelect('parent', 'Inside', String(o.parent || 0), parentOptions(o));
+    (o.kind === 'hud' ? '' : fSelect('parent', 'Inside', String(o.parent || 0), parentOptions(o)));
   if (kids.length) h += `<div class="note">${kids.length} thing${kids.length > 1 ? 's' : ''} inside: ${kids.map((k) => esc(k.name)).join(', ')}. Moving or turning this one takes them along.</div>`;
+
+  if (o.kind === 'hud') {
+    const items = S.objects.filter((x) => x.kind === 'item').map((x) => [x.name, x.name]);
+    const abil = S.objects.filter((x) => x.kind === 'ability').map((x) => [x.name, x.name]);
+    h += '<div class="sec">What it is</div>';
+    h += fSelect('look', 'Looks like', o.look, Object.entries(HUD_LOOKS));
+    if (o.look === 'bar' || o.look === 'text') {
+      h += fSelect('shows', 'Shows', o.shows, Object.entries(HUD_SHOWS)
+        .filter(([k]) => (o.look === 'bar' ? k !== 'words' : true))
+        .filter(([k]) => (k !== 'count' || items.length) && (k !== 'cool' || abil.length)));
+      if (o.shows === 'words') h += fText('words', 'The words', o.words);
+      if (o.shows === 'count' && items.length) h += fSelect('target', 'Which item', o.target || items[0][0], items);
+      if (o.shows === 'cool' && abil.length) h += fSelect('target', 'Which ability', o.target || abil[0][0], abil);
+    }
+    if (o.look === 'icon') h += fText('file', 'Picture file', o.file);
+    h += '<div class="sec">Where it sits</div>';
+    h += fSelect('anchor', 'Corner', o.anchor, Object.entries(HUD_ANCHORS));
+    h += fNum('hx', 'Across from there', o.hx);
+    h += fNum('hy', 'Down from there', o.hy);
+    if (o.look !== 'text') { h += fNum('w', 'Width', o.w, { min: 1 }); h += fNum('h', 'Height', o.h, { min: 1 }); }
+    h += '<div class="sec">How it looks</div>';
+    h += fColor('color', o.look === 'bar' ? 'Fill colour' : 'Colour', o.color);
+    if (o.look === 'bar' || o.look === 'panel' || o.look === 'slots') {
+      h += fColor('back', 'Behind it', o.back);
+      h += fRange('fade', 'How solid it is', o.fade, 0, 100);
+    }
+    if (o.look === 'text') {
+      h += fSelect('font', 'Font', o.font, Object.entries(HUD_FONTS));
+      h += fNum('size', 'Size', o.size, { min: 1, max: 6 });
+      h += fCheck('bold', 'Bold', o.bold);
+    }
+    h += `<div class="note">The screen is ${r(S.world.hudW || 320)} across and ${r(S.world.hudH || 180)} down. This sits ${r(o.hx)} and ${r(o.hy)} from the <b>${esc((HUD_ANCHORS[o.anchor] || '').toLowerCase())}</b>, so it stays put whatever size the window is.${o.look === 'slots' ? ' Number keys 1-9 pick a slot.' : ''}</div>`;
+    h += hudScriptSection(o);
+    return h;
+  }
 
   if (o.kind === 'ability') {
     h += '<div class="sec">What it does</div>';
@@ -1640,8 +1752,23 @@ function multiForm() {
   return h;
 }
 
+function playerForm() {
+  const w = S.world;
+  let h = '<div class="sec">StarterPlayer</div>' +
+    '<div class="note">What the player is like when the game starts. These are written into the part of the file World Studio looks after, so they win over anything set further up.</div>';
+  h += '<div class="sec">Staying alive</div>';
+  h += fNum('maxHp', 'Health', w.maxHp, { min: 1 });
+  h += fNum('respawn', 'Get back up after (ms, 0 = stay down)', w.respawn, { min: 0, step: 100 });
+  h += '<div class="sec">Moving</div>';
+  h += fNum('walk', 'Walk speed (cm a second)', w.walk, { min: 0, step: 10 });
+  h += fNum('run', 'Run speed, holding Shift', w.run, { min: 0, step: 10 });
+  h += fNum('jump', 'Jump power', w.jump, { min: 0, step: 10 });
+  return h;
+}
+
 function renderProps() {
   const box = $('#props');
+  if (selWorld && selPanel === 'player') { box.innerHTML = groupSections(playerForm()); return; }
   if (selWorld) { box.innerHTML = groupSections(worldForm()); return; }
   if (picked.size > 1) { box.innerHTML = groupSections(multiForm()); return; }
   const o = byId(sel);
@@ -1696,13 +1823,14 @@ $('#props').addEventListener('click', (e) => {
     if (act === 'multi-del') deleteSelected();
     return;
   }
-  const ac = e.target.closest('[data-act^="ability-copy"], [data-act^="item-copy"]');
+  const ac = e.target.closest('[data-act^="ability-copy"], [data-act^="item-copy"], [data-act^="hud-copy"]');
   if (ac) {
     const o = byId(sel);
     if (o) {
       const act = ac.dataset.act;
       const code = act === 'ability-copy-fn' ? abilityFnText(o)
-        : act === 'ability-copy-call' ? abilityTriggerText(o) : itemText(o);
+        : act === 'ability-copy-call' ? abilityTriggerText(o)
+        : act === 'hud-copy' ? hudText(o) : itemText(o);
       toast(copyText(code) ? 'Copied' : 'Could not copy - select the text and press Ctrl+C', false);
     }
     return;
@@ -2199,6 +2327,16 @@ const q = (c) => '"' + hex6(c, '#999999') + '"';
 // q() is for colours - it turns anything that is not a colour into grey.
 // Names, keys and other plain words need this one instead.
 const qs = (t) => JSON.stringify(String(t));
+// A HUD colour may be see-through ("#00000099"), which q() would flatten
+// to six digits and lose. This keeps the last two when they are there.
+const qc = (c) => (/^#[0-9a-f]{8}$/i.test(c || '') ? '"' + String(c).toLowerCase() + '"' : q(c));
+// A colour plus how solid it is, 0 to 100, as Volt's see-through form.
+function qFade(color, percent) {
+  const pc = clamp(Math.round(Number(percent)), 0, 100);
+  if (pc >= 100) return q(color);
+  const a = Math.round((pc / 100) * 255).toString(16).padStart(2, '0');
+  return '"' + hex6(color, '#000000') + a + '"';
+}
 const r = (v) => Math.round(num(v));
 // The world lives between these two lines in your .volt file. Saving the
 // world rewrites only what is between them, so the settings above and the
@@ -2310,6 +2448,72 @@ function vfxTriggerLines(o, call) {
 //  one place that writes the code, used by the saved game file and by
 //  the preview in Properties, so the two cannot disagree.
 // ---------------------------------------------------------------------
+// ---------------------------------------------------------------------
+//  HUD pieces, turned into box and write calls.
+//
+//  A piece hangs off a corner so it stays put whatever size the canvas
+//  is: HUD_W and HUD_H are the canvas size, and the sums below are
+//  written out rather than worked out here, so the generated file still
+//  reads as something a person could have typed.
+// ---------------------------------------------------------------------
+function hudAt(o) {
+  const a = o.anchor || 'tl', x = r(o.hx), y = r(o.hy);
+  const w = o.look === 'text' ? 0 : r(o.w), h = o.look === 'text' ? 0 : r(o.h);
+  const ex = a[1] === 'r' || a === 'c' ? (a === 'c' ? `HUD_W / 2 - ${Math.round(w / 2)} + ${x}` : `HUD_W - ${w + x}`) : `${x}`;
+  const ey = a[0] === 'b' ? `HUD_H - ${h + y}` : a === 'c' ? `HUD_H / 2 - ${Math.round(h / 2)} + ${y}` : `${y}`;
+  const mid = a[1] === 'c' && a !== 'c';
+  return { x: mid ? `HUD_W / 2 + ${x}` : ex, y: ey };
+}
+// What a bar is filled from, as a fraction of its width.
+function hudFill(o, width) {
+  if (o.shows === 'cool' && o.target) {
+    const ab = S.objects.find((x) => x.kind === 'ability' && x.name === o.target);
+    return `(coolPercent(${qs(o.target)}, ${ab ? r(ab.cool) : 800}) * ${width}) / 100`;
+  }
+  if (o.shows === 'count' && o.target) return `min(${width}, countOf(${qs(o.target)}) * 10)`;
+  if (o.shows === 'alive') return `(aliveCount() * ${width}) / max(1, aliveCount())`;
+  return `(PLAYER_HP * ${width}) / PLAYER_MAX_HP`;
+}
+function hudTextValue(o) {
+  if (o.shows === 'health') return '"" + PLAYER_HP';
+  if (o.shows === 'count') return `${qs((o.target || '') + ' ')} + countOf(${qs(o.target || '')})`;
+  if (o.shows === 'alive') return `"" + aliveCount() + " left"`;
+  if (o.shows === 'cool') return `${qs(o.target || '')}`;
+  return qs(o.words || '');
+}
+function hudLines(o) {
+  const L = [`// ${o.name} - ${(HUD_LOOKS[o.look] || o.look).toLowerCase()}`];
+  const at = hudAt(o), w = r(o.w), h = r(o.h);
+  if (o.look === 'panel') {
+    L.push(`box ${at.x}, ${at.y}, ${w}, ${h} color ${qFade(o.back, o.fade)}`);
+  } else if (o.look === 'bar') {
+    L.push(`box ${at.x}, ${at.y}, ${w}, ${h} color ${qFade(o.back, o.fade)}`);
+    L.push(`box ${at.x} + 1, ${at.y} + 1, ${hudFill(o, Math.max(1, w - 2))}, ${Math.max(1, h - 2)} color ${qc(o.color)}`);
+  } else if (o.look === 'text') {
+    const opts = [`color ${qc(o.color)}`];
+    if (o.font) opts.push(`font ${qs(o.font)}`);
+    if (r(o.size) > 1) opts.push(`size ${r(o.size)}`);
+    if (o.bold) opts.push('bold');
+    if ((o.anchor || '')[1] === 'c') opts.push('centered');
+    if ((o.anchor || '')[1] === 'r') opts.push('right');
+    L.push(`write ${hudTextValue(o)} at ${at.x}, ${at.y} ${opts.join(' ')}`);
+  } else if (o.look === 'icon') {
+    L.push(`draw ${'icon_' + identish(o.name)} at ${at.x}, ${at.y}`);
+  } else if (o.look === 'slots') {
+    L.push(`// the backpack draws itself - this only says where`);
+    L.push(`HUD_SLOT_X = ${at.x}`);
+    L.push(`HUD_SLOT_Y = ${at.y}`);
+  }
+  return L;
+}
+function hudText(o) { return hudLines(o).join('\n'); }
+function hudScriptSection(o) {
+  return '<div class="sec">Its code</div>' +
+    `<div class="codewrap"><textarea class="code" id="hudCode" readonly spellcheck="false" rows="6">${esc(hudText(o))}</textarea></div>` +
+    '<div class="note"><b>Save world writes this into worldDraw() for you.</b> It changes as you move it and restyle it above.</div>' +
+    '<div class="btnrow"><button type="button" class="tb" data-act="hud-copy">\u2398 Copy</button></div>';
+}
+
 function abilityIdent(o) { return 'ability_' + identish(o.name); }
 
 // Roughly how wide a thing is, used as how close a hit has to land.
@@ -2434,11 +2638,22 @@ function worldLines() {
   for (const o of S.objects) if (ATTACHED.has(o.kind)) idn.set(o.id, identFor(o.name, used));
 
   L.push(MARK_OPEN + '  (World Studio writes this part - press "Save world" to update it)');
-  const fighters = S.objects.filter((o) => o.kind === 'ability' || o.kind === 'item' || r(o.hp) > 0);
-  if (fighters.length) L.push('import "combat.volt"   // health, damage, the backpack and the HUD');
+  // StarterPlayer: only what has been moved off its default is written,
+  // so a game nobody has touched keeps the kit's own numbers.
+  const pw = S.world;
+  const moveSet = [];
+  if (r(pw.walk) !== 400) moveSet.push(`WALK_SPEED = ${r(pw.walk)}`);
+  if (r(pw.run) !== 750) moveSet.push(`RUN_SPEED = ${r(pw.run)}`);
+  if (r(pw.jump) !== 430) moveSet.push(`JUMP_POWER = ${r(pw.jump)}`);
+  const lifeSet = [];
+  if (r(pw.maxHp) !== 100) lifeSet.push(`PLAYER_MAX_HP = ${r(pw.maxHp)}`, `PLAYER_HP = ${r(pw.maxHp)}`);
+  if (r(pw.respawn) !== 2000) lifeSet.push(`RESPAWN_MS = ${r(pw.respawn)}`);
+  const fighters = S.objects.filter((o) => o.kind === 'ability' || o.kind === 'item' || o.kind === 'hud' || r(o.hp) > 0);
+  const needsCombat = fighters.length > 0 || lifeSet.length > 0;
+  if (needsCombat) L.push('import "combat.volt"   // health, damage, the backpack and the HUD');
   const scriptFiles = [...new Set(S.objects.filter((o) => o.kind === 'script' && o.file).map((o) => o.file))];
   for (const file of scriptFiles) L.push('import ' + JSON.stringify(file));
-  if (scriptFiles.length || fighters.length) L.push('');
+  if (scriptFiles.length || needsCombat) L.push('');
   const bar = (t) => { L.push(''); L.push('// ' + '-'.repeat(66)); L.push('//  ' + t); L.push('// ' + '-'.repeat(66)); };
   bar('The world itself: sky colour, how far you can see, how bright it is.');
   let wl = 'world3d ' + q(w.bg);
@@ -2569,10 +2784,24 @@ function worldLines() {
   const atStart = [...effects, ...scripts].filter((o) => o.when === 'start');
   const running = [...effects, ...scripts].filter((o) => o.when === 'frame' || o.when === 'near' || o.when === 'use');
   const nameOf = (o) => (o.kind === 'vfx' ? fxName.get(o.id) : scName.get(o.id));
+  const starter = [...moveSet, ...lifeSet];
+  const huds0 = S.objects.filter((o) => o.kind === 'hud');
+  if (huds0.some((o) => (o.look === 'bar' || o.look === 'text') && o.shows === 'health')) starter.push('SHOW_HEALTH_BAR = false   // you drew your own');
+  if (huds0.some((o) => o.look === 'slots')) starter.push('SHOW_HOTBAR = false       // you drew your own');
+  if (starter.length) {
+    bar('StarterPlayer: how the player starts out. These run after the\n//  settings at the top of the file, so they are the ones that count.');
+    for (const line of starter) L.push(line);
+  }
+
   const hurtable = S.objects.filter((o) => r(o.hp) > 0 && !ATTACHED.has(o.kind) && o.kind !== 'spawn');
   const abilities = S.objects.filter((o) => o.kind === 'ability');
   const items = S.objects.filter((o) => o.kind === 'item');
-  if (hurtable.length || abilities.length || items.length) {
+  const huds = S.objects.filter((o) => o.kind === 'hud');
+  const icons = huds.filter((o) => o.look === 'icon' && o.file);
+  // a piece of HUD of your own replaces the kit's version of the same thing
+  const ownHealth = huds.some((o) => (o.look === 'bar' || o.look === 'text') && o.shows === 'health');
+  const ownSlots = huds.some((o) => o.look === 'slots');
+  if (hurtable.length || abilities.length || items.length || huds.length) {
     bar('Fighting: what can be hurt, what you can do, what you carry.\n//  The health bar, the backpack along the bottom and the numbers that\n//  pop up over a hit are all drawn by drawCombat().');
     if (hurtable.length) {
       L.push('// Things with health. The number each one gives back is how the');
@@ -2583,6 +2812,8 @@ function worldLines() {
       }
       L.push('');
     }
+    for (const o of icons) L.push(`image ${'icon_' + idn.get(o.id)} = ${qs(o.file)}`);
+    if (icons.length) L.push('');
     if (items.length) {
       L.push('// What you start with in your backpack, and anything lying about.');
       for (const o of items) {
@@ -2641,8 +2872,11 @@ function worldLines() {
   L.push('// The HUD goes on top of the world, so this one is called after');
   L.push('// render3d rather than with the others.');
   L.push('fn worldDraw() {');
-  if (hurtable.length || abilities.length || items.length) L.push('  drawCombat()');
-  else L.push('  // nothing to draw over the world yet');
+  if (hurtable.length || abilities.length || items.length || huds.length) L.push('  drawCombat()');
+  for (const o of huds) for (const line of hudLines(o)) L.push('  ' + line);
+  if (!hurtable.length && !abilities.length && !items.length && !huds.length) {
+    L.push('  // nothing to draw over the world yet');
+  }
   L.push('}');
 
   L.push('');
