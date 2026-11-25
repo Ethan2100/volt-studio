@@ -42,6 +42,10 @@ It installs just for you (no admin password needed) into `%LOCALAPPDATA%\Program
 - **Ruby** needs Ruby from rubyinstaller.org.
 - **HTML** pages open in a preview window; Sketch → Open Page in Browser opens them in your normal browser.
 
+## Hybrid game-engine roadmap
+
+Volt Studio combines visual authoring tools with the Volt language. See the [engine roadmap](docs/ENGINE_ROADMAP.md) for model/animation, audio, VFX, world-building, and gameplay-system phases, plus the free-asset licensing policy. The [asset workflow](docs/ASSETS.md) explains supported GLB models, embedded animations, images, and audio.
+
 ## World Studio
 
 Watch the [captioned World Studio introduction](docs/world-studio-intro.webm) and read its [full code walkthrough and transcript](docs/world-studio-intro-transcript.md).
