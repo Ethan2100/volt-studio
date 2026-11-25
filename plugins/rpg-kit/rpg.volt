@@ -31,6 +31,48 @@ fn rpgEquipSword() {
   }
 }
 
+fn rpgCreateKatana() {
+  RPG_SWORD_GRIP = cyl3d(0, -500, 0, 5, 88, "#38251d")
+  RPG_SWORD_GUARD = cyl3d(0, -500, 0, 17, 7, "#b88a45")
+  RPG_SWORD_BLADE = block3d(0, -500, 0, 10, 132, 6, "#e2edf9")
+  RPG_SWORD_TIP = ball3d(0, -500, 0, 5, "#f7fbff")
+  RPG_SWORD_DAMAGE = 29
+  RPG_SWORD_REACH = 270
+  glow3d RPG_SWORD_BLADE, "#a8d8ff"
+}
+
+fn rpgCreateGreatsword() {
+  RPG_SWORD_GRIP = cyl3d(0, -500, 0, 9, 95, "#493326")
+  RPG_SWORD_GUARD = block3d(0, -500, 0, 76, 12, 18, "#b88a45")
+  RPG_SWORD_BLADE = block3d(0, -500, 0, 28, 160, 12, "#c8d3e2")
+  RPG_SWORD_TIP = ball3d(0, -500, 0, 14, "#eef5ff")
+  RPG_SWORD_DAMAGE = 42
+  RPG_SWORD_REACH = 300
+  glow3d RPG_SWORD_BLADE, "#91a9ca"
+}
+
+fn rpgCreateDagger() {
+  RPG_SWORD_GRIP = cyl3d(0, -500, 0, 6, 48, "#513522")
+  RPG_SWORD_GUARD = block3d(0, -500, 0, 34, 7, 10, "#a77b3c")
+  RPG_SWORD_BLADE = block3d(0, -500, 0, 10, 66, 6, "#dce7f5")
+  RPG_SWORD_TIP = ball3d(0, -500, 0, 5, "#f7fbff")
+  RPG_SWORD_DAMAGE = 15
+  RPG_SWORD_REACH = 180
+  glow3d RPG_SWORD_BLADE, "#b8c9e0"
+}
+
+fn rpgEquipWeapon(kind) {
+  if kind == "Katana" {
+    rpgCreateKatana()
+  } else if kind == "Greatsword" {
+    rpgCreateGreatsword()
+  } else if kind == "Dagger" {
+    rpgCreateDagger()
+  } else {
+    rpgCreateIronSword()
+  }
+}
+
 fn rpgSwordStep() {
   if RPG_SWORD_GRIP < 0 {
     return
