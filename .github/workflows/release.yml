@@ -1,80 +1,104 @@
 name: Build and release
+
 on:
   workflow_dispatch:
     inputs:
       installer_version:
-        description: "Volt Studio installer version"
+        description: "Volt Studio installer version (for example 1.9.5)"
         required: true
+        type: string
         default: "1.9.4"
       volt_version:
-        description: "Volt language/compiler version"
+        description: "Volt language/compiler version (for example 3.4.0)"
         required: true
+        type: string
         default: "3.4.0"
       notes:
         description: "Release notes"
         required: false
-        default: "Gameplay Studio, RPG authoring and Shadow Lifesteal sample."
+        type: string
+        default: "Gameplay Studio, RPG authoring, Shadow Lifesteal sample and skillset."
+
 permissions:
   contents: write
+
 jobs:
   release:
     runs-on: windows-latest
+    env:
+      INSTALLER_VERSION: ${{ inputs.installer_version }}
+      VOLT_VERSION: ${{ inputs.volt_version }}
+
     steps:
       - name: Get the code
         uses: actions/checkout@v5
-      - name: Validate independent versions
+
+      - name: Validate versions and release tag
         shell: pwsh
-        env:
-          INSTALLER_VERSION: ${{ inputs.installer_version }}
-          VOLT_VERSION: ${{ inputs.volt_version }}
         run: |
           foreach ($v in @($env:INSTALLER_VERSION, $env:VOLT_VERSION)) {
-            if ($v -notmatch '^\d+\.\d+\.\d+$') { throw "Versions must use MAJOR.MINOR.PATCH: $v" }
+            if ($v -notmatch '^\\d+\\.\\d+\\.\\d+$') {
+              throw "Versions must use MAJOR.MINOR.PATCH: $v"
+            }
           }
           git fetch --tags --quiet
-          if (git tag --list "v$env:INSTALLER_VERSION") { throw "Tag v$env:INSTALLER_VERSION already exists." }
+          if (git tag --list "v$env:INSTALLER_VERSION") {
+            throw "Installer version $env:INSTALLER_VERSION has already been released. Choose a new installer version."
+          }
+
       - name: Set up Node.js
         uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
+
       - name: Install packages
         run: npm ci
+
       - name: Run tests
         run: npm test
+
       - name: Set application and compiler versions
         shell: pwsh
-        env:
-          INSTALLER_VERSION: ${{ inputs.installer_version }}
-          VOLT_VERSION: ${{ inputs.volt_version }}
         run: |
           npm version $env:INSTALLER_VERSION --no-git-tag-version --allow-same-version
           $file = "compiler/volt.js"
           $source = Get-Content $file -Raw
-          $source = [regex]::Replace($source, "const VERSION = '[^']+';", "const VERSION = '$env:VOLT_VERSION';", 1)
-          Set-Content -Path $file -Value $source -NoNewline
-          node compiler/volt.js --help
+          $updated = [regex]::Replace($source, "const VERSION = '[^']+';", "const VERSION = '$env:VOLT_VERSION';", 1)
+          if ($updated -eq $source) {
+            throw "Could not find the compiler VERSION declaration in $file"
+          }
+          [System.IO.File]::WriteAllText((Resolve-Path $file), $updated, [System.Text.UTF8Encoding]::new($false))
+          if (-not (Select-String -Path $file -Pattern ("const VERSION = '" + [regex]::Escape($env:VOLT_VERSION) + "';"))) {
+            throw "Compiler version update did not persist."
+          }
+
       - name: Build Windows application
         run: npx electron-builder --win dir --x64 --publish never
+
       - name: Validate native modules
         shell: pwsh
         run: |
           $bad = Get-ChildItem -Recurse "dist/win-unpacked/resources/app.asar.unpacked" -Filter *.node |
                  Where-Object { $_.FullName -notmatch 'prebuilds' }
           if ($bad) { throw "Found native module outside prebuilds: $($bad.FullName)" }
+
       - name: Install NSIS
         run: choco install nsis -y --no-progress
+
       - name: Build installer
         shell: pwsh
         working-directory: installer
-        env:
-          INSTALLER_VERSION: ${{ inputs.installer_version }}
-        run: '& "${env:ProgramFiles(x86)}\NSIS\makensis.exe" -V2 "-DVERSION=$env:INSTALLER_VERSION" installer.nsi'
-      - name: Run compiler version check
+        run: '& "${env:ProgramFiles(x86)}\\NSIS\\makensis.exe" -V2 "-DVERSION=$env:INSTALLER_VERSION" installer.nsi'
+
+      - name: Verify compiler version
         shell: pwsh
         run: |
           $version = node compiler/volt.js --help 2>&1 | Select-Object -First 1
-          if ($version -notmatch [regex]::Escape("${{ inputs.volt_version }}")) { throw "Unexpected compiler version: $version" }
+          if ($version -notmatch [regex]::Escape($env:VOLT_VERSION)) {
+            throw "Unexpected compiler version: $version"
+          }
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
@@ -89,4 +113,4 @@ jobs:
 
             ${{ inputs.notes }}
 
-            Download the Windows installer below. Windows may show SmartScreen because the installer is not code-signed.
+            Download the Windows installer below and run it. Windows may show SmartScreen because the installer is not code-signed.
