@@ -1170,7 +1170,7 @@ async function loadPlugins() {
 
   // Panel tabs: one new side tab per "panel" plugin
   clearPanelTabs();
-  plugins.filter((p) => !p.broken && p.manifest.type === 'panel').forEach(addPanelTab);
+  plugins.filter((p) => !p.broken && p.manifest.type === 'panel' && !['gameplay-studio', 'rpg-studio'].includes(p.id)).forEach(addPanelTab);
 }
 $('btn-plugins-folder').addEventListener('click', () => api.pluginsOpenFolder());
 $('btn-plugins-rescan').addEventListener('click', async () => { await api.pluginsRescan(); await loadPlugins(); toast('Rescanned plugins'); });
