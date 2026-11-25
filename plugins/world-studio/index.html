@@ -7932,6 +7932,7 @@ function warnMissingDraw(merged) {
 
 function saveWorld(run) {
   if (!host.ok) { showCode(); return; }
+  if (window.voltGameData) toHost('saveGameData', { req: host.req++, data: window.voltGameData });
   getSource().then((src) => {
     const merged = spliceWorld(src);
     if (merged != null) {
