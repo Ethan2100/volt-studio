@@ -5,7 +5,7 @@ const path = require('path');
 const volt = require('../compiler/volt.js');
 const { JSDOM } = require('jsdom');
 let failed = 0;
-const check = (name, ok) => { if (!ok) failed++; console.log((ok ? 'pass' : 'FAIL') + '  ' + name); };
+const check = (name, ok, detail) => { if (!ok) failed++; console.log((ok ? 'pass' : 'FAIL') + '  ' + name + (detail ? ' -- ' + detail : '')); };
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'volt-rpg-'));
 for (const f of ['game.volt','combat.volt','rpg.volt']) {
   fs.copyFileSync(path.join(__dirname, '..', 'plugins', 'game-kit', f), path.join(dir, f));
