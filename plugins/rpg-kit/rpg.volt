@@ -15,7 +15,7 @@ let RPG_SWORD_BLADE = -1
 let RPG_SWORD_TIP = -1
 let RPG_SWORD_COOLDOWN = 0
 let RPG_SWORD_DAMAGE = 24
-let RPG_SWORD_REACH = 185
+let RPG_SWORD_REACH = 250
 
 fn rpgCreateIronSword() {
   RPG_SWORD_GRIP = cyl3d(0, -500, 0, 7, 78, "#573a29")
@@ -63,7 +63,7 @@ fn rpgSwordAttack() {
   let fz = 0 - cos3(PLAYER_YAW)
   let hitX = PLAYER_X + fx * RPG_SWORD_REACH / 1000
   let hitZ = PLAYER_Z + fz * RPG_SWORD_REACH / 1000
-  let hit = damageArea(hitX, hitZ, 95, RPG_SWORD_DAMAGE)
+  let hit = damageArea(hitX, hitZ, 150, RPG_SWORD_DAMAGE)
   burst3d hitX, PLAYER_Y + 105, hitZ, "#dceaff", 18, 180
   tone 420 to 170 for 110ms
 }
