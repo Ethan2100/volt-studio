@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       installer_version:
-        description: "Volt Studio installer version (for example 1.9.5)"
+        description: "Volt Studio installer version (for example 1.9.7)"
         required: true
         type: string
-        default: "1.9.6"
+        default: "1.9.7"
       volt_version:
         description: "Volt language/compiler version (for example 3.4.0)"
         required: true
@@ -29,7 +29,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[publish-release]')
     runs-on: windows-latest
     env:
-      INSTALLER_VERSION: ${{ inputs.installer_version || '1.9.6' }}
+      INSTALLER_VERSION: ${{ inputs.installer_version || '1.9.7' }}
       VOLT_VERSION: ${{ inputs.volt_version || '3.4.0' }}
 
     steps:
