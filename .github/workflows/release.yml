@@ -64,10 +64,11 @@ jobs:
           npm version $env:INSTALLER_VERSION --no-git-tag-version --allow-same-version
           $file = "compiler/volt.js"
           $source = Get-Content $file -Raw
-          $updated = [regex]::Replace($source, "const VERSION = '[^']+';", "const VERSION = '$env:VOLT_VERSION';", 1)
-          if ($updated -eq $source) {
+          $versionPattern = "const VERSION = '[^']+';"
+          if ($source -notmatch $versionPattern) {
             throw "Could not find the compiler VERSION declaration in $file"
           }
+          $updated = [regex]::Replace($source, $versionPattern, "const VERSION = '$env:VOLT_VERSION';", 1)
           [System.IO.File]::WriteAllText((Resolve-Path $file), $updated, [System.Text.UTF8Encoding]::new($false))
           if (-not (Select-String -Path $file -Pattern ("const VERSION = '" + [regex]::Escape($env:VOLT_VERSION) + "';"))) {
             throw "Compiler version update did not persist."
