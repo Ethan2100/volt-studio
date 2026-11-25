@@ -55,6 +55,7 @@ fn advanceQuest(id, amount) {
   let i = questIndex(id)
   if i < 0 or QUEST_STATE[i] != 1 { return false }
   QUEST_PROGRESS[i] = min(QUEST_GOAL[i], QUEST_PROGRESS[i] + max(0, amount))
+  RPG_DIRTY = true
   if QUEST_PROGRESS[i] >= QUEST_GOAL[i] { QUEST_STATE[i] = 2 }
   return QUEST_STATE[i] == 2
 }
@@ -68,6 +69,7 @@ fn claimQuest(id) {
   let i = questIndex(id)
   if i < 0 or QUEST_STATE[i] != 2 { return false }
   QUEST_STATE[i] = 3
+  RPG_DIRTY = true
   addXP(QUEST_REWARD_XP[i])
   if QUEST_REWARD_COUNT[i] > 0 and QUEST_REWARD_ITEM[i] != "" {
     give(QUEST_REWARD_ITEM[i], QUEST_REWARD_COUNT[i], "#d9bd70")
@@ -77,6 +79,7 @@ fn claimQuest(id) {
 
 // ---- player progression and skill unlocks ------------------------------
 let PLAYER_XP = 0
+let RPG_DIRTY = false
 let PLAYER_LEVEL = 1
 let XP_NEXT_LEVEL = 100
 let SKILL_ID = []
@@ -107,6 +110,7 @@ fn defineSkill(id, requiredLevel, xpCost, prerequisite) {
 
 fn addXP(amount) {
   PLAYER_XP += max(0, amount)
+  RPG_DIRTY = true
   while PLAYER_XP >= XP_NEXT_LEVEL {
     PLAYER_XP -= XP_NEXT_LEVEL
     PLAYER_LEVEL += 1
@@ -126,6 +130,7 @@ fn unlockSkill(id) {
   if SKILL_PREREQ[i] != "" and not skillUnlocked(SKILL_PREREQ[i]) { return false }
   PLAYER_XP -= SKILL_COST[i]
   SKILL_UNLOCKED[i] = true
+  RPG_DIRTY = true
   return true
 }
 
@@ -369,6 +374,11 @@ fn loadRpgProgress() {
   SKILL_UNLOCKED = __saved("rpg_skills", SKILL_UNLOCKED)
   QUEST_PROGRESS = __saved("rpg_quest_progress", QUEST_PROGRESS)
   QUEST_STATE = __saved("rpg_quest_state", QUEST_STATE)
+  let i = 0
+  while i < length(SKILL_ID) {
+    if i >= length(SKILL_UNLOCKED) { add false to SKILL_UNLOCKED }
+    i += 1
+  }
 }
 
 // ---- interaction triggers ----------------------------------------------
@@ -380,6 +390,7 @@ let TRIGGER_ACTION = []
 let TRIGGER_PAYLOAD = []
 let TRIGGER_ONCE = []
 let TRIGGER_FIRED = []
+let TRIGGER_INSIDE = []
 
 fn addTrigger(id, x, z, radius, action, payload, once) {
   add id to TRIGGER_ID
@@ -390,13 +401,15 @@ fn addTrigger(id, x, z, radius, action, payload, once) {
   add payload to TRIGGER_PAYLOAD
   add once to TRIGGER_ONCE
   add false to TRIGGER_FIRED
+  add false to TRIGGER_INSIDE
 }
 
 fn stepTriggers(playerX, playerZ) {
   let i = 0
   while i < length(TRIGGER_ID) {
-    if not TRIGGER_FIRED[i] or not TRIGGER_ONCE[i] {
-      if dist(playerX, playerZ, TRIGGER_X[i], TRIGGER_Z[i]) <= TRIGGER_RADIUS[i] {
+    let inside = dist(playerX, playerZ, TRIGGER_X[i], TRIGGER_Z[i]) <= TRIGGER_RADIUS[i]
+    if inside and not TRIGGER_INSIDE[i] and (not TRIGGER_FIRED[i] or not TRIGGER_ONCE[i]) {
+        TRIGGER_INSIDE[i] = true
         let action = TRIGGER_ACTION[i]
         if action == "quest" { startQuest(TRIGGER_PAYLOAD[i]) }
         if action == "advanceQuest" { advanceQuest(TRIGGER_PAYLOAD[i], 1) }
@@ -407,8 +420,8 @@ fn stepTriggers(playerX, playerZ) {
         if action == "statusDefence" { applyStatus(TRIGGER_ID[i], "defence", int(TRIGGER_PAYLOAD[i]), 5000) }
         if action == "status" { applyDefinedStatus(TRIGGER_PAYLOAD[i]) }
         if TRIGGER_ONCE[i] { TRIGGER_FIRED[i] = true }
-      }
     }
+    if not inside { TRIGGER_INSIDE[i] = false }
     i += 1
   }
 }
@@ -426,6 +439,7 @@ fn stepRpg() {
     } else { i += 1 }
   }
   recalcStatuses()
+  if RPG_DIRTY { saveRpgProgress(); RPG_DIRTY = false }
   i = 0
   while i < length(AI_WAIT) {
     if AI_WAIT[i] > 0 { AI_WAIT[i] -= 16 }
