@@ -1,19 +1,26 @@
-# Making a new release
+# Making a new Volt Studio release
 
-GitHub builds the installer for you. You never need to download or upload the big Setup file.
+The installer and Volt language have independent version numbers.
 
-1. **Upload your code changes** to the repo (Add file → Upload files → Commit changes).
-2. Open the **Actions** tab at the top of the repo.
-3. Click **Build and release** on the left.
-4. Click **Run workflow** (on the right). Fill in:
-   - **New version number:** one higher than the last, like `1.4.1`
-     - small fix → change the last number (1.4.0 → 1.4.1)
-     - new feature → change the middle number (1.4.1 → 1.5.0)
-   - **What's new:** one line, for example `Adds stepper speed ramping`
-5. Click the green **Run workflow** button.
+For this release:
+- **Volt Studio installer/application:** `1.9.4`
+- **Volt language/compiler:** `3.4.0`
 
-After about 10 minutes the run shows a green tick, and the new release appears under **Releases** with the installer attached. It becomes the "latest" one, so the share link always gives people the newest version:
+## Build and publish
 
-`https://github.com/Ethan2100/volt-studio/releases/latest`
+1. Merge the prepared feature branch into `main` after reviewing the pull request and test results.
+2. Open the repository's **Actions** tab.
+3. Select **Build and release**, then **Run workflow**.
+4. Set **installer_version** to `1.9.4`.
+5. Set **volt_version** to `3.4.0`.
+6. Add release notes and run the workflow.
+7. Wait for the Windows build, tests, compiler version check and installer packaging to finish.
+8. Confirm the release has the Setup EXE attached before sharing it.
 
-**If it goes red:** click the failed run to see which step broke. The most common one is "Check the version number", which means the version was typed wrong or was already used.
+The workflow runs `npm ci` and `npm test`, builds the Windows application, packages it with NSIS, and publishes the installer to GitHub Releases. The workflow is not complete until its run is green and the release asset is visible.
+
+Latest release link: https://github.com/Ethan2100/volt-studio/releases/latest
+
+## Important
+
+The Windows installer is currently unsigned, so Windows SmartScreen may show a warning. Users should only run the installer downloaded from the official Volt Studio repository.
