@@ -76,3 +76,11 @@ See [`EDITOR_FEATURE_CATALOG.md`](./EDITOR_FEATURE_CATALOG.md) for the detailed 
 5. Prefer small pull requests by phase over one giant engine rewrite.
 6. If a feature is only a prototype, label it as such in the UI and docs.
 7. Keep the free asset path offline-friendly after import; no game should need a network connection to load local assets.
+
+
+## Gameplay Studio implementation snapshot
+
+- **Prototype editor panel added:** inventory/equipment item authoring, quest/dialogue node layout, skill progression, enemy AI node layout, weighted loot table simulation, character stats/status-effect authoring, save/checkpoint definitions, and interaction trigger definitions.
+- **Data export:** local save/load and portable JSON export for the gameplay project.
+- **Not yet runtime-integrated:** quest/AI graph execution, inventory persistence, stat modifier application, trigger collision dispatch, and engine-side schema validation remain follow-up work. UI graph layout is authoring data, not a runtime interpreter.
+- **Sample:** Shadow Lifesteal skillset and a runnable `#html` example using the existing RPG Kit / combat APIs.
