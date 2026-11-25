@@ -1,0 +1,52 @@
+{
+  "format": "volt-skillset",
+  "version": 1,
+  "name": "Shadow Fruit",
+  "category": "Fruit",
+  "rarity": "Epic",
+  "description": "A cursed shadow power that commands bats, drains life and bends through darkness.",
+  "energy": "Aether",
+  "abilities": [
+    {
+      "key": "Q",
+      "name": "Blood Swarm",
+      "cooldown": 7200,
+      "cost": 35,
+      "damage": 7,
+      "healing": 2,
+      "effect": "shadow-bat-orbit",
+      "duration": 5200,
+      "description": "Summon ten shadow bats that orbit the player, damage nearby enemies and restore a small amount of health."
+    },
+    {
+      "key": "E",
+      "name": "Blood Drain",
+      "cooldown": 2400,
+      "cost": 25,
+      "damage": 28,
+      "healing": 18,
+      "effect": "blood-tether",
+      "description": "Damage the nearest enemy and pull crimson energy back to heal the player."
+    },
+    {
+      "key": "R",
+      "name": "Crimson Burst",
+      "cooldown": 5200,
+      "cost": 55,
+      "damage": 32,
+      "healing": 5,
+      "effect": "crimson-shockwave",
+      "description": "Release a close-range shadow explosion. Each enemy hit restores a little health."
+    },
+    {
+      "key": "F",
+      "name": "Shadow Step",
+      "cooldown": 3000,
+      "cost": 30,
+      "damage": 0,
+      "healing": 0,
+      "effect": "shadow-blink",
+      "description": "Blink forward through a cloud of dark smoke and bats."
+    }
+  ]
+}
