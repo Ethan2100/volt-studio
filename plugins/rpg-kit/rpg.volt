@@ -165,6 +165,18 @@ fn rpgSpawnEnemy(name, x, z, hp, damage, speed, aggro, attackRange, color) {
   return RPG_NPC_COUNT - 1
 }
 
+fn rpgSpawnGoblin(x, z) {
+  return rpgSpawnEnemy("Goblin", x, z, 85, 8, 170, 850, 95, "#648b4a")
+}
+
+fn rpgSpawnBandit(x, z) {
+  return rpgSpawnEnemy("Bandit", x, z, 125, 12, 190, 1050, 105, "#76564b")
+}
+
+fn rpgSpawnSkeleton(x, z) {
+  return rpgSpawnEnemy("Skeleton Warrior", x, z, 105, 11, 145, 1000, 100, "#aaa6a0")
+}
+
 fn rpgStepEnemies() {
   let i = 0
   while i < RPG_NPC_COUNT {
