@@ -2826,7 +2826,7 @@ function worldLines() {
   if (r(pw.respawn) !== 2000) lifeSet.push(`RESPAWN_MS = ${r(pw.respawn)}`);
   const fighters = S.objects.filter((o) => o.kind === 'ability' || o.kind === 'item' || o.kind === 'hud' || r(o.hp) > 0);
   const needsCombat = fighters.length > 0 || lifeSet.length > 0;
-  if (needsCombat) L.push('import "combat.volt"   // health, damage, the backpack and the HUD');
+  if (needsCombat) { L.push('import "combat.volt"   // health, damage, the backpack and the HUD'); L.push('import "rpg.volt"       // quests, progression, enemy AI, loot, effects and saves'); }
   const scriptFiles = [...new Set(S.objects.filter((o) => o.kind === 'script' && o.file).map((o) => o.file))];
   for (const file of scriptFiles) L.push('import ' + JSON.stringify(file));
   if (scriptFiles.length || needsCombat) L.push('');
@@ -3024,6 +3024,8 @@ function worldLines() {
   L.push('  ws_tick += 1');
   if (hurtable.length || abilities.length || items.length) {
     L.push('  stepCombat()        // cooldowns, the hurt flash, the floating numbers');
+    L.push('  stepRpg()           // timed effects, enemy cooldowns and progression systems');
+    L.push('  stepTriggers(PLAYER_X, PLAYER_Z)');
   }
   for (const o of abilities) {
     if (o.key === 'none') continue;
