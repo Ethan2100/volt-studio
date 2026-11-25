@@ -1204,7 +1204,7 @@ window.addEventListener('message', (ev) => {
       api.writeGameData(state.projectRoot, m.data)
         .then((result) => {
           for (const panel of panelTabEls) {
-            if (panel.frame && panel.frame !== entry) {
+            if (panel.frame && panel !== entry) {
               try { panel.frame.contentWindow.postMessage({ voltHost: 1, type: 'gameDataUpdated', data: m.data }, '*'); } catch {}
             }
           }
