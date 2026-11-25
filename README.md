@@ -21,7 +21,7 @@ Open the link, then download **Volt Studio Setup `<version>`.exe** from the rele
 
 ## Install
 
-1. Run **Volt Studio Setup 1.9.0.exe**.
+1. Run **Volt Studio Setup 1.9.5.exe**.
 2. If Windows shows "Windows protected your PC", click **More info → Run anyway** (the app isn't code-signed).
 3. Click through the installer. You can choose a desktop shortcut and whether `.volt` files open in Volt Studio.
 
@@ -93,6 +93,8 @@ This creates `dist\Volt Studio Setup <version>.exe` using `installer/installer.n
 
 
 ## Unified World Studio
+
+Start with the [beginner game workflow](docs/BEGINNER_GAME_WORKFLOW.md) for a simple step-by-step guide to building your first game.
 
 **World Studio is the home for the whole game.** Use the **Game** button inside World Studio to create and edit abilities, items, NPCs, HUD elements, quests, progression, enemy behaviour, loot tables, player stats, status effects, save fields, checkpoints and interactions. Definitions are stored in the project-wide `volt-game-data.json` database and linked into the World Studio hierarchy. Changes autosave to the open project; use **Save game** to save the scene and shared game data together.
 
