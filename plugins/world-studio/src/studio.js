@@ -286,7 +286,7 @@ function makeObj(kind, over = {}) {
   if (kind === 'ball') Object.assign(o, { r: 50, y: 50, color: '#c8ccd4', glow: '', shine: false, rough: 40, metal: 0, solid: true });
   if (kind === 'cyl') Object.assign(o, { r: 30, h: 300, y: 150, color: '#8a8f99', glow: '', shine: false, rough: 40, metal: 0, solid: true });
   if (kind === 'lamp') Object.assign(o, { y: 200, color: '#ffcc88', power: 40, range: 700 });
-  if (kind === 'model') Object.assign(o, { file: '', scale: 100, solid: true });
+  if (kind === 'model') Object.assign(o, { file: '', anim: '', scale: 100, solid: true });
   if (kind === 'char') Object.assign(o, { file: 'hunter', anim: 'idle', scale: 100, solid: true });
   if (kind === 'script') Object.assign(o, { when: 'frame', code: '', file: '', fn: '' });
   if (kind === 'vfx') {
@@ -1276,7 +1276,7 @@ function loadModelBytes(file, onLoaded, onFail) {
       const box = new THREE.Box3().setFromObject(g.scene);
       const fin1 = (v) => (Number.isFinite(v) && v > 0 ? v : 0.1), fin0 = (v) => (Number.isFinite(v) ? v : 0);
       const size = box.getSize(new THREE.Vector3()), center = box.getCenter(new THREE.Vector3());
-      modelCache.set(file.name, { scene: g.scene, box: { x: fin1(size.x), y: fin1(size.y), z: fin1(size.z) }, center: { x: fin0(center.x), y: fin0(center.y), z: fin0(center.z) } });
+      modelCache.set(file.name, { scene: g.scene, anims: (g.animations || []).map((a) => a.name), box: { x: fin1(size.x), y: fin1(size.y), z: fin1(size.z) }, center: { x: fin0(center.x), y: fin0(center.y), z: fin0(center.z) } });
       onLoaded(file.name);
     }, () => onFail(new Error("Couldn't read \"" + file.name + "\" - use a .glb file with its textures packed inside.")));
   };
@@ -1338,7 +1338,8 @@ function pickModelFile(at) {
     const file = inp.files && inp.files[0]; if (!file) return;
     loadModelBytes(file, (name) => {
       const [x, z] = dropPoint(at);
-      const o = makeObj('model', { name: uniqueName('Model'), file: name, scale: 100 });
+      const clips = (modelCache.get(name) && modelCache.get(name).anims) || [];
+      const o = makeObj('model', { name: uniqueName('Model'), file: name, anim: clips[0] || '', scale: 100 });
       o.x = sn(x); o.z = sn(z); o.y = 0;
       S.objects.push(o); refreshNode(o); select(o.id); commit();
     }, (err) => toast(err.message, true));
@@ -1765,6 +1766,13 @@ function objForm(o) {
     return h;
   }
 
+  if (o.kind === 'model') {
+    const known = o.file && modelCache.get(o.file) ? modelCache.get(o.file).anims || [] : null;
+    if (known && known.length) h += '<div class="sec">Animation</div>' + fSelect('anim', 'Play clip', o.anim || known[0], [['', 'No animation'], ...known.map((a) => [a, a])]);
+    else if (known) h += '<div class="note">This model has no embedded animation clips.</div>';
+    else h += '<div class="note">Import a GLB model to inspect its embedded animation clips.</div>';
+    h += fNum('scale', 'Size (%)', o.scale, { min: 1 });
+  }
   if (o.kind === 'block') h += '<div class="sec">Size (cm)</div>' + fNum('w', 'Width', o.w, { min: 1 }) + fNum('h', 'Height', o.h, { min: 1 }) + fNum('d', 'Depth', o.d, { min: 1 });
   if (o.kind === 'ball') h += '<div class="sec">Size (cm)</div>' + fNum('r', 'Radius', o.r, { min: 1 });
   if (o.kind === 'cyl') h += '<div class="sec">Size (cm)</div>' + fNum('r', 'Radius', o.r, { min: 1 }) + fNum('h', 'Height', o.h, { min: 1 });
@@ -2849,7 +2857,10 @@ function worldLines() {
     else if (o.kind === 'ball') L.push(`let ${n} = ball3d(${r(o.x)}, ${r(o.y)}, ${r(o.z)}, ${r(o.r)}, ${q(o.color)})`);
     else if (o.kind === 'cyl') L.push(`let ${n} = cyl3d(${r(o.x)}, ${r(o.y)}, ${r(o.z)}, ${r(o.r)}, ${r(o.h)}, ${q(o.color)})`);
     else if (o.kind === 'lamp') L.push(`let ${n} = lamp3d(${r(o.x)}, ${r(o.y)}, ${r(o.z)}, ${q(o.color)}, ${r(o.power)}, ${r(o.range)})`);
-    else if (o.kind === 'model') L.push(`let ${n} = put3d(${modelIdent.get(o.file)}, ${r(o.x)}, ${r(o.y)}, ${r(o.z)}, 0, ${r(o.scale)})`);
+    else if (o.kind === 'model') {
+      L.push(`let ${n} = put3d(${modelIdent.get(o.file)}, ${r(o.x)}, ${r(o.y)}, ${r(o.z)}, 0, ${r(o.scale)})`);
+      if (o.anim) L.push(`anim3d ${n}, ${JSON.stringify(o.anim)}`);
+    }
     else if (o.kind === 'char') {
       L.push(`let ${n} = put3d(${modelIdent.get(o.file + '.glb')}, ${r(o.x)}, ${r(o.y)}, ${r(o.z)}, 0, ${r(o.scale)})`);
       if (o.anim && !isAnimal(o.file)) L.push(`anim3d ${n}, ${JSON.stringify(o.anim)}`);
