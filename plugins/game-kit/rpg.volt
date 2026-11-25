@@ -230,8 +230,6 @@ fn rollLoot(tableId) {
 }
 
 // ---- timed status effects ----------------------------------------------
-let PLAYER_STATUS_ATTACK_BONUS = 0
-let PLAYER_STATUS_DEFENCE_BONUS = 0
 let STATUS_NAME = []
 let STATUS_STAT = []
 let STATUS_AMOUNT = []
