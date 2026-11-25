@@ -1,7 +1,7 @@
 {
   "name": "volt-studio",
   "productName": "Volt Studio",
-  "version": "1.9.5",
+  "version": "1.9.6",
   "description": "Hybrid visual editor and compiler for the Volt language, with 2D/3D game creation tools.",
   "main": "main.js",
   "author": "Ethan",
