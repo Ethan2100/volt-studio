@@ -209,6 +209,7 @@ const worldDefaults = () => ({
   // these, nothing is written and the game kit's own defaults stand.
   maxHp: 100, respawn: 2000, walk: 400, run: 750, jump: 430,
 });
+let GAME_DATA = null;
 let S = { world: worldDefaults(), objects: [] };
 let nextId = 1;
 const byId = (id) => S.objects.find((o) => o.id === id);
@@ -2429,6 +2430,7 @@ const host = { ok: false, req: 1, waiting: new Map() };
 function toHost(type, extra) { try { window.parent.postMessage(Object.assign({ voltPanel: 1, type }, extra || {}), '*'); } catch (e) { /* no host */ } }
 window.addEventListener('message', (e) => {
   const m = e.data; if (!m || m.voltHost !== 1) return;
+  if (m.type === 'gameData' || m.type === 'gameDataUpdated') GAME_DATA = m.data || null;
   if (m.type === 'hello') {
     host.ok = true;
     if (!host.greeted) { host.greeted = true; autoLoadFromFile(); askHostForCharacters(); }
@@ -2808,7 +2810,7 @@ function compactObj(o) {
 // The World Studio part of a game file: the sky, the things in it, and
 // the solid boxes the player walks into.
 function worldLines() {
-  const w = S.world, L = [], used = new Set(), idn = new Map();
+  const w = S.world, L = [], used = new Set(), idn = new Map(), gd = GAME_DATA || {};
   const shapes = S.objects.filter((o) => o.kind !== 'spawn' && !ATTACHED.has(o.kind));
   for (const o of shapes) idn.set(o.id, identFor(o.name, used));
   for (const o of S.objects) if (ATTACHED.has(o.kind)) idn.set(o.id, identFor(o.name, used));
@@ -2825,7 +2827,8 @@ function worldLines() {
   if (r(pw.maxHp) !== 100) lifeSet.push(`PLAYER_MAX_HP = ${r(pw.maxHp)}`, `PLAYER_HP = ${r(pw.maxHp)}`);
   if (r(pw.respawn) !== 2000) lifeSet.push(`RESPAWN_MS = ${r(pw.respawn)}`);
   const fighters = S.objects.filter((o) => o.kind === 'ability' || o.kind === 'item' || o.kind === 'hud' || r(o.hp) > 0);
-  const needsCombat = fighters.length > 0 || lifeSet.length > 0;
+  const hasRpg = ['quests','skills','aiGraphs','lootTables','effects','saveFields','checkpoints','triggers'].some((k) => Array.isArray(gd[k]) && gd[k].length);
+  const needsCombat = fighters.length > 0 || lifeSet.length > 0 || hasRpg;
   if (needsCombat) { L.push('import "combat.volt"   // health, damage, the backpack and the HUD'); L.push('import "rpg.volt"       // quests, progression, enemy AI, loot, effects and saves'); }
   const scriptFiles = [...new Set(S.objects.filter((o) => o.kind === 'script' && o.file).map((o) => o.file))];
   for (const file of scriptFiles) L.push('import ' + JSON.stringify(file));
@@ -3009,6 +3012,50 @@ function worldLines() {
       for (const line of abilityFnLines(o)) L.push(line);
       L.push('');
     }
+
+    // Shared Game workspace definitions become executable Volt data.
+    for (const quest of (gd.quests || [])) {
+      const id = String(quest.id || identish(quest.name));
+      const reward = (gd.items || []).find((item) => item.id === quest.rewardItem);
+      const rewardName = reward ? reward.name : (quest.rewardItemName || quest.rewardItem || '');
+      L.push(`createQuest(${qs(id)}, ${qs(quest.name || id)}, ${Math.max(1, r(quest.goal || 1))}, ${Math.max(0, r(quest.rewardXp || 0))}, ${qs(rewardName)}, ${Math.max(0, r(quest.rewardCount || 0))})`);
+      if (quest.active !== false) L.push(`startQuest(${qs(id)})`);
+    }
+    for (const skill of (gd.skills || [])) {
+      L.push(`defineSkill(${qs(skill.id || identish(skill.name))}, ${Math.max(1, r(skill.level || 1))}, ${Math.max(0, r(skill.xpCost || 0))}, ${qs(skill.prerequisite || '')})`);
+    }
+    for (const effect of (gd.effects || [])) {
+      L.push(`defineStatus(${qs(effect.id || identish(effect.name))}, ${qs(effect.stat || 'attack')}, ${r(effect.modifier || 0)}, ${Math.max(1, r(effect.duration || 5000))})`);
+    }
+    for (const loot of (gd.lootTables || [])) {
+      const item = [...(gd.items || []), ...(gd.equipment || [])].find((entry) => entry.id === loot.itemId);
+      const itemName = item ? item.name : (loot.itemName || loot.itemId || 'Loot');
+      const color = item && item.color ? item.color : '#d9bd70';
+      L.push(`addLoot(${qs(loot.tableId || 'default')}, ${qs(itemName)}, ${clamp(r(loot.chance ?? 25), 0, 100)}, ${Math.max(1, r(loot.min || 1))}, ${Math.max(1, r(loot.max || loot.min || 1))}, ${q(color)})`);
+    }
+    for (const point of (gd.checkpoints || [])) {
+      L.push(`addTrigger(${qs('checkpoint_' + (point.id || identish(point.name)))}, ${r(point.x)}, ${r(point.z)}, ${Math.max(20, r(point.radius || 100))}, "checkpoint", "", true)`);
+    }
+    for (const trigger of (gd.triggers || [])) {
+      L.push(`addTrigger(${qs(trigger.id || identish(trigger.name))}, ${r(trigger.x)}, ${r(trigger.z)}, ${Math.max(20, r(trigger.radius || 100))}, ${qs(trigger.action || 'quest')}, ${qs(trigger.payload || trigger.targetId || '')}, ${trigger.once !== false})`);
+    }
+    for (const field of (gd.saveFields || [])) {
+      const key = 'field_' + (field.id || identish(field.name));
+      const variable = 'save_' + identish(field.id || field.name);
+      let value = field.defaultValue;
+      if (field.valueType === 'number') value = Number(value || 0);
+      else if (field.valueType === 'boolean') value = value === true || value === 'true';
+      else value = String(value ?? '');
+      L.push(`let ${variable} = __saved(${qs(key)}, ${JSON.stringify(value)})`);
+    }
+    for (const obj of hurtable) {
+      if (obj.kind !== 'char' && obj.kind !== 'model') continue;
+      const npc = (gd.npcs || []).find((entry) => entry.id === obj.sharedId);
+      if (!npc) continue;
+      const graph = (gd.aiGraphs || []).find((entry) => entry.id === npc.aiGraphId);
+      const mode = graph ? graph.behaviour : (npc.archetype === 'Guard' ? 'guard' : 'aggressive');
+      L.push(`configureEnemyAI(hp_${idn.get(obj.id)}, ${idn.get(obj.id)}, ${Math.max(100, r(graph?.aggro || npc.aggro || 900))}, ${Math.max(20, r(npc.attackRange || 100))}, ${Math.max(0, r(npc.damage || 10))}, ${Math.max(0, r(npc.speed || 150))}, 650, ${qs(mode)})`);
+    }
     while (L.length && L[L.length - 1] === '') L.pop();
   }
 
@@ -3022,10 +3069,20 @@ function worldLines() {
   L.push('}');
   L.push('fn worldStep() {');
   L.push('  ws_tick += 1');
-  if (hurtable.length || abilities.length || items.length) {
+  if (hurtable.length || abilities.length || items.length || hasRpg) {
     L.push('  stepCombat()        // cooldowns, the hurt flash, the floating numbers');
     L.push('  stepRpg()           // timed effects, enemy cooldowns and progression systems');
     L.push('  stepTriggers(PLAYER_X, PLAYER_Z)');
+    for (const obj of hurtable) {
+      if (obj.kind !== 'char' && obj.kind !== 'model') continue;
+      const npc = (gd.npcs || []).find((entry) => entry.id === obj.sharedId);
+      if (npc) L.push(`  stepEnemyAI(hp_${idn.get(obj.id)}, PLAYER_X, PLAYER_Z)`);
+    }
+    for (const field of (gd.saveFields || [])) {
+      const key = 'field_' + (field.id || identish(field.name));
+      const variable = 'save_' + identish(field.id || field.name);
+      L.push(`  __save(${qs(key)}, ${variable})`);
+    }
   }
   for (const o of abilities) {
     if (o.key === 'none') continue;
@@ -3425,6 +3482,8 @@ function init() {
   select(null);
 }
 window.__worldStudio = {
+  setGameData(data) { GAME_DATA = data && data.schema === 'volt-game-project' ? data : null; },
+  get gameData() { return GAME_DATA; },
   project(x, y, z) { camera.updateMatrixWorld(true); const v = new THREE.Vector3(x, y, z).project(camera), r = cv.getBoundingClientRect(); return [(v.x + 1) / 2 * r.width + r.left, (1 - v.y) / 2 * r.height + r.top]; },
   get gizmoK() { return gizmoScaleFor(); }, get cam() { return cam; }, get sel() { return sel; }, get scene() { return S; }, genVolt, importSource, startPlay, stopPlay, select, setTool, addPreset, get mode() { return mode; }, get play() { return play; }, snapshot, setMode };
 init();
