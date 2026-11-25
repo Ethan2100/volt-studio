@@ -1,14 +1,26 @@
-# Unified game project data
+# Unified game project
 
-Volt Studio visual game editors share a project database stored as `volt-game-data.json` beside the project's `.volt` entry file.
+World Studio is the single authoring home for a Volt game. The **Game** button opens a clean category-based editor for shared gameplay definitions. The old standalone Gameplay Studio and RPG Studio panels are hidden from the app's side-panel list so users do not have to guess which editor owns the data; their source files remain for compatibility.
 
-- Gameplay Studio loads the shared database when its panel opens and autosaves edits through the sandboxed panel bridge.
-- World Studio loads the same database, exposes it as `window.voltGameData` for editor integrations, and creates hierarchy entries for newly authored abilities and items. These entries retain a `sharedId` reference to their source definition.
-- World Studio's Save world action also writes the latest shared database before updating the scene block in the `.volt` file.
-- The Electron main process validates the project root, schema and 8 MB size limit, then writes the database atomically.
+## One project, one source of truth
 
-The scene remains in the `.volt` entry file; imported assets remain in the project asset folders; gameplay definitions are in `volt-game-data.json`. This is a single project workflow, not a single monolithic file.
+The Electron project bridge stores definitions in `volt-game-data.json` beside the project's `.volt` entry file. Panels load the same versioned `volt-game-project` object and autosave changes through the host bridge. World Studio's **Save game** action writes the shared data and updates the scene section in the `.volt` entry file.
 
-## Current integration boundary
+The Game panel includes:
 
-Abilities created from Gameplay Studio's Skill Progression editor are published as ability definitions. Items are published from Inventory. World Studio creates corresponding Ability and Item hierarchy records and keeps their source IDs. Quest/dialogue graphs, AI graphs, loot tables, stats/effects, save/checkpoint definitions and trigger definitions are saved in the same shared database, but their full World Studio scene/runtime bindings are still future work. Runtime behavior must not be considered implemented merely because a definition is saved.
+- **Build:** abilities, items, NPCs and HUD elements
+- **Gameplay:** quests/dialogue, progression skills, enemy behaviour and loot tables
+- **Systems:** player stats, status effects, save fields, checkpoints and interactions/triggers
+
+Each record has a stable ID. Spatial records are linked to World Studio hierarchy objects: abilities, items, NPCs and HUD elements use their corresponding scene object types; non-spatial definitions appear as named folders in the hierarchy. Editing a linked record updates its corresponding World Studio object/inspector values. Deleting a record hides its linked scene object and removes the definition from the shared database.
+
+## What Save game means
+
+- The `.volt` entry file stores the authored 3D scene and generated Volt code.
+- `volt-game-data.json` stores the shared gameplay definitions.
+- Imported model/audio/image files remain normal project assets; the project folder is the complete game project.
+- The project is not collapsed into one giant file. Saving the game writes all project-owned game data without duplicating assets into the scene source.
+
+## Runtime boundary
+
+World Studio already generates Volt code for its native scene objects, abilities, items and HUD elements. The Game panel links those spatial definitions to scene objects so supported properties are reflected when the scene is saved. NPC entries create and link a World Studio Character object; the current NPC editor stores archetype, health, damage and movement/aggro settings, but full NPC AI execution and model animation wiring still require runtime integration. Quests, dialogue, progression graphs, AI graphs, loot tables, status effects, save fields, checkpoints and triggers are persisted and represented in the hierarchy, but their complete runtime execution is not yet implemented. A saved definition must not be mistaken for a runtime feature until it is wired to the Volt runtime and tested in a built game.
