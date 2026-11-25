@@ -38,6 +38,7 @@ solid(450, -350, 55, 55, 0, 300)
 playerStart(0, 620, 0)
 
 let goblin = target("Training Goblin", 0, 65, -480, 100, 85)
+addLoot("training_goblin", "Gold", 100, 2, 4, "#ffd23f")
 give("Health Potion", 2, "#e85d75")
 give("Iron Sword", 1, "#e5c77a")
 give("Leather Armour", 1, "#8a9bb5")
@@ -79,6 +80,16 @@ every frame {
   if not crystalTaken and playerNear(0, 300, 90) {
     crystalTaken = true
     burst3d 0, 130, 300, "#61d8ff", 55, 240
+    saveRpgProgress()
+  }
+
+  if not alive(goblin) and not goblinRewarded {
+    goblinRewarded = true
+    advanceQuest("training_trial", 1)
+    rollLoot("training_goblin")
+    addXP(25)
+    if questCompleted("training_trial") { claimQuest("training_trial") }
+    saveRpgProgress()
   }
 
   if alive(goblin) == false and crystalTaken {
