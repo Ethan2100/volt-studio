@@ -17,17 +17,20 @@ on:
         description: "Release notes"
         required: false
         type: string
-        default: "World Studio beginner workflow, unified game authoring and editor improvements."
+        default: "Unified World Studio game editor, RPG authoring tools, Shadow Lifesteal skillset and gameplay systems."
+  push:
+    branches: [main]
 
 permissions:
   contents: write
 
 jobs:
   release:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[publish-release]')
     runs-on: windows-latest
     env:
-      INSTALLER_VERSION: ${{ inputs.installer_version }}
-      VOLT_VERSION: ${{ inputs.volt_version }}
+      INSTALLER_VERSION: ${{ inputs.installer_version || '1.9.6' }}
+      VOLT_VERSION: ${{ inputs.volt_version || '3.4.0' }}
 
     steps:
       - name: Get the code
@@ -95,15 +98,15 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ inputs.installer_version }}
-          name: Volt Studio Setup ${{ inputs.installer_version }} (Volt ${{ inputs.volt_version }})
+          tag_name: v${{ env.INSTALLER_VERSION }}
+          name: Volt Studio Setup ${{ env.INSTALLER_VERSION }} (Volt ${{ env.VOLT_VERSION }})
           target_commitish: ${{ github.sha }}
           make_latest: true
           files: dist/*.exe
           body: |
-            **Volt Studio installer:** ${{ inputs.installer_version }}
-            **Volt language/compiler:** ${{ inputs.volt_version }}
+            **Volt Studio installer:** ${{ env.INSTALLER_VERSION }}
+            **Volt language/compiler:** ${{ env.VOLT_VERSION }}
 
-            ${{ inputs.notes }}
+            ${{ inputs.notes || 'Unified World Studio game editor, RPG authoring tools, Shadow Lifesteal skillset and gameplay systems.' }}
 
             Download the Windows installer below and run it. Windows may show SmartScreen because the installer is not code-signed.
