@@ -25,7 +25,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const VERSION = '3.3.1';
+const VERSION = '3.4.0';
 
 // Errors that are the Volt programmer's fault (not a bug in the compiler)
 class VoltError extends Error {

@@ -42,6 +42,10 @@ It installs just for you (no admin password needed) into `%LOCALAPPDATA%\Program
 - **Ruby** needs Ruby from rubyinstaller.org.
 - **HTML** pages open in a preview window; Sketch → Open Page in Browser opens them in your normal browser.
 
+## Hybrid game-engine roadmap
+
+Volt Studio combines visual authoring tools with the Volt language. See the [engine roadmap](docs/ENGINE_ROADMAP.md) for model/animation, audio, VFX, world-building, and gameplay-system phases, plus the free-asset licensing policy. The [asset workflow](docs/ASSETS.md) explains supported GLB models, embedded animations, images, and audio.
+
 ## World Studio
 
 Watch the [captioned World Studio introduction](docs/world-studio-intro.webm) and read its [full code walkthrough and transcript](docs/world-studio-intro-transcript.md).
@@ -86,3 +90,13 @@ This creates `dist\Volt Studio Setup <version>.exe` using `installer/installer.n
 | `installer/` | The Windows installer script, icon and pictures |
 | `test/` | Scripts used to test the app with fake boards |
 | `.github/workflows/release.yml` | Builds the installer on GitHub and publishes a release (see `RELEASING.md`) |
+
+
+## Gameplay Studio
+
+The optional **Gameplay Studio** panel provides visual data-authoring prototypes for inventory/equipment, quest and dialogue nodes, skill progression, enemy AI behaviour graphs, loot tables, character stats/status effects, save/checkpoint definitions, and interaction triggers. Data can be saved locally in the editor or exported as a portable `volt-gameplay-project.json` file. These editors author data; runtime execution/serialization bridges are being developed separately.
+
+- [Gameplay Studio](plugins/gameplay-studio/index.html)
+- [Shadow Lifesteal playable example](examples/shadow-lifesteal/Shadow%20Lifesteal.volt)
+- [Shadow Lifesteal skillset asset](examples/shadow-lifesteal/Shadow%20Lifesteal.skillset.json)
+- [Editor feature catalog](docs/EDITOR_FEATURE_CATALOG.md)

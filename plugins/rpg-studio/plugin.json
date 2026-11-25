@@ -1,0 +1,10 @@
+{
+  "name": "rpg-studio",
+  "type": "panel",
+  "version": "1.0.0",
+  "description": "Visual RPG authoring panel for Volt Studio: Skillset asset builder, live VFX lab, sound preview and tuning, HUD/font preview, and NPC configuration export.",
+  "panel": {
+    "entry": "index.html",
+    "title": "RPG Studio"
+  }
+}
