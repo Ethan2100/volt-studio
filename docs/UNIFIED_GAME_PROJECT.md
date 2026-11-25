@@ -21,6 +21,23 @@ Each record has a stable ID. Spatial records are linked to World Studio hierarch
 - Imported model/audio/image files remain normal project assets; the project folder is the complete game project.
 - The project is not collapsed into one giant file. Saving the game writes all project-owned game data without duplicating assets into the scene source.
 
-## Runtime boundary
+## Runtime systems
 
-World Studio already generates Volt code for its native scene objects, abilities, items and HUD elements. The Game panel links those spatial definitions to scene objects so supported properties are reflected when the scene is saved. NPC entries create and link a World Studio Character object; the current NPC editor stores archetype, health, damage and movement/aggro settings, but full NPC AI execution and model animation wiring still require runtime integration. Quests, dialogue, progression graphs, AI graphs, loot tables, status effects, save fields, checkpoints and triggers are persisted and represented in the hierarchy, but their complete runtime execution is not yet implemented. A saved definition must not be mistaken for a runtime feature until it is wired to the Volt runtime and tested in a built game.
+World Studio generates the supported Game workspace definitions into the .volt game source. When shared Game data is present, generated games import combat.volt and rpg.volt; the runtime is ticked from worldStep(), and saved progression/checkpoints are restored from the browser's per-game save storage.
+
+The reusable plugins/game-kit/rpg.volt runtime currently provides:
+
+- **Quests:** create/start, objective progress, completion and XP/item reward claiming
+- **Progression:** XP, level thresholds, skill prerequisites, unlock costs and saved unlock state
+- **Enemy behaviour:** guard/aggressive aggro, chase movement, attack range and cooldowns; generated NPC characters are passed as the visual object so movement updates the visible character
+- **Loot:** item entries with drop chances and min/max stack amounts, added to the backpack on a roll
+- **Status effects:** timed attack/defence modifiers that affect actual damage dealt and received
+- **Persistence:** player XP, level, quest progress/state, skill unlocks and checkpoint position are saved and restored
+- **Checkpoints and triggers:** proximity entry events can start/advance quests, heal, grant XP, set checkpoints or apply a defined status effect; one-shot and re-entry behaviour are supported
+- **Custom save fields:** generated variables load from and autosave to the game's browser save storage
+
+Call stepRpg() once per frame in hand-authored games. World Studio-generated games do this automatically. Use stepEnemyAI(targetId, PLAYER_X, PLAYER_Z) for each configured enemy and stepTriggers(PLAYER_X, PLAYER_Z) for proximity interactions; World Studio-generated NPCs and triggers are wired automatically.
+
+## Remaining limits
+
+These are gameplay building blocks, not a complete MMO/RPG framework. Dialogue branching/UI, complex visual node-graph execution, navigation/pathfinding around obstacles, animation state selection, multiplayer/network persistence, and cloud saves are not implemented. The current enemy AI is a simple direct-chase/guard behaviour and does not pathfind around walls. In-game visuals and input still need a human play-test in the packaged Electron app; CI compiles the sample and executes automated runtime tests but cannot replace that play-test.
