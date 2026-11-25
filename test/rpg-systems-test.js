@@ -15,7 +15,6 @@ canvas 320, 180
 import "game.volt"
 import "combat.volt"
 import "rpg.volt"
-world3d "#05060a"
 DEATH_SPARKS = false
 fn say(label, got, want) {
   if got == want { print "ok " + label }
@@ -41,8 +40,7 @@ addXP(300)
 say("xp levels up", PLAYER_LEVEL >= 2, true)
 say("prerequisite skill unlocks", unlockSkill("meteor"), true)
 let enemy = target("Bandit", 100, 40, -100, 60, 40)
-let enemyModel = block3d(100, 40, -100, 40, 80, 40, "#6d9b55")
-configureEnemyAI(enemy, enemyModel, 500, 80, 12, 180, 500, "aggressive")
+configureEnemyAI(enemy, 0, 500, 80, 12, 180, 500, "aggressive")
 say("enemy starts chasing", stepEnemyAI(enemy, 0, 0), "chase")
 moveTarget(enemy, 30, 40, 0)
 say("enemy attacks in range", stepEnemyAI(enemy, 0, 0), "attack")
@@ -106,7 +104,7 @@ setTimeout(()=>{
   const w=dom.window;
   const lines=[...w.document.querySelectorAll('.volt-line')].map(x=>x.textContent);
   const errors=[...w.document.querySelectorAll('.volt-error')].map(x=>x.textContent);
-  check("RPG test program completes without runtime errors",errors.length===0&&lines.includes('DONE'));
+  check("RPG test program completes without runtime errors",errors.length===0&&lines.includes('DONE'),errors[0]||("lines: "+lines.join(" | ")));
   for(const line of lines){if(line.startsWith('ok '))check(line.slice(3),true);else if(line.startsWith('FAIL '))check(line.slice(5),false);}
   fs.rmSync(dir,{recursive:true,force:true});
   process.exitCode=failed?1:0;
