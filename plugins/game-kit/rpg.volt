@@ -439,7 +439,10 @@ fn stepRpg() {
     } else { i += 1 }
   }
   recalcStatuses()
-  if RPG_DIRTY { saveRpgProgress(); RPG_DIRTY = false }
+  if RPG_DIRTY {
+    saveRpgProgress()
+    RPG_DIRTY = false
+  }
   i = 0
   while i < length(AI_WAIT) {
     if AI_WAIT[i] > 0 { AI_WAIT[i] -= 16 }
