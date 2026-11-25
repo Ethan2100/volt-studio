@@ -138,14 +138,104 @@ The aura should be a material/VFX preset with tunable color, opacity, fresnel/ri
 - Reflection/environment settings, post-processing stack and camera tools.
 - Scene validation for missing references, bad transforms, unsupported assets and performance risks.
 
-## 11. Gameplay Graphs
+## 11. Gameplay Creation Suite
 
-- Visual state/flow graphs for quests, dialogue, enemy AI, interactions and game progression.
+These are distinct visual editors connected by shared, versioned game data. They should be independently useful, but also integrate without duplicating definitions. For example, an item references a stat modifier; equipment applies it; the character sheet displays the result; a quest can award that item; and the save system persists the resulting inventory.
+
+### 11.1 Inventory and Equipment Editor
+
+- Item database with item ID, display name, icon, description, category, rarity, stack limit, weight/value and tags.
+- Item types: consumables, weapons, armor, accessories, materials, quest items, currency and keys.
+- Equipment slots and slot rules, two-handed/off-hand compatibility, class/level requirements and equip restrictions.
+- Item affixes, randomized rolls, durability, upgrades, sockets and set bonuses.
+- Drag-and-drop inventory grid/list preview, sorting, filtering, stack splitting and quick slots.
+- Equip/unequip events, use-item actions and configurable behavior hooks.
+- Preview character stat changes before confirming equipment.
+- Generate item definitions and bindings for inventory/HUD UI; validate unique IDs and missing icons.
+
+### 11.2 Quest and Dialogue Graph Editor
+
+- Node graph for quest start, objectives, branching conditions, counters, timers, choices, rewards, failure and completion.
+- Dialogue nodes with speaker, portrait, text, voice/audio cue, choices and localization key.
+- Conditions can read documented game state such as flags, inventory, stats, completed quests and world events.
+- Objective types: talk, collect, defeat, explore, interact, escort, survive and reach location.
+- Quest chains, prerequisites, optional objectives, repeatable quests and mutually exclusive branches.
+- Debug simulation: step through nodes, inspect variables, force conditions and preview dialogue choices.
+- Quest journal preview and UI binding for objective text, markers and completion state.
+- Export readable graph data and generated Volt hooks; detect unreachable nodes and reward loops.
+
+### 11.3 Skill Tree and Progression Editor
+
+- Visual node-and-connection canvas with branches, tiers, prerequisites and mutually exclusive choices.
+- Unlock costs using XP, skill points, currency, items or quest flags.
+- Passive bonuses, active ability unlocks, stat modifiers and gameplay rule unlocks.
+- Class/archetype trees, weapon mastery, elemental affinities and account/character progression profiles.
+- Preview locked, available and purchased states; simulate spending and respec rules.
+- Connect unlocked skills to the Ability Designer and HUD skill slots.
+- Validate cycles, unreachable nodes, missing prerequisites and impossible costs.
+
+### 11.4 Enemy AI Behaviour Graph
+
+- Visual finite-state machine and behavior-tree authoring: idle, patrol, investigate, chase, attack, flee, stunned, dead and custom states.
+- Conditions, sequences, selectors, decorators, timers, cooldowns and event-driven transitions.
+- Per-enemy blackboard variables and shared perception settings.
+- Vision cones, hearing radius, line-of-sight checks, aggro groups and target selection.
+- Navigation/pathfinding actions, attack telegraphs, boss phases, reinforcements and phase transitions.
+- Debug live state, active node, target, path, blackboard values and transition history.
+- Simulate against test dummies and a configurable arena; add safeguards for loops and excessive update frequency.
+
+### 11.5 Loot Tables and Item Database
+
+- Weighted drops, guaranteed drops, drop groups, rarity tiers, quantity ranges and conditional rewards.
+- Nested tables for enemy, chest, boss, quest, gathering and world-event rewards.
+- Seeded preview rolls so results can be reproduced while balancing.
+- Pity/anti-streak rules and per-player limits as optional explicit systems, not hidden defaults.
+- Economy balancing view for expected value, drop probability and reward frequency.
+- References to Inventory Editor item IDs; detect missing items, impossible tables and unintended guaranteed loops.
+- Import/export CSV or JSON for bulk editing, with stable IDs and validation.
+
+### 11.6 Character Stats and Status-Effect Editor
+
+- Define base stats, derived stats, caps, formulas, units and display names.
+- Common templates: health, mana/aether, stamina, attack, defence, speed, critical chance, resistance and regeneration.
+- Modifier operations: flat add, additive percent, multiplicative scale, override and clamp.
+- Explicit modifier order and stacking policy to avoid unpredictable stat results.
+- Status effects with duration, tick interval, refresh/stack/replace rules, source attribution and cleanse behavior.
+- Buff/debuff templates: burn, poison, freeze, stun, slow, shield, haste, healing-over-time and damage-over-time.
+- Live stat calculator showing base value, each modifier, final value and rounding.
+- Connect to equipment, abilities, skill trees, enemy definitions and HUD bindings.
+- Validate invalid formulas, circular derived stats and conflicting stacking rules.
+
+### 11.7 Save/Load and Checkpoint Editor
+
+- Define save profiles and versioned schemas for player stats, inventory, equipment, quests, skill unlocks, world flags and settings.
+- Checkpoint placement and activation rules, respawn transform, restore policy and checkpoint UI.
+- Autosave triggers, manual save points, save slots and configurable retention.
+- Separate persistent progression from temporary session state.
+- Migration hooks for older save versions and clear recovery behavior for corrupt or incomplete saves.
+- Preview exactly which fields are written/restored; inspect save data in a readable debug panel.
+- Avoid silently saving transient object references; use stable IDs for entities and assets.
+- Include test cases for new game, overwrite, reload, checkpoint respawn and schema migration.
+
+### 11.8 Interaction and Trigger-Volume Editor
+
+- Place box, sphere, capsule and custom trigger volumes in the scene; resize and rotate with gizmos.
+- Configure enter, stay, exit, interact and proximity events.
+- Interaction prompts, input action, priority, range, hold duration and cancel behavior.
+- Reusable interaction types: doors, pickups, switches, chests, levers, NPC conversations, crafting stations and portals.
+- Conditions and actions can call quest, inventory, dialogue, ability, animation, audio and scene systems.
+- Visualize trigger bounds, collision layers, active state and event flow in play mode.
+- Support multiplayer ownership/authority as an explicit future capability rather than assuming local-only logic scales automatically.
+- Detect overlapping conflicting triggers, missing targets and actions with invalid references.
+
+### 11.9 Shared Gameplay Data and Graph Debugger
+
+- Common stable IDs and typed references connect items, abilities, quests, characters, effects and world objects.
+- Reusable graph nodes for conditions, variables, signals/events, timers, functions and subgraphs.
 - Nodes call documented runtime functions and can be converted to or paired with Volt code.
-- Debug graph execution with current node, variables, breakpoints and event history.
-- Blackboard/variables, signals/events, conditions, timers and reusable subgraphs.
-- Inventory, equipment, loot tables, crafting, skill trees, shops, save slots and checkpoints.
-- Deterministic data schemas and versioned migrations for saved games.
+- Debug graph execution with current node, variables, breakpoints, event history and step-through simulation.
+- Data validation checks broken references, unreachable graph nodes, circular dependencies and incompatible schema versions.
+- All visual editors must expose generated data and code; users can inspect and hand-edit supported files without losing editor compatibility.
 
 ## 12. Input, Debugging and Profiling
 
