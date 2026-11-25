@@ -53,8 +53,19 @@ defineStatus("rage", "attack", 15, 1000)
 applyDefinedStatus("rage")
 say("status applies attack bonus", PLAYER_STATUS_ATTACK_BONUS, 15)
 say("status is queryable", hasStatus("rage"), true)
+let hpBeforeRage = TARGET_HP[enemy]
+damageArea(TARGET_X[enemy], TARGET_Z[enemy], 100, 5)
+say("status attack bonus affects damage", hpBeforeRage - TARGET_HP[enemy], 20)
 removeStatus("rage")
 say("status removal clears bonus", PLAYER_STATUS_ATTACK_BONUS, 0)
+let hpBeforeGuard = PLAYER_HP
+applyStatus("guard", "defence", 5, 1000)
+hurtPlayer(20)
+say("status defence bonus reduces damage", PLAYER_HP, hpBeforeGuard - 15)
+removeStatus("guard")
+applyStatus("short", "attack", 3, 16)
+stepRpg()
+say("timed status expires", hasStatus("short"), false)
 setCheckpoint(120, 30, -450)
 PLAYER_X = 0
 say("checkpoint restores player position", restoreCheckpoint(), true)
@@ -63,6 +74,8 @@ addTrigger("shrine", 0, 0, 100, "heal", "25", true)
 PLAYER_HP = 50
 stepTriggers(0, 0)
 say("trigger action executes", PLAYER_HP, 75)
+stepTriggers(0, 0)
+say("proximity trigger does not spam while inside", PLAYER_HP, 75)
 say("one-shot trigger records fired", TRIGGER_FIRED[0], true)
 saveRpgProgress()
 PLAYER_XP = 0
