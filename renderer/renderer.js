@@ -1190,6 +1190,28 @@ window.addEventListener('message', (ev) => {
   const code = typeof m.code === 'string' && m.code.length < 4000000 ? m.code : null;
   switch (m.type) {
     case 'hello': reply({ type: 'hello', version: 1 }); break;
+    case 'getGameData':
+      if (!state.projectRoot) { reply({ type: 'gameData', req: m.req, data: null, error: 'Open or save this game in a project folder first.' }); break; }
+      api.readGameData(state.projectRoot)
+        .then((data) => reply({ type: 'gameData', req: m.req, data }))
+        .catch((err) => reply({ type: 'gameData', req: m.req, data: null, error: err.message }));
+      break;
+    case 'saveGameData':
+      if (!state.projectRoot) { reply({ type: 'gameDataSaved', req: m.req, ok: false, error: 'Open or save this game in a project folder first.' }); break; }
+      if (!m.data || m.data.schema !== 'volt-game-project' || JSON.stringify(m.data).length > 8 * 1024 * 1024) {
+        reply({ type: 'gameDataSaved', req: m.req, ok: false, error: 'Invalid or oversized game data.' }); break;
+      }
+      api.writeGameData(state.projectRoot, m.data)
+        .then((result) => {
+          for (const panel of panelTabEls) {
+            if (panel.frame && panel.frame !== entry) {
+              try { panel.frame.contentWindow.postMessage({ voltHost: 1, type: 'gameDataUpdated', data: m.data }, '*'); } catch {}
+            }
+          }
+          reply({ type: 'gameDataSaved', req: m.req, ok: true, result });
+        })
+        .catch((err) => reply({ type: 'gameDataSaved', req: m.req, ok: false, error: err.message }));
+      break;
     case 'getSource': reply({ type: 'source', req: m.req, source: state.entryDoc?.cm.getValue() || editor.getValue() }); break;
     case 'openScript': openWorldStudioScript(entry, m, reply); break;
     case 'insert':
