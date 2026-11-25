@@ -12,12 +12,12 @@ on:
         description: "Volt language/compiler version (for example 3.4.0)"
         required: true
         type: string
-        default: "3.3.1"
+        default: "3.4.0"
       notes:
         description: "Release notes"
         required: false
         type: string
-        default: ""
+        default: "Gameplay Studio, RPG authoring, Shadow Lifesteal sample and skillset."
 
 permissions:
   contents: write
