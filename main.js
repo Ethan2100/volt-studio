@@ -279,6 +279,29 @@ ipcMain.handle('project:list', (e, { root }) => projectFiles.listVoltFiles(requi
 ipcMain.handle('project:readScript', (e, { root, file }) => projectFiles.readVoltFile(requireProjectRoot(root), file));
 ipcMain.handle('project:writeScript', (e, { root, file, content }) => projectFiles.writeVoltFile(requireProjectRoot(root), file, content));
 ipcMain.handle('project:createScript', (e, { root, file, content }) => projectFiles.writeVoltFile(requireProjectRoot(root), file, content, true));
+ 
+// One shared, versioned database for every visual game-authoring panel.
+// It lives beside the game's .volt entry file and is autosaved by panels.
+const GAME_DATA_FILE = 'volt-game-data.json';
+ipcMain.handle('project:readGameData', (e, { root }) => {
+  const dir = requireProjectRoot(root), file = path.join(dir, GAME_DATA_FILE);
+  if (!fs.existsSync(file)) return { schema: 'volt-game-project', version: 1, abilities: [], items: [], quests: [], skills: [], enemies: [], lootTables: [], stats: {}, effects: [], saveFields: [], checkpoints: [], triggers: [] };
+  try {
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (!data || data.schema !== 'volt-game-project') throw new Error('Invalid game data schema.');
+    return data;
+  } catch (err) { throw new Error('Could not read game data: ' + err.message); }
+});
+ipcMain.handle('project:writeGameData', (e, { root, data }) => {
+  const dir = requireProjectRoot(root);
+  if (!data || data.schema !== 'volt-game-project' || !Number.isInteger(data.version) || data.version < 1) throw new Error('Invalid game project data.');
+  const json = JSON.stringify(data, null, 2);
+  if (json.length > 8 * 1024 * 1024) throw new Error('Game data is too large (8 MB limit).');
+  const target = path.join(dir, GAME_DATA_FILE), temp = target + '.tmp';
+  fs.writeFileSync(temp, json, 'utf8');
+  fs.renameSync(temp, target);
+  return { saved: true, file: GAME_DATA_FILE, bytes: Buffer.byteLength(json, 'utf8') };
+});
 ipcMain.handle('project:listAssets', (e, { root }) => projectFiles.listProjectAssets(requireProjectRoot(root)));
 ipcMain.handle('project:readAsset', (e, { root, file }) => projectFiles.readProjectAsset(requireProjectRoot(root), file));
 ipcMain.handle('project:importAssets', async (e, { root }) => {
