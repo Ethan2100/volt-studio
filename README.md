@@ -92,11 +92,14 @@ This creates `dist\Volt Studio Setup <version>.exe` using `installer/installer.n
 | `.github/workflows/release.yml` | Builds the installer on GitHub and publishes a release (see `RELEASING.md`) |
 
 
-## Gameplay Studio
+## Unified World Studio
 
-The optional **Gameplay Studio** panel provides visual data-authoring prototypes for inventory/equipment, quest and dialogue nodes, skill progression, enemy AI behaviour graphs, loot tables, character stats/status effects, save/checkpoint definitions, and interaction triggers. Data can be saved locally in the editor or exported as a portable `volt-gameplay-project.json` file. These editors author data; runtime execution/serialization bridges are being developed separately.
+**World Studio is the home for the whole game.** Use the **Game** button inside World Studio to create and edit abilities, items, NPCs, HUD elements, quests, progression, enemy behaviour, loot tables, player stats, status effects, save fields, checkpoints and interactions. Definitions are stored in the project-wide `volt-game-data.json` database and linked into the World Studio hierarchy. Changes autosave to the open project; use **Save game** to save the scene and shared game data together.
 
-- [Gameplay Studio](plugins/gameplay-studio/index.html)
+The older Gameplay Studio and RPG Studio panels are retained in the source for compatibility but are hidden from the main panel list to avoid duplicate workflows. Existing examples and `.skillset.json` assets remain usable as reference assets.
+
+- [World Studio](plugins/world-studio/index.html)
+- [Unified game project format](docs/UNIFIED_GAME_PROJECT.md)
 - [Shadow Lifesteal playable example](examples/shadow-lifesteal/Shadow%20Lifesteal.volt)
 - [Shadow Lifesteal skillset asset](examples/shadow-lifesteal/Shadow%20Lifesteal.skillset.json)
 - [Editor feature catalog](docs/EDITOR_FEATURE_CATALOG.md)
