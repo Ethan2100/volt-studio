@@ -144,7 +144,7 @@ fn damageArea(x, z, reach, amount) {
   while i < length(TARGET_HP) {
     if alive(i) {
       if dist(x, z, TARGET_X[i], TARGET_Z[i]) <= reach + TARGET_REACH[i] {
-        hurtTarget(i, amount + PLAYER_ATTACK_BONUS)
+        hurtTarget(i, amount + PLAYER_ATTACK_BONUS + PLAYER_STATUS_ATTACK_BONUS)
         hit += 1
       }
     }
@@ -191,7 +191,7 @@ fn hurtPlayer(amount) {
   if PLAYER_DEAD {
     return
   }
-  PLAYER_HP -= max(1, amount - PLAYER_DEFENCE_BONUS)
+  PLAYER_HP -= max(1, amount - PLAYER_DEFENCE_BONUS - PLAYER_STATUS_DEFENCE_BONUS)
   PLAYER_HURT = HURT_FLASH_MS
   if PLAYER_HP <= 0 {
     PLAYER_HP = 0
