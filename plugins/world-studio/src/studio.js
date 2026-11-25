@@ -2751,8 +2751,12 @@ function itemStepLines(o, ident) {
     if (ident) L.push(`    show3d pick_${ident}, 0`);
     L.push('  }');
   }
-  if (r(o.heals) > 0) {
+  if (o.equipmentSlot) {
     L.push(`  if held("f") and holding() == ${qs(o.name)} {`,
+      `    equipItem(${qs(o.name)}, ${qs(o.equipmentSlot)}, ${r(o.attackBonus || 0)}, ${r(o.defenceBonus || 0)})`, '  }');
+  }
+  if (r(o.heals) > 0) {
+    L.push(`  if held("f") and holding() == ${qs(o.name)} and not ${o.equipmentSlot ? 'true' : 'false'} {`,
       `    if takeOne(${qs(o.name)}) {`, `      healPlayer(${r(o.heals)})`, '    }', '  }');
   }
   return L;
