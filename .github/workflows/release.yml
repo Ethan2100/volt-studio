@@ -7,7 +7,7 @@ on:
         description: "Volt Studio installer version (for example 1.9.5)"
         required: true
         type: string
-        default: "1.9.5"
+        default: "1.9.6"
       volt_version:
         description: "Volt language/compiler version (for example 3.4.0)"
         required: true
