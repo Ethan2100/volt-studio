@@ -85,6 +85,8 @@ print "DONE"
 let html;
 try {
   html = volt.compile(program, { baseDir: dir }).code;
+  // Preserve the underlying stack in CI so runtime failures are actionable.
+  html = html.replace("d.textContent = 'Error: ' + (e && e.message ? e.message : e);", "d.textContent = 'Error: ' + (e && e.message ? e.message : e) + (e && e.stack ? '\\\\n' + e.stack : '');");
   check("RPG systems compile through the Volt compiler", true);
 } catch (e) {
   check("RPG systems compile through the Volt compiler", false);
