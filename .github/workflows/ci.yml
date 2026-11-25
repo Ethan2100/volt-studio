@@ -33,7 +33,7 @@ jobs:
       - name: Build the Windows installer
         shell: pwsh
         working-directory: installer
-        run: '& "${env:ProgramFiles(x86)}\\NSIS\\makensis.exe" -V2 "-DVERSION=1.9.5" installer.nsi'
+        run: '& "${env:ProgramFiles(x86)}\NSIS\makensis.exe" -V2 "-DVERSION=1.9.5" installer.nsi'
       - name: Upload installer
         uses: actions/upload-artifact@v5
         with:
