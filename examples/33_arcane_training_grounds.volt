@@ -3,6 +3,7 @@ title "Arcane Training Grounds"
 canvas 320, 180
 import "game.volt"
 import "combat.volt"
+import "rpg.volt"
 
 // Beginner-friendly playable sample: move, jump, fight, use a potion,
 // and equip a sword and armour. Units are centimetres; y points upward.
@@ -45,10 +46,20 @@ equipItem("Leather Armour", "Chest", 0, 8)
 
 let crystalTaken = false
 let victory = false
+let goblinRewarded = false
+
+// Quest, progression and checkpoint systems are real runtime systems.
+createQuest("training_trial", "Training Trial", 1, 120, "Arcane Shard", 1)
+startQuest("training_trial")
+defineSkill("arcane_burst", 1, 60, "")
+addTrigger("crystal_checkpoint", 0, 300, 90, "checkpoint", "", true)
+loadRpgProgress()
 
 every frame {
   playerStep()
   stepCombat()
+  stepRpg()
+  stepTriggers(PLAYER_X, PLAYER_Z)
 
   // Q: Arcane burst. The cooldown prevents it firing every frame.
   if held("q") and ready("Arcane Burst") {
