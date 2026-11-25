@@ -2810,7 +2810,7 @@ function compactObj(o) {
 // The World Studio part of a game file: the sky, the things in it, and
 // the solid boxes the player walks into.
 function worldLines() {
-  const w = S.world, L = [], used = new Set(), idn = new Map(), gd = GAME_DATA || {};
+  const w = S.world, L = [], used = new Set(), idn = new Map(), gd = (typeof GAME_DATA !== 'undefined' && GAME_DATA) || {};
   const shapes = S.objects.filter((o) => o.kind !== 'spawn' && !ATTACHED.has(o.kind));
   for (const o of shapes) idn.set(o.id, identFor(o.name, used));
   for (const o of S.objects) if (ATTACHED.has(o.kind)) idn.set(o.id, identFor(o.name, used));
