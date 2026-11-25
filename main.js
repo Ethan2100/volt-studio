@@ -283,12 +283,27 @@ ipcMain.handle('project:createScript', (e, { root, file, content }) => projectFi
 // One shared, versioned database for every visual game-authoring panel.
 // It lives beside the game's .volt entry file and is autosaved by panels.
 const GAME_DATA_FILE = 'volt-game-data.json';
+const EMPTY_GAME_DATA = Object.freeze({
+  schema: 'volt-game-project', version: 1,
+  abilities: [], items: [], equipment: [], npcs: [], quests: [], skills: [],
+  aiGraphs: [], lootTables: [],
+  stats: { health: 100, mana: 100, stamina: 100, attack: 10, defence: 5, speed: 100 },
+  effects: [], saveFields: [], checkpoints: [], triggers: [], hud: []
+});
 ipcMain.handle('project:readGameData', (e, { root }) => {
   const dir = requireProjectRoot(root), file = path.join(dir, GAME_DATA_FILE);
-  if (!fs.existsSync(file)) return { schema: 'volt-game-project', version: 1, abilities: [], items: [], quests: [], skills: [], enemies: [], lootTables: [], stats: {}, effects: [], saveFields: [], checkpoints: [], triggers: [] };
+  if (!fs.existsSync(file)) return JSON.parse(JSON.stringify(EMPTY_GAME_DATA));
   try {
-    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
-    if (!data || data.schema !== 'volt-game-project') throw new Error('Invalid game data schema.');
+    const stored = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (!stored || stored.schema !== 'volt-game-project') throw new Error('Invalid game data schema.');
+    // Forward-compatible defaults: projects created by older editor builds
+    // gain new collections without losing any records they already contain.
+    const data = Object.assign({}, EMPTY_GAME_DATA, stored);
+    for (const key of ['abilities','items','equipment','npcs','quests','skills','aiGraphs','lootTables','effects','saveFields','checkpoints','triggers','hud']) {
+      if (!Array.isArray(data[key])) data[key] = [];
+    }
+    data.stats = Object.assign({}, EMPTY_GAME_DATA.stats, stored.stats || {});
+    if (!data.npcs.length && Array.isArray(stored.enemies)) data.npcs = stored.enemies;
     return data;
   } catch (err) { throw new Error('Could not read game data: ' + err.message); }
 });
