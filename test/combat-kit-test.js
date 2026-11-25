@@ -120,6 +120,25 @@ say("and its slot goes with it", length(BAG_NAME), 1)
 say("the hand falls back to a real slot", holding(), "Potion")
 say("using what you do not have fails", takeOne("Sword"), false)
 
+// ---- equipment ----
+say("equipment starts with no attack bonus", PLAYER_ATTACK_BONUS, 0)
+say("equipment starts with no defence bonus", PLAYER_DEFENCE_BONUS, 0)
+equipItem("Iron Sword", "Weapon", 10, 0)
+say("equipping adds attack", PLAYER_ATTACK_BONUS, 10)
+say("the equipped item is remembered", equippedItem("Weapon"), "Iron Sword")
+equipItem("Steel Sword", "Weapon", 15, 0)
+say("a new weapon replaces the old slot", equippedItem("Weapon"), "Steel Sword")
+say("replacement recalculates attack", PLAYER_ATTACK_BONUS, 15)
+equipItem("Iron Armour", "Chest", 0, 5)
+say("armour adds defence", PLAYER_DEFENCE_BONUS, 5)
+let oldHp = PLAYER_HP
+hurtPlayer(20)
+say("defence reduces incoming damage", PLAYER_HP, oldHp - 15)
+say("unequipping removes its bonus", unequipItem("Weapon"), true)
+say("attack returns to zero", PLAYER_ATTACK_BONUS, 0)
+say("chest armour stays equipped", equippedItem("Chest"), "Iron Armour")
+say("unequipping an empty slot fails", unequipItem("Boots"), false)
+
 // ---- damage numbers ----
 say("hits leave a number behind", length(DMG_TEXT) > 0, true)
 let before = length(DMG_TEXT)
