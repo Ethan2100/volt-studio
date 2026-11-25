@@ -73,6 +73,13 @@ fn rpgSwordAttack() {
 // without a model download. Replace the body/head with GLB models later.
 let RPG_NPC_BODY = []
 let RPG_NPC_HEAD = []
+let RPG_NPC_EYE_A = []
+let RPG_NPC_EYE_B = []
+let RPG_NPC_ARM_L = []
+let RPG_NPC_ARM_R = []
+let RPG_NPC_LEG_L = []
+let RPG_NPC_LEG_R = []
+let RPG_NPC_WALK = []
 let RPG_NPC_TARGET = []
 let RPG_NPC_SPEED = []
 let RPG_NPC_DAMAGE = []
@@ -89,9 +96,20 @@ fn rpgSpawnEnemy(name, x, z, hp, damage, speed, aggro, attackRange, color) {
   let head = ball3d(x, 174, z, 34, "#b9a0a0")
   let eyeA = ball3d(x - 12, 180, z - 29, 5, "#ff536f")
   let eyeB = ball3d(x + 12, 180, z - 29, 5, "#ff536f")
+  let armL = block3d(x - 39, 75, z, 18, 92, 22, color)
+  let armR = block3d(x + 39, 75, z, 18, 92, 22, color)
+  let legL = block3d(x - 17, 15, z, 22, 55, 26, "#292536")
+  let legR = block3d(x + 17, 15, z, 22, 55, 26, "#292536")
   let targetId = target(name, x, 72, z, hp, 105)
   add body to RPG_NPC_BODY
   add head to RPG_NPC_HEAD
+  add eyeA to RPG_NPC_EYE_A
+  add eyeB to RPG_NPC_EYE_B
+  add armL to RPG_NPC_ARM_L
+  add armR to RPG_NPC_ARM_R
+  add legL to RPG_NPC_LEG_L
+  add legR to RPG_NPC_LEG_R
+  add 0 to RPG_NPC_WALK
   add targetId to RPG_NPC_TARGET
   add speed to RPG_NPC_SPEED
   add damage to RPG_NPC_DAMAGE
@@ -124,9 +142,21 @@ fn rpgStepEnemies() {
         let nz = ez + dz * step / max(1, d)
         move3d RPG_NPC_BODY[i], nx, 72, nz
         move3d RPG_NPC_HEAD[i], nx, 174, nz
+        move3d RPG_NPC_EYE_A[i], nx - 12, 180, nz - 29
+        move3d RPG_NPC_EYE_B[i], nx + 12, 180, nz - 29
+        RPG_NPC_WALK[i] += 260
+        let stride = sin3(RPG_NPC_WALK[i]) * 17 / 1000
+        move3d RPG_NPC_ARM_L[i], nx - 39, 75 + stride, nz
+        move3d RPG_NPC_ARM_R[i], nx + 39, 75 - stride, nz
+        move3d RPG_NPC_LEG_L[i], nx - 17, 15 - stride, nz
+        move3d RPG_NPC_LEG_R[i], nx + 17, 15 + stride, nz
         moveTarget(targetId, nx, 72, nz)
         turn3d RPG_NPC_BODY[i], atan2(dx, 0 - dz)
         turn3d RPG_NPC_HEAD[i], atan2(dx, 0 - dz)
+        turn3d RPG_NPC_ARM_L[i], atan2(dx, 0 - dz)
+        turn3d RPG_NPC_ARM_R[i], atan2(dx, 0 - dz)
+        turn3d RPG_NPC_LEG_L[i], atan2(dx, 0 - dz)
+        turn3d RPG_NPC_LEG_R[i], atan2(dx, 0 - dz)
       }
       if d <= RPG_NPC_ATTACK_RANGE[i] and RPG_NPC_ATTACK_WAIT[i] <= 0 {
         hurtPlayer(RPG_NPC_DAMAGE[i])
@@ -137,6 +167,12 @@ fn rpgStepEnemies() {
     } else {
       show3d RPG_NPC_BODY[i], false
       show3d RPG_NPC_HEAD[i], false
+      show3d RPG_NPC_EYE_A[i], false
+      show3d RPG_NPC_EYE_B[i], false
+      show3d RPG_NPC_ARM_L[i], false
+      show3d RPG_NPC_ARM_R[i], false
+      show3d RPG_NPC_LEG_L[i], false
+      show3d RPG_NPC_LEG_R[i], false
     }
     i += 1
   }
