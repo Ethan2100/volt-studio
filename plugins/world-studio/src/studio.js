@@ -2825,6 +2825,7 @@ function worldLines() {
   if (r(pw.jump) !== 430) moveSet.push(`JUMP_POWER = ${r(pw.jump)}`);
   const lifeSet = [];
   if (r(pw.maxHp) !== 100) lifeSet.push(`PLAYER_MAX_HP = ${r(pw.maxHp)}`, `PLAYER_HP = ${r(pw.maxHp)}`);
+  if (gd.stats && r(gd.stats.health) > 0) lifeSet.push(`PLAYER_MAX_HP = ${r(gd.stats.health)}`, `PLAYER_HP = ${r(gd.stats.health)}`);
   if (r(pw.respawn) !== 2000) lifeSet.push(`RESPAWN_MS = ${r(pw.respawn)}`);
   const fighters = S.objects.filter((o) => o.kind === 'ability' || o.kind === 'item' || o.kind === 'hud' || r(o.hp) > 0);
   const hasRpg = ['quests','skills','aiGraphs','lootTables','effects','saveFields','checkpoints','triggers'].some((k) => Array.isArray(gd[k]) && gd[k].length);
