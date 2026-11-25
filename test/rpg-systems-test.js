@@ -12,6 +12,7 @@ for (const f of ['game.volt','combat.volt','rpg.volt']) {
 }
 const program = `#html
 canvas 320, 180
+world3d "#05060a"
 import "game.volt"
 import "combat.volt"
 import "rpg.volt"
