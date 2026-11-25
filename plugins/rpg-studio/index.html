@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RPG Studio</title>
+<style>
+:root{color-scheme:dark;--bg:#0d1018;--panel:#151b28;--panel2:#1c2535;--line:#2a354a;--text:#e9edf7;--muted:#8f9bb2;--accent:#b783ff;--accent2:#67d5ca;--danger:#ff647c}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:13px/1.45 "Segoe UI",system-ui,sans-serif}
+button,input,select{font:inherit;color:inherit}button{background:#263249;border:1px solid #394963;border-radius:7px;padding:8px 11px;cursor:pointer}button:hover{border-color:var(--accent);background:#303c56}button.primary{background:#8053bb;border-color:#a77cdb;color:white}button:disabled{opacity:.4;cursor:default}
+header{height:54px;display:flex;align-items:center;gap:12px;padding:0 16px;border-bottom:1px solid var(--line);background:#111723;position:sticky;top:0;z-index:4}
+.logo{font-weight:800;letter-spacing:.3px;font-size:15px}.logo span{color:var(--accent)}.tag{font-size:10px;color:var(--accent2);border:1px solid #315a60;border-radius:20px;padding:3px 7px}
+.layout{display:grid;grid-template-columns:190px minmax(0,1fr);min-height:calc(100vh - 54px)}
+nav{padding:14px 10px;border-right:1px solid var(--line);background:#111723}
+.navlabel{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:1px;padding:8px 9px}
+nav button{display:flex;width:100%;align-items:center;gap:10px;text-align:left;margin:3px 0;background:transparent;border-color:transparent;color:#aeb9cd}
+nav button.active{background:#29213a;border-color:#5b4378;color:#f0ddff}
+main{padding:18px;max-width:1500px;width:100%;margin:auto}
+.page{display:none}.page.active{display:block}.head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px}.head h1{font-size:21px;margin:0 0 4px}.sub{color:var(--muted);font-size:12px}
+.grid{display:grid;grid-template-columns:minmax(280px,1fr) minmax(280px,1fr);gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:14px;min-width:0}.card h2{font-size:13px;margin:0 0 12px;color:#dce4f4}
+label{display:block;color:var(--muted);font-size:11px;margin:10px 0 5px}
+input[type=text],input[type=number],select{width:100%;background:#0f1521;border:1px solid #344057;border-radius:6px;padding:8px}
+input[type=range]{width:100%;accent-color:var(--accent)}input[type=color]{width:42px;height:30px;border:0;background:none;padding:0}
+.row{display:flex;align-items:center;gap:9px}.row>*{flex:1}.row .fixed{flex:0 0 auto}
+.value{color:var(--accent2);font-variant-numeric:tabular-nums}
+canvas{width:100%;display:block;background:radial-gradient(ellipse at 50% 70%,#252039,#090d16 72%);border:1px solid #30364b;border-radius:8px}
+.preview{min-height:240px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.muted{color:var(--muted)}.slot{display:grid;grid-template-columns:36px minmax(100px,1fr) 110px;gap:8px;align-items:center;margin:7px 0}.key{height:34px;border-radius:7px;background:#30233f;border:1px solid #674b83;display:grid;place-items:center;font-weight:800;color:#e1c4ff}
+.slot input,.slot select{min-width:0}.notice{padding:10px 12px;border-radius:8px;background:#182a2d;border:1px solid #28545a;color:#b7e9e2;font-size:11px;margin-top:12px}
+.hudmock{padding:20px;border-radius:9px;min-height:210px;position:relative;overflow:hidden;background:linear-gradient(140deg,#202a3b,#111522 60%,#302039)}
+.hpbar{height:11px;background:#222b37;border:1px solid #748398;border-radius:20px;overflow:hidden;width:180px}.hpbar i{display:block;height:100%;width:76%;background:linear-gradient(90deg,#37d58d,#a4f28a)}
+.hotbar{display:flex;gap:5px;position:absolute;bottom:16px;left:50%;transform:translateX(-50%)}.hotbar b{width:35px;height:35px;border-radius:6px;border:1px solid #9a78c1;background:#211c30;display:grid;place-items:center}.hotbar b:first-child{outline:2px solid #d7a8ff}
+pre{white-space:pre-wrap;word-break:break-word;background:#0b1019;border:1px solid var(--line);border-radius:8px;padding:10px;color:#b8d6ff;font:11px/1.5 Consolas,monospace;max-height:180px;overflow:auto}
+small{color:var(--muted)}.hidden{display:none!important}
+@media(max-width:800px){.layout{grid-template-columns:1fr}nav{display:flex;overflow:auto;border-right:0;border-bottom:1px solid var(--line)}.navlabel{display:none}nav button{width:auto;white-space:nowrap}.grid{grid-template-columns:1fr}main{padding:12px}}
+</style>
+</head>
+<body>
+<header><div class="logo">⚡ VOLT <span>RPG STUDIO</span></div><div class="tag">AUTHORING TOOLS</div><div style="margin-left:auto;color:var(--muted);font-size:11px">Offline-friendly · Exportable assets</div></header>
+<div class="layout">
+<nav>
+ <div class="navlabel">Create</div>
+ <button class="active" data-page="skills">✦ Skillsets</button>
+ <button data-page="vfx">✺ VFX Lab</button>
+ <button data-page="audio">♫ SoundFX Lab</button>
+ <button data-page="hud">▤ HUD & Fonts</button>
+ <div class="navlabel">Gameplay</div>
+ <button data-page="npc">♟ NPC Setup</button>
+</nav>
+<main>
+<section class="page active" id="skills">
+ <div class="head"><div><h1>Skillset Builder</h1><div class="sub">Create reusable ability sets and export them as portable JSON assets.</div></div><button class="primary" id="exportSkill">Export Skillset ↓</button></div>
+ <div class="grid">
+  <div class="card">
+   <h2>Skillset properties</h2>
+   <label>Name</label><input id="skillName" type="text" value="Shadow Fruit">
+   <div class="row"><div><label>Category</label><select id="skillCategory"><option>Fruit</option><option>Magic</option><option>Weapon Style</option><option>Elemental</option><option>Martial Arts</option></select></div><div><label>Rarity</label><select id="skillRarity"><option>Common</option><option>Rare</option><option selected>Epic</option><option>Legendary</option><option>Mythic</option></select></div></div>
+   <label>Description</label><input id="skillDesc" type="text" value="A cursed shadow power that commands bats and drains life.">
+   <label>Energy type</label><select id="skillEnergy"><option>Aether</option><option>Mana</option><option>Stamina</option><option>Rage</option></select>
+   <div class="notice">Each slot stores its key, cooldown, energy cost, damage, healing and effect reference. Export creates a reusable data asset.</div>
+  </div>
+  <div class="card">
+   <h2>Ability slots</h2>
+   <div id="abilitySlots"></div>
+   <div class="actions"><button id="addSlot">+ Add ability slot</button><button id="resetSkill">Reset example</button></div>
+  </div>
+ </div>
+ <div class="card" style="margin-top:14px"><h2>Asset preview</h2><pre id="skillPreview"></pre></div>
+</section>
+<section class="page" id="vfx">
+ <div class="head"><div><h1>Visual Effects Lab</h1><div class="sub">Live particle preview with editable emitter parameters. Export effect presets for your game.</div></div><button class="primary" id="exportVfx">Export VFX ↓</button></div>
+ <div class="grid">
+  <div class="card"><h2>Live preview</h2><canvas id="vfxCanvas" class="preview" width="720" height="360"></canvas><div class="actions"><button id="vfxPlay">Pause</button><button id="vfxBurst">Emit burst</button><button id="vfxClear">Clear</button></div></div>
+  <div class="card"><h2>Emitter properties</h2>
+   <label>Preset</label><select id="vfxPreset"><option value="shadow">Shadow sparks</option><option value="fire">Fire burst</option><option value="heal">Healing motes</option><option value="arcane">Arcane dust</option></select>
+   <div class="row"><div><label>Particle color</label><input id="vfxColor" type="color" value="#b56aff"></div><div><label>Particle count <span class="value" id="countVal">42</span></label><input id="vfxCount" type="range" min="4" max="140" value="42"></div></div>
+   <label>Lifetime <span class="value" id="lifeVal">1.8s</span></label><input id="vfxLife" type="range" min=".3" max="5" step=".1" value="1.8">
+   <label>Speed <span class="value" id="speedVal">110</span></label><input id="vfxSpeed" type="range" min="10" max="320" value="110">
+   <label>Gravity <span class="value" id="gravityVal">-12</span></label><input id="vfxGravity" type="range" min="-120" max="120" value="-12">
+   <label>Particle size <span class="value" id="sizeVal">4</span></label><input id="vfxSize" type="range" min="1" max="16" value="4">
+   <label>Spawn rate <span class="value" id="rateVal">18/s</span></label><input id="vfxRate" type="range" min="0" max="100" value="18">
+  </div>
+ </div>
+ <div class="card" style="margin-top:14px"><h2>Export preview</h2><pre id="vfxPreview"></pre></div>
+</section>
+<section class="page" id="audio">
+ <div class="head"><div><h1>SoundFX Lab</h1><div class="sub">Import a local audio file, audition it and configure playback and spatial sound settings.</div></div><button class="primary" id="exportAudio">Export settings ↓</button></div>
+ <div class="grid">
+  <div class="card"><h2>Audio source</h2><label>Choose audio file (WAV, MP3, OGG)</label><input id="audioFile" type="file" accept="audio/*"><div id="audioName" class="muted" style="margin:12px 0">No file loaded.</div><audio id="audioPlayer" controls style="width:100%"></audio>
+   <div class="actions"><button id="audioPlay">Play / Pause</button><button id="audioStop">Stop</button></div>
+  </div>
+  <div class="card"><h2>Playback & spatial settings</h2>
+   <label>Volume <span class="value" id="volumeVal">80%</span></label><input id="volume" type="range" min="0" max="100" value="80">
+   <label>Pitch <span class="value" id="pitchVal">1.00×</span></label><input id="pitch" type="range" min=".5" max="2" step=".05" value="1">
+   <label>Playback speed <span class="value" id="rateAudioVal">1.00×</span></label><input id="rateAudio" type="range" min=".5" max="2" step=".05" value="1">
+   <label><input id="audioLoop" type="checkbox"> Loop audio</label>
+   <label>3D attenuation</label><select id="attenuation"><option>None (2D)</option><option selected>Inverse distance</option><option>Linear</option><option>Exponential</option></select>
+   <label>Max audible distance <span class="value" id="distanceVal">1200 cm</span></label><input id="distance" type="range" min="100" max="4000" step="50" value="1200">
+  </div>
+ </div>
+ <div class="card" style="margin-top:14px"><h2>Sound configuration</h2><pre id="audioPreview"></pre></div>
+</section>
+<section class="page" id="hud">
+ <div class="head"><div><h1>HUD & Typography</h1><div class="sub">Preview modern RPG HUD styles and choose a font stack for your interface.</div></div><button class="primary" id="exportHud">Export theme ↓</button></div>
+ <div class="grid">
+  <div class="card"><h2>Live HUD preview</h2><div class="hudmock" id="hudMock"><div style="font-size:12px;opacity:.8">PLAYER · LEVEL 24</div><div style="font-size:22px;font-weight:800;margin:4px 0 12px">ETHAN</div><div class="hpbar"><i id="hpFill"></i></div><div style="font-size:10px;margin-top:4px">HP 760 / 1000 · AETHER 420 / 600</div><div class="hotbar" id="hotbar"><b>Q</b><b>E</b><b>R</b><b>F</b></div><div style="position:absolute;right:16px;top:18px;text-align:right;font-size:11px">QUEST<br><b>Defeat the Shadow Knight</b></div></div></div>
+  <div class="card"><h2>Theme settings</h2><label>HUD template</label><select id="hudStyle"><option value="modern">Modern MMORPG</option><option value="anime">Anime RPG</option><option value="fantasy">Fantasy RPG</option><option value="minimal">Minimalist</option><option value="scifi">Sci-fi</option><option value="retro">Retro pixel</option></select>
+   <label>Font family</label><select id="fontFamily"><option value="system-ui">System UI</option><option value="Segoe UI">Segoe UI</option><option value="Arial">Arial</option><option value="Verdana">Verdana</option><option value="Trebuchet MS">Trebuchet MS</option><option value="Tahoma">Tahoma</option><option value="Georgia">Georgia</option><option value="Palatino Linotype">Palatino</option><option value="Impact">Impact</option><option value="Courier New">Courier New</option><option value="monospace">Monospace</option></select>
+   <label>Accent color</label><input id="hudAccent" type="color" value="#bd83ff">
+   <label>Health color</label><input id="hudHealth" type="color" value="#43d98b">
+   <label>Corner radius <span class="value" id="radiusVal">10px</span></label><input id="hudRadius" type="range" min="0" max="24" value="10">
+   <div class="notice">Font choices use local system fonts and fallbacks. No external font download is required; availability depends on the player's operating system.</div>
+  </div>
+ </div>
+</section>
+<section class="page" id="npc">
+ <div class="head"><div><h1>NPC Setup</h1><div class="sub">Configure a basic enemy profile for the RPG Kit and export its data.</div></div><button class="primary" id="exportNpc">Export NPC ↓</button></div>
+ <div class="grid">
+  <div class="card"><h2>Enemy identity</h2><label>Name</label><input id="npcName" type="text" value="Shadow Goblin"><div class="row"><div><label>Archetype</label><select id="npcType"><option>Melee</option><option>Ranged</option><option>Tank</option><option>Boss</option></select></div><div><label>Body color</label><input id="npcColor" type="color" value="#68436f"></div></div>
+   <label>Maximum health <span class="value" id="npcHpVal">120</span></label><input id="npcHp" type="range" min="20" max="2000" value="120">
+   <label>Attack damage <span class="value" id="npcDmgVal">9</span></label><input id="npcDamage" type="range" min="1" max="150" value="9">
+  </div>
+  <div class="card"><h2>AI behaviour</h2><label>Movement speed (cm/s) <span class="value" id="npcSpeedVal">150</span></label><input id="npcSpeed" type="range" min="0" max="600" value="150">
+   <label>Aggro radius (cm) <span class="value" id="npcAggroVal">900</span></label><input id="npcAggro" type="range" min="100" max="3000" step="50" value="900">
+   <label>Attack range (cm) <span class="value" id="npcRangeVal">95</span></label><input id="npcRange" type="range" min="40" max="600" step="5" value="95">
+   <label>Attack cooldown (ms) <span class="value" id="npcCoolVal">1100</span></label><input id="npcCool" type="range" min="300" max="5000" step="100" value="1100">
+   <div class="notice">The current RPG Kit supports basic chase and melee attack settings. Ranged AI, navmesh pathfinding and patrol routes are future extensions.</div>
+  </div>
+ </div>
+ <div class="card" style="margin-top:14px"><h2>NPC profile preview</h2><pre id="npcPreview"></pre></div>
+</section>
+</main>
+</div>
+<script>
+(()=>{'use strict';
+const $=id=>document.getElementById(id);
+const download=(name,obj)=>{const blob=new Blob([typeof obj==='string'?obj:JSON.stringify(obj,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
+document.querySelectorAll('nav button[data-page]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id===b.dataset.page))}));
+const defaultSlots=[{key:'Q',name:'Blood Swarm',cooldown:7200,cost:35,damage:7,healing:2,effect:'shadow-bat-orbit'},{key:'E',name:'Blood Drain',cooldown:2400,cost:25,damage:28,healing:18,effect:'blood-tether'},{key:'R',name:'Crimson Burst',cooldown:5200,cost:55,damage:32,healing:5,effect:'crimson-shockwave'},{key:'F',name:'Shadow Step',cooldown:3000,cost:30,damage:0,healing:0,effect:'shadow-blink'}];
+let slots=structuredClone(defaultSlots);
+function skillData(){return {format:'volt-skillset',version:1,name:$('skillName').value,category:$('skillCategory').value,rarity:$('skillRarity').value,description:$('skillDesc').value,energy:$('skillEnergy').value,abilities:slots}}
+function renderSlots(){ $('abilitySlots').innerHTML=slots.map((s,i)=>'<div class="slot"><div class="key">'+s.key+'</div><input data-i="'+i+'" data-k="name" value="'+s.name.replaceAll('"','&quot;')+'"><select data-i="'+i+'" data-k="effect">'+['shadow-bat-orbit','blood-tether','crimson-shockwave','shadow-blink','particle-burst','weapon-slash'].map(e=>'<option '+(s.effect===e?'selected':'')+'>'+e+'</option>').join('')+'</select></div><div class="row" style="margin:0 0 8px 44px"><small>Cooldown ms</small><input data-i="'+i+'" data-k="cooldown" type="number" value="'+s.cooldown+'"><small>Energy</small><input data-i="'+i+'" data-k="cost" type="number" value="'+s.cost+'"></div>').join('');$('abilitySlots').querySelectorAll('[data-i]').forEach(el=>el.addEventListener('change',()=>{const i=+el.dataset.i,k=el.dataset.k;slots[i][k]=['cooldown','cost'].includes(k)?+el.value:el.value;renderSkill()}));renderSkill()}
+function renderSkill(){$('skillPreview').textContent=JSON.stringify(skillData(),null,2)}
+['skillName','skillCategory','skillRarity','skillDesc','skillEnergy'].forEach(id=>$(id).addEventListener('input',renderSkill));
+$('addSlot').onclick=()=>{if(slots.length<8){slots.push({key:'G',name:'New Ability',cooldown:3000,cost:20,damage:10,healing:0,effect:'particle-burst'});renderSlots()}};
+$('resetSkill').onclick=()=>{slots=structuredClone(defaultSlots);renderSlots()};
+$('exportSkill').onclick=()=>download((($('skillName').value||'skillset').toLowerCase().replace(/[^a-z0-9]+/g,'-'))+'.skillset.json',skillData());
+renderSlots();
+
+// Particle preview/editor
+const cv=$('vfxCanvas'),ctx=cv.getContext('2d');let particles=[],playing=true,last=0,emitAcc=0;
+const vfx=()=>({preset:$('vfxPreset').value,color:$('vfxColor').value,count:+$('vfxCount').value,lifetime:+$('vfxLife').value,speed:+$('vfxSpeed').value,gravity:+$('vfxGravity').value,size:+$('vfxSize').value,rate:+$('vfxRate').value});
+function emit(n){const p=vfx();for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,s=p.speed*(.25+Math.random()*.75);particles.push({x:cv.width/2,y:cv.height*.62,vx:Math.cos(a)*s,vy:Math.sin(a)*s-p.speed*.3,life:p.lifetime,max:p.lifetime,size:p.size*(.5+Math.random()),color:p.color})}}
+function drawVfx(t){const dt=Math.min(.04,(t-last)/1000||.016);last=t;if(playing){const p=vfx();emitAcc+=p.rate*dt;while(emitAcc>=1){emit(1);emitAcc--}}ctx.clearRect(0,0,cv.width,cv.height);ctx.fillStyle='#0b0d17';ctx.fillRect(0,0,cv.width,cv.height);const grd=ctx.createRadialGradient(cv.width/2,cv.height*.62,4,cv.width/2,cv.height*.62,150);grd.addColorStop(0,'#553b70');grd.addColorStop(1,'#0b0d17');ctx.fillStyle=grd;ctx.fillRect(0,0,cv.width,cv.height);particles=particles.filter(p=>p.life>0);particles.forEach(p=>{if(playing){p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=vfx().gravity*dt}ctx.globalAlpha=Math.max(0,p.life/p.max);ctx.fillStyle=p.color;ctx.shadowBlur=12;ctx.shadowColor=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill()});ctx.globalAlpha=1;ctx.shadowBlur=0;if(playing)requestAnimationFrame(drawVfx);else requestAnimationFrame(drawVfx)}
+function updateVfx(){const p=vfx();[['countVal',p.count],['lifeVal',p.lifetime+'s'],['speedVal',p.speed],['gravityVal',p.gravity],['sizeVal',p.size],['rateVal',p.rate+'/s']].forEach(([id,v])=>$(id).textContent=v);$('vfxPreview').textContent=JSON.stringify(p,null,2)}
+['vfxPreset','vfxColor','vfxCount','vfxLife','vfxSpeed','vfxGravity','vfxSize','vfxRate'].forEach(id=>$(id).addEventListener('input',updateVfx));
+$('vfxPreset').onchange=()=>{const presets={shadow:['#b56aff',42,1.8,110,-12,4,18],fire:['#ff7438',65,1.2,180,-55,5,32],heal:['#53e6ad',38,2.4,75,-18,3,14],arcane:['#5ab9ff',55,3,95,5,3,22]};const p=presets[$('vfxPreset').value];[$('vfxColor').value,$('vfxCount').value,$('vfxLife').value,$('vfxSpeed').value,$('vfxGravity').value,$('vfxSize').value,$('vfxRate').value]=p;updateVfx()};
+$('vfxPlay').onclick=()=>{playing=!playing;$('vfxPlay').textContent=playing?'Pause':'Resume'};
+$('vfxBurst').onclick=()=>emit(vfx().count);$('vfxClear').onclick=()=>particles=[];
+$('exportVfx').onclick=()=>download('volt-vfx-preset.json',{format:'volt-vfx',version:1,...vfx()});emit(42);updateVfx();requestAnimationFrame(drawVfx);
+
+// Audio preview and configuration
+const audio=$('audioPlayer');let audioUrl=null;
+$('audioFile').onchange=()=>{const f=$('audioFile').files[0];if(!f)return;if(audioUrl)URL.revokeObjectURL(audioUrl);audioUrl=URL.createObjectURL(f);audio.src=audioUrl;$('audioName').textContent=f.name+' · '+(f.size/1024).toFixed(1)+' KB';renderAudio()};
+function renderAudio(){const d={format:'volt-sound',version:1,source:$('audioFile').files[0]?.name||null,volume:+$('volume').value/100,pitch:+$('pitch').value,playbackRate:+$('rateAudio').value,loop:$('audioLoop').checked,attenuation:$('attenuation').value,maxDistanceCm:+$('distance').value};$('audioPreview').textContent=JSON.stringify(d,null,2);[['volumeVal',$('volume').value+'%'],['pitchVal',$('pitch').value+'×'],['rateAudioVal',$('rateAudio').value+'×'],['distanceVal',$('distance').value+' cm']].forEach(([id,v])=>$(id).textContent=v);audio.volume=d.volume;audio.playbackRate=d.playbackRate*d.pitch;audio.loop=d.loop}
+['volume','pitch','rateAudio','audioLoop','attenuation','distance'].forEach(id=>$(id).addEventListener('input',renderAudio));
+$('audioPlay').onclick=()=>audio.paused?audio.play():audio.pause();$('audioStop').onclick=()=>{audio.pause();audio.currentTime=0};
+$('exportAudio').onclick=()=>download('volt-sound-config.json',JSON.parse($('audioPreview').textContent));renderAudio();
+
+// HUD and font previews
+function renderHud(){const accent=$('hudAccent').value,health=$('hudHealth').value,style=$('hudStyle').value,font=$('fontFamily').value,r=+$('hudRadius').value;const mock=$('hudMock');mock.style.fontFamily='"'+font+'",system-ui,sans-serif';mock.style.borderRadius=r+'px';mock.style.borderColor=accent;mock.style.boxShadow='inset 0 0 0 1px '+accent+'55';$('hpFill').style.background=health;$('hotbar').querySelectorAll('b').forEach(b=>{b.style.borderColor=accent;b.style.borderRadius=(style==='minimal'?2:r/2)+'px';b.style.background=style==='scifi'?'#102c38':'#211c30'});mock.style.background=style==='fantasy'?'linear-gradient(140deg,#30291f,#141522 60%,#3b2630)':style==='scifi'?'linear-gradient(140deg,#102a35,#111522 60%,#1b3544)':style==='anime'?'linear-gradient(140deg,#27223d,#111522 60%,#39234a)':'linear-gradient(140deg,#202a3b,#111522 60%,#302039)';$('radiusVal').textContent=r+'px'}
+['hudStyle','fontFamily','hudAccent','hudHealth','hudRadius'].forEach(id=>$(id).addEventListener('input',renderHud));$('exportHud').onclick=()=>download('volt-hud-theme.json',{format:'volt-hud-theme',version:1,style:$('hudStyle').value,fontFamily:$('fontFamily').value,accent:$('hudAccent').value,health:$('hudHealth').value,radius:+$('hudRadius').value});renderHud();
+
+// NPC profile export
+function renderNpc(){[['npcHpVal',$('npcHp').value],['npcDmgVal',$('npcDamage').value],['npcSpeedVal',$('npcSpeed').value],['npcAggroVal',$('npcAggro').value],['npcRangeVal',$('npcRange').value],['npcCoolVal',$('npcCool').value]].forEach(([id,v])=>$(id).textContent=v);const d={format:'volt-npc-profile',version:1,name:$('npcName').value,archetype:$('npcType').value,color:$('npcColor').value,health:+$('npcHp').value,damage:+$('npcDamage').value,speed:+$('npcSpeed').value,aggroRadius:+$('npcAggro').value,attackRange:+$('npcRange').value,attackCooldown:+$('npcCool').value};$('npcPreview').textContent=JSON.stringify(d,null,2)}
+['npcName','npcType','npcColor','npcHp','npcDamage','npcSpeed','npcAggro','npcRange','npcCool'].forEach(id=>$(id).addEventListener('input',renderNpc));$('exportNpc').onclick=()=>download('volt-npc-profile.json',JSON.parse($('npcPreview').textContent));renderNpc();
+})();
+</script>
+</body>
+</html>
