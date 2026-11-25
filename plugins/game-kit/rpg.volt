@@ -131,6 +131,7 @@ fn unlockSkill(id) {
 
 // ---- enemy behaviour ---------------------------------------------------
 let AI_TARGET = []
+let AI_VISUAL = []
 let AI_AGGRO = []
 let AI_ATTACK_RANGE = []
 let AI_DAMAGE = []
@@ -139,10 +140,11 @@ let AI_COOLDOWN = []
 let AI_WAIT = []
 let AI_MODE = []            // "guard", "chase", "aggressive"
 
-fn configureEnemyAI(targetId, aggro, attackRange, damage, speed, cooldown, mode) {
+fn configureEnemyAI(targetId, visual, aggro, attackRange, damage, speed, cooldown, mode) {
   let i = 0
   while i < length(AI_TARGET) {
     if AI_TARGET[i] == targetId {
+      AI_VISUAL[i] = visual
       AI_AGGRO[i] = aggro
       AI_ATTACK_RANGE[i] = attackRange
       AI_DAMAGE[i] = damage
@@ -154,6 +156,7 @@ fn configureEnemyAI(targetId, aggro, attackRange, damage, speed, cooldown, mode)
     i += 1
   }
   add targetId to AI_TARGET
+  add visual to AI_VISUAL
   add aggro to AI_AGGRO
   add attackRange to AI_ATTACK_RANGE
   add damage to AI_DAMAGE
@@ -182,6 +185,7 @@ fn stepEnemyAI(targetId, playerX, playerZ) {
           let nx = TARGET_X[targetId] + dx * step / distance
           let nz = TARGET_Z[targetId] + dz * step / distance
           moveTarget(targetId, nx, TARGET_Y[targetId], nz)
+          move3d(AI_VISUAL[i], nx, TARGET_Y[targetId], nz)
         }
         return "chase"
       }
@@ -234,6 +238,39 @@ let STATUS_NAME = []
 let STATUS_STAT = []
 let STATUS_AMOUNT = []
 let STATUS_LEFT = []
+let STATUS_DEF_ID = []
+let STATUS_DEF_STAT = []
+let STATUS_DEF_AMOUNT = []
+let STATUS_DEF_DURATION = []
+
+fn defineStatus(id, stat, amount, durationMs) {
+  let i = 0
+  while i < length(STATUS_DEF_ID) {
+    if STATUS_DEF_ID[i] == id {
+      STATUS_DEF_STAT[i] = stat
+      STATUS_DEF_AMOUNT[i] = amount
+      STATUS_DEF_DURATION[i] = durationMs
+      return true
+    }
+    i += 1
+  }
+  add id to STATUS_DEF_ID
+  add stat to STATUS_DEF_STAT
+  add amount to STATUS_DEF_AMOUNT
+  add durationMs to STATUS_DEF_DURATION
+  return true
+}
+
+fn applyDefinedStatus(id) {
+  let i = 0
+  while i < length(STATUS_DEF_ID) {
+    if STATUS_DEF_ID[i] == id {
+      return applyStatus(id, STATUS_DEF_STAT[i], STATUS_DEF_AMOUNT[i], STATUS_DEF_DURATION[i])
+    }
+    i += 1
+  }
+  return false
+}
 
 fn applyStatus(id, stat, amount, durationMs) {
   let i = 0
@@ -368,6 +405,7 @@ fn stepTriggers(playerX, playerZ) {
         if action == "checkpoint" { setCheckpoint(playerX, PLAYER_Y, playerZ) }
         if action == "statusAttack" { applyStatus(TRIGGER_ID[i], "attack", int(TRIGGER_PAYLOAD[i]), 5000) }
         if action == "statusDefence" { applyStatus(TRIGGER_ID[i], "defence", int(TRIGGER_PAYLOAD[i]), 5000) }
+        if action == "status" { applyDefinedStatus(TRIGGER_PAYLOAD[i]) }
         if TRIGGER_ONCE[i] { TRIGGER_FIRED[i] = true }
       }
     }
