@@ -12,10 +12,10 @@ for (const f of ['game.volt','combat.volt','rpg.volt']) {
 }
 const program = `#html
 canvas 320, 180
-world3d "#05060a"
 import "game.volt"
 import "combat.volt"
 import "rpg.volt"
+world3d "#05060a"
 DEATH_SPARKS = false
 fn say(label, got, want) {
   if got == want { print "ok " + label }
