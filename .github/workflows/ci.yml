@@ -28,3 +28,16 @@ jobs:
         run: npm test
       - name: Build the Windows app
         run: npx electron-builder --win dir --x64 --publish never
+      - name: Install NSIS
+        run: choco install nsis -y --no-progress
+      - name: Build the Windows installer
+        shell: pwsh
+        working-directory: installer
+        run: '& "${env:ProgramFiles(x86)}\\NSIS\\makensis.exe" -V2 "-DVERSION=1.9.5" installer.nsi'
+      - name: Upload installer
+        uses: actions/upload-artifact@v5
+        with:
+          name: volt-studio-1.9.5-windows-installer
+          path: dist/*.exe
+          if-no-files-found: error
+          retention-days: 30
