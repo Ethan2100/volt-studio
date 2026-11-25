@@ -185,10 +185,10 @@ fn stepEnemyAI(targetId, playerX, playerZ) {
       if AI_MODE[i] == "guard" and distance > AI_AGGRO[i] { return "guard" }
       if distance > AI_AGGRO[i] { return "idle" }
       if distance > AI_ATTACK_RANGE[i] {
-        let step = min(AI_SPEED[i] / 60, distance)
+        let travel = min(AI_SPEED[i] / 60, distance)
         if distance > 0 {
-          let nx = TARGET_X[targetId] + dx * step / distance
-          let nz = TARGET_Z[targetId] + dz * step / distance
+          let nx = TARGET_X[targetId] + dx * travel / distance
+          let nz = TARGET_Z[targetId] + dz * travel / distance
           moveTarget(targetId, nx, TARGET_Y[targetId], nz)
           move3d AI_VISUAL[i], nx, TARGET_Y[targetId], nz
         }
