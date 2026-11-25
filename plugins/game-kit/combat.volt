@@ -144,7 +144,7 @@ fn damageArea(x, z, reach, amount) {
   while i < length(TARGET_HP) {
     if alive(i) {
       if dist(x, z, TARGET_X[i], TARGET_Z[i]) <= reach + TARGET_REACH[i] {
-        hurtTarget(i, amount)
+        hurtTarget(i, amount + PLAYER_ATTACK_BONUS + PLAYER_STATUS_ATTACK_BONUS)
         hit += 1
       }
     }
@@ -191,7 +191,7 @@ fn hurtPlayer(amount) {
   if PLAYER_DEAD {
     return
   }
-  PLAYER_HP -= amount
+  PLAYER_HP -= max(1, amount - PLAYER_DEFENCE_BONUS - PLAYER_STATUS_DEFENCE_BONUS)
   PLAYER_HURT = HURT_FLASH_MS
   if PLAYER_HP <= 0 {
     PLAYER_HP = 0
@@ -268,6 +268,17 @@ let BAG_COLOR = []
 let BAG_SLOT = 0            // which slot is in your hand, counting from 0
 let BAG_MAX = 9
 
+// Equipment bonuses are kept separately from consumable stacks. Equipping
+// another item in the same slot replaces the old one rather than stacking.
+let EQUIP_SLOT = []
+let EQUIP_NAME = []
+let EQUIP_ATTACK = []
+let EQUIP_DEFENCE = []
+let PLAYER_ATTACK_BONUS = 0
+let PLAYER_DEFENCE_BONUS = 0
+let PLAYER_STATUS_ATTACK_BONUS = 0
+let PLAYER_STATUS_DEFENCE_BONUS = 0
+
 fn bagIndex(name) {
   let i = 0
   while i < length(BAG_NAME) {
@@ -336,6 +347,66 @@ fn pickSlot(n) {
   if n >= 0 and n < length(BAG_NAME) {
     BAG_SLOT = n
   }
+}
+
+// Equips a named item in a slot and recalculates the player's bonuses.
+// Calling this repeatedly is safe: one item per slot is kept.
+fn equipItem(name, slot, attackBonus, defenceBonus) {
+  let at = 0
+  while at < length(EQUIP_SLOT) {
+    if EQUIP_SLOT[at] == slot {
+      EQUIP_NAME[at] = name
+      EQUIP_ATTACK[at] = attackBonus
+      EQUIP_DEFENCE[at] = defenceBonus
+      recalcEquipment()
+      return true
+    }
+    at += 1
+  }
+  add slot to EQUIP_SLOT
+  add name to EQUIP_NAME
+  add attackBonus to EQUIP_ATTACK
+  add defenceBonus to EQUIP_DEFENCE
+  recalcEquipment()
+  return true
+}
+
+fn recalcEquipment() {
+  PLAYER_ATTACK_BONUS = 0
+  PLAYER_DEFENCE_BONUS = 0
+  let i = 0
+  while i < length(EQUIP_SLOT) {
+    PLAYER_ATTACK_BONUS += EQUIP_ATTACK[i]
+    PLAYER_DEFENCE_BONUS += EQUIP_DEFENCE[i]
+    i += 1
+  }
+}
+
+fn unequipItem(slot) {
+  let i = 0
+  while i < length(EQUIP_SLOT) {
+    if EQUIP_SLOT[i] == slot {
+      remove EQUIP_SLOT[i]
+      remove EQUIP_NAME[i]
+      remove EQUIP_ATTACK[i]
+      remove EQUIP_DEFENCE[i]
+      recalcEquipment()
+      return true
+    }
+    i += 1
+  }
+  return false
+}
+
+fn equippedItem(slot) {
+  let i = 0
+  while i < length(EQUIP_SLOT) {
+    if EQUIP_SLOT[i] == slot {
+      return EQUIP_NAME[i]
+    }
+    i += 1
+  }
+  return ""
 }
 
 // ---------------------------------------------------------------------

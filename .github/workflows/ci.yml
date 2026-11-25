@@ -1,0 +1,43 @@
+name: Volt Studio CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, feature/unified-game-project]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build bundled World Studio panel
+        run: node plugins/world-studio/build.js
+      - name: Run automated tests
+        run: npm test
+      - name: Build the Windows app
+        run: npx electron-builder --win dir --x64 --publish never
+      - name: Install NSIS
+        run: choco install nsis -y --no-progress
+      - name: Build the Windows installer
+        shell: pwsh
+        working-directory: installer
+        run: '& "${env:ProgramFiles(x86)}\NSIS\makensis.exe" -V2 "-DVERSION=1.9.5" installer.nsi'
+      - name: Upload installer
+        uses: actions/upload-artifact@v5
+        with:
+          name: volt-studio-1.9.5-windows-installer
+          path: dist/*.exe
+          if-no-files-found: error
+          retention-days: 30

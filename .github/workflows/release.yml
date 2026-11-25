@@ -17,7 +17,7 @@ on:
         description: "Release notes"
         required: false
         type: string
-        default: "Gameplay Studio, RPG authoring, Shadow Lifesteal sample and skillset."
+        default: "World Studio beginner workflow, unified game authoring and editor improvements."
 
 permissions:
   contents: write

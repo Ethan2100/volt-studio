@@ -13,6 +13,15 @@ const plugins = require('../lib/plugins.js');
 
 const root = path.join(__dirname, '..');
 const list = plugins.scanPlugins(path.join(root, 'plugins'), path.join(root, '.no-user-plugins'));
+const samplePath = path.join(root, 'examples', '33_arcane_training_grounds.volt');
+try {
+  const sample = fs.readFileSync(samplePath, 'utf8');
+  volt.compile(sample, { baseDir: path.dirname(samplePath), extraDirs: plugins.libraryDirs(list) });
+  console.log('pass  Arcane Training Grounds sample game compiles with the real compiler');
+} catch (e) {
+  console.log('FAIL  Arcane Training Grounds sample game compiles: ' + e.message);
+  process.exit(1);
+}
 const program = `#html
 title "kit test"
 canvas 320, 180

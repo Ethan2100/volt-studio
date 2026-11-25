@@ -335,7 +335,7 @@
       </div>
       <div class="grp">
         <div class="grow">
-          <button class="tb primary" id="bSave" title="Write this world into your .volt file (your own code is kept)">⭳ Save world</button>
+          <button class="tb primary" id="bSave" title="Save the complete game: scene and shared gameplay data">⭳ Save game</button>
           <button class="tb" id="bSavePlay" title="Save it and run the game in Volt Studio">▶<span class="word"> Save &amp; run</span></button>
           <button class="tb" id="bMore" title="Everything else">⋯</button>
         </div>
@@ -7093,8 +7093,26 @@ window.addEventListener('message', (e) => {
   const m = e.data; if (!m || m.voltHost !== 1) return;
   if (m.type === 'hello') {
     host.ok = true;
+    const dataReq = host.req++;
+    toHost('getGameData', { req: dataReq });
     if (!host.greeted) { host.greeted = true; autoLoadFromFile(); askHostForCharacters(); }
     for (const o of S.objects) if (o.kind === 'char' && o.file) askHostForModel(o.file);
+    // The .volt scene import is asynchronous; re-apply shared definitions after it completes.
+    setTimeout(() => { const d = window.voltGameData; if (!d) return; let added = 0;
+      for (const a of (d.abilities || [])) if (a && a.id && !S.objects.some(o => o.sharedId === a.id)) { const o = makeObj('ability', { name: a.name || 'Ability', sharedId: a.id, description: a.description || '', damage: Number(a.power || a.damage || 20), cool: Number(a.cooldown || 800) }); S.objects.push(o); refreshNode(o); added++; }
+      for (const it of (d.items || [])) if (it && it.id && !S.objects.some(o => o.sharedId === it.id)) { const o = makeObj('item', { name: it.name || 'Item', sharedId: it.id, count: Number(it.stack || 1), heals: Number(it.heals || 0), pickup: false }); S.objects.push(o); refreshNode(o); added++; }
+      if (added) { renderExplorer(); commit(); toast(added + ' shared game records restored in the World Studio hierarchy.'); }
+    }, 650);
+  }
+  if (m.type === 'gameData' || m.type === 'gameDataUpdated') {
+    window.voltGameData = m.data || null;
+    let added = 0;
+    for (const a of (m.data && m.data.abilities || [])) if (a && a.id && !S.objects.some(o => o.sharedId === a.id)) { const o = makeObj('ability', { name: a.name || 'Ability', sharedId: a.id, description: a.description || '', damage: Number(a.power || a.damage || 20), cool: Number(a.cooldown || 800) }); S.objects.push(o); refreshNode(o); added++; }
+    for (const it of (m.data && m.data.items || [])) if (it && it.id && !S.objects.some(o => o.sharedId === it.id)) { const o = makeObj('item', { name: it.name || 'Item', sharedId: it.id, count: Number(it.stack || 1), heals: Number(it.heals || 0), pickup: false }); S.objects.push(o); refreshNode(o); added++; }
+    if (added) { renderExplorer(); commit(); toast(added + ' new game records added to the World Studio hierarchy.'); }
+    const n = m.data ? ['abilities','items','quests','skills','enemies','lootTables'].reduce((sum,k)=>sum+((m.data[k]||[]).length),0) : 0;
+    const label = document.getElementById('projectLabel');
+    if (label) label.textContent = 'World Studio · ' + n + ' shared game records';
   }
   if (m.type === 'source' && host.waiting.has(m.req)) { const cb = host.waiting.get(m.req); host.waiting.delete(m.req); cb(m.source || ''); }
   if (m.type === 'asset' && host.waiting.has(m.req)) { const cb = host.waiting.get(m.req); host.waiting.delete(m.req); cb(m.base64 || null); }
@@ -7920,6 +7938,7 @@ function warnMissingDraw(merged) {
 
 function saveWorld(run) {
   if (!host.ok) { showCode(); return; }
+  if (window.voltGameData) toHost('saveGameData', { req: host.req++, data: window.voltGameData });
   getSource().then((src) => {
     const merged = spliceWorld(src);
     if (merged != null) {
@@ -8078,10 +8097,12 @@ function init() {
   select(null);
 }
 window.__worldStudio = {
+  removeShared(sharedId) { const i = S.objects.findIndex((o) => o.sharedId === sharedId); if (i < 0) return false; const removed = S.objects.splice(i, 1)[0]; if (sel === removed.id) select(null); rebuildAll(); renderExplorer(); renderProps(); commit(); return true; },
   project(x, y, z) { camera.updateMatrixWorld(true); const v = new THREE.Vector3(x, y, z).project(camera), r = cv.getBoundingClientRect(); return [(v.x + 1) / 2 * r.width + r.left, (1 - v.y) / 2 * r.height + r.top]; },
   get gizmoK() { return gizmoScaleFor(); }, get cam() { return cam; }, get sel() { return sel; }, get scene() { return S; }, genVolt, importSource, startPlay, stopPlay, select, setTool, addPreset, get mode() { return mode; }, get play() { return play; }, snapshot, setMode };
 init();
 })();
 </script>
+<script src="./game-panel.js"></script>
 </body>
 </html>
