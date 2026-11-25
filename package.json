@@ -1,8 +1,8 @@
 {
   "name": "volt-studio",
   "productName": "Volt Studio",
-  "version": "1.9.0",
-  "description": "Editor for the Volt language: write Volt once, turn it into Arduino C++, MicroPython, Python, Ruby, JavaScript or a web page.",
+  "version": "1.9.4",
+  "description": "Hybrid visual editor and compiler for the Volt language, with 2D/3D game creation tools.",
   "main": "main.js",
   "author": "Ethan",
   "license": "MIT",
@@ -27,44 +27,16 @@
   "build": {
     "appId": "com.ethan.voltstudio",
     "productName": "Volt Studio",
-    "directories": {
-      "output": "dist"
-    },
+    "directories": { "output": "dist" },
     "files": [
-      "main.js",
-      "preload.js",
-      "lib/**",
-      "compiler/**",
-      "renderer/**",
-      "plugins/**",
-      "examples/**",
-      "docs/**",
-      "build/icon.png",
-      "node_modules/**",
+      "main.js", "preload.js", "lib/**", "compiler/**", "renderer/**",
+      "plugins/**", "examples/**", "docs/**", "build/icon.png", "node_modules/**",
       "!node_modules/@serialport/bindings-cpp/build/**"
     ],
-    "fileAssociations": [
-      {
-        "ext": "volt",
-        "name": "Volt program",
-        "description": "Volt program"
-      }
-    ],
-    "win": {
-      "target": [
-        "nsis",
-        "portable"
-      ],
-      "icon": "build/icon.png"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "shortcutName": "Volt Studio"
-    },
+    "fileAssociations": [{ "ext": "volt", "name": "Volt program", "description": "Volt program" }],
+    "win": { "target": ["nsis", "portable"], "icon": "build/icon.png" },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "shortcutName": "Volt Studio" },
     "npmRebuild": false,
-    "asarUnpack": [
-      "plugins/**"
-    ]
+    "asarUnpack": ["plugins/**"]
   }
 }
