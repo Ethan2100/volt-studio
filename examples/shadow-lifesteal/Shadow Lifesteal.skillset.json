@@ -1,0 +1,16 @@
+{
+  "format": "volt-skillset",
+  "version": 1,
+  "name": "Shadow Lifesteal",
+  "category": "Shadow Magic",
+  "rarity": "Legendary",
+  "description": "A shadow affinity that marks, drains and consumes enemy life force, then converts it into power.",
+  "energy": "Aether",
+  "abilities": [
+    {"key":"Q","name":"Umbral Mark","cooldown":6500,"cost":20,"damage":8,"healing":0,"effect":"shadow-mark","duration":8000,"description":"Mark the nearest enemy. Marked targets take increased lifesteal damage."},
+    {"key":"E","name":"Shadow Leech","cooldown":3200,"cost":28,"damage":34,"healing":24,"effect":"life-drain-tether","description":"Fire a shadow tether at the nearest enemy, dealing damage and restoring health."},
+    {"key":"R","name":"Nightfall Harvest","cooldown":8500,"cost":55,"damage":26,"healing":10,"effect":"darkness-pulse","description":"Release a circular shadow pulse. Heal for each enemy caught in the area."},
+    {"key":"F","name":"Wraith Step","cooldown":3000,"cost":24,"damage":0,"healing":0,"effect":"shadow-dash","description":"Dash through darkness, leaving a damaging afterimage."},
+    {"key":"G","name":"Eclipse Ascendant","cooldown":30000,"cost":100,"damage":0,"healing":0,"effect":"eclipse-aura","duration":12000,"description":"Surround yourself in a shaded violet aura; boost damage, defence, movement speed and regeneration for 12 seconds."}
+  ]
+}
