@@ -335,7 +335,7 @@
       </div>
       <div class="grp">
         <div class="grow">
-          <button class="tb primary" id="bSave" title="Write this world into your .volt file (your own code is kept)">⭳ Save world</button>
+          <button class="tb primary" id="bSave" title="Save the complete game: scene and shared gameplay data">⭳ Save game</button>
           <button class="tb" id="bSavePlay" title="Save it and run the game in Volt Studio">▶<span class="word"> Save &amp; run</span></button>
           <button class="tb" id="bMore" title="Everything else">⋯</button>
         </div>
@@ -7097,6 +7097,12 @@ window.addEventListener('message', (e) => {
     toHost('getGameData', { req: dataReq });
     if (!host.greeted) { host.greeted = true; autoLoadFromFile(); askHostForCharacters(); }
     for (const o of S.objects) if (o.kind === 'char' && o.file) askHostForModel(o.file);
+    // The .volt scene import is asynchronous; re-apply shared definitions after it completes.
+    setTimeout(() => { const d = window.voltGameData; if (!d) return; let added = 0;
+      for (const a of (d.abilities || [])) if (a && a.id && !S.objects.some(o => o.sharedId === a.id)) { const o = makeObj('ability', { name: a.name || 'Ability', sharedId: a.id, description: a.description || '', damage: Number(a.power || a.damage || 20), cool: Number(a.cooldown || 800) }); S.objects.push(o); refreshNode(o); added++; }
+      for (const it of (d.items || [])) if (it && it.id && !S.objects.some(o => o.sharedId === it.id)) { const o = makeObj('item', { name: it.name || 'Item', sharedId: it.id, count: Number(it.stack || 1), heals: Number(it.heals || 0), pickup: false }); S.objects.push(o); refreshNode(o); added++; }
+      if (added) { renderExplorer(); commit(); toast(added + ' shared game records restored in the World Studio hierarchy.'); }
+    }, 650);
   }
   if (m.type === 'gameData' || m.type === 'gameDataUpdated') {
     window.voltGameData = m.data || null;
