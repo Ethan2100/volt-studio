@@ -16,13 +16,13 @@ import "rpg.volt"
 
 ## Default sword
 
-Call `rpgEquipSword()` once before the game loop. Call `rpgSwordStep()`
+Call `rpgEquipSword()` once before the game loop, or use `rpgEquipWeapon("Katana")`, `rpgEquipWeapon("Greatsword")`, or `rpgEquipWeapon("Dagger")` to choose a procedural weapon model. Call `rpgSwordStep()`
 each frame to attach the sword meshes to the player. Call
 `rpgSwordAttack()` when the attack input is pressed.
 
 ## Enemy NPCs
 
-Create an enemy with:
+Use the included presets `rpgSpawnGoblin(x, z)`, `rpgSpawnBandit(x, z)` and `rpgSpawnSkeleton(x, z)`, or create a custom enemy. Create an enemy with:
 
 ```volt
 let goblin = rpgSpawnEnemy("Goblin", 0, -400, 100, 8, 150, 900, 95, "#648b4a")
@@ -36,7 +36,7 @@ Call `rpgStepEnemies()` every frame. NPCs register with the combat kit's
 `drawEnemyBars()` and damage-number behavior work with them. Enemies chase
 the player inside their aggro radius and attack at close range with a cooldown.
 
-## Example project
+## RPG Studio panel\n\nThe `plugins/rpg-studio` panel provides a Skillset Builder, live particle VFX preview/editor, local audio preview and settings editor, HUD/font preview, and NPC profile editor. It exports `.skillset.json`, VFX, audio, HUD theme and NPC profile configuration files. These exports are portable configuration assets; connecting them to a running game is currently a manual integration step.\n\n## Example project
 
 See [Shadow Fruit](../examples/shadow-fruit/Shadow%20Fruit.volt) for a sample
 that combines the sword, two hostile NPCs, the existing combat HUD and a
