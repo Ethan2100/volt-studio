@@ -190,7 +190,7 @@ fn stepEnemyAI(targetId, playerX, playerZ) {
           let nx = TARGET_X[targetId] + dx * step / distance
           let nz = TARGET_Z[targetId] + dz * step / distance
           moveTarget(targetId, nx, TARGET_Y[targetId], nz)
-          move3d(AI_VISUAL[i], nx, TARGET_Y[targetId], nz)
+          move3d AI_VISUAL[i], nx, TARGET_Y[targetId], nz
         }
         return "chase"
       }
