@@ -3063,6 +3063,7 @@ function worldLines() {
   bar('When all of that runs. worldStart() happens once as the game opens,\n//  worldStep() happens every frame - the game file calls both for you.');
   L.push('let ws_tick = 0');
   L.push('fn worldStart() {');
+  if (hasRpg) { L.push('  loadRpgProgress()'); L.push('  restoreCheckpoint()'); }
   const barHuds = huds.filter((o) => o.look === 'slots');
   if (!atStart.length && !barHuds.length) L.push('  // nothing is set to run at the start yet');
   for (const o of barHuds) for (const line of hudLines(o)) L.push('  ' + line);
