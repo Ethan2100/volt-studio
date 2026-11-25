@@ -2,7 +2,7 @@
   "name": "rpg-kit",
   "type": "library",
   "version": "1.0.0",
-  "description": "Reusable RPG foundations for Volt 3D games: procedural starter sword, damageable enemy NPCs with chase and melee attack AI, and shared combat-kit integration.",
+  "description": "Reusable RPG foundations for Volt 3D games: procedural iron sword, katana, greatsword and dagger models; damageable humanoid-style enemy NPCs with chase and melee attack AI; and shared combat-kit integration.",
   "snippets": [
     {
       "file": "rpg.volt",
