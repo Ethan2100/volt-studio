@@ -344,11 +344,11 @@ fn setCheckpoint(x, y, z) {
   CHECKPOINT_Y = y
   CHECKPOINT_Z = z
   CHECKPOINT_SET = true
-  __save("checkpoint", [x, y, z])
+  save "checkpoint", [x, y, z]
 }
 
 fn restoreCheckpoint() {
-  let point = __saved("checkpoint", [])
+  let point = saved("checkpoint", [])
   if length(point) < 3 { return false }
   CHECKPOINT_X = point[0]
   CHECKPOINT_Y = point[1]
@@ -361,19 +361,19 @@ fn restoreCheckpoint() {
 }
 
 fn saveRpgProgress() {
-  __save("rpg_xp", PLAYER_XP)
-  __save("rpg_level", PLAYER_LEVEL)
-  __save("rpg_skills", SKILL_UNLOCKED)
-  __save("rpg_quest_progress", QUEST_PROGRESS)
-  __save("rpg_quest_state", QUEST_STATE)
+  save "rpg_xp", PLAYER_XP
+  save "rpg_level", PLAYER_LEVEL
+  save "rpg_skills", SKILL_UNLOCKED
+  save "rpg_quest_progress", QUEST_PROGRESS
+  save "rpg_quest_state", QUEST_STATE
 }
 
 fn loadRpgProgress() {
-  PLAYER_XP = __saved("rpg_xp", 0)
-  PLAYER_LEVEL = __saved("rpg_level", 1)
-  SKILL_UNLOCKED = __saved("rpg_skills", SKILL_UNLOCKED)
-  QUEST_PROGRESS = __saved("rpg_quest_progress", QUEST_PROGRESS)
-  QUEST_STATE = __saved("rpg_quest_state", QUEST_STATE)
+  PLAYER_XP = saved("rpg_xp", 0)
+  PLAYER_LEVEL = saved("rpg_level", 1)
+  SKILL_UNLOCKED = saved("rpg_skills", SKILL_UNLOCKED)
+  QUEST_PROGRESS = saved("rpg_quest_progress", QUEST_PROGRESS)
+  QUEST_STATE = saved("rpg_quest_state", QUEST_STATE)
   let i = 0
   while i < length(SKILL_ID) {
     if i >= length(SKILL_UNLOCKED) { add false to SKILL_UNLOCKED }
