@@ -22,7 +22,8 @@ function sceneLink(k,r){const w=window.__worldStudio;if(!w||!w.addPreset)return;
 if(!o){const p={abilities:'ability',items:'item',equipment:'item',npcs:'char',hud:'hud'}[k]||'folder';w.addPreset(p);o=(w.scene.objects||[]).slice(-1)[0];if(o)o.sharedId=r.id;}
 if(!o)return;o.name=r.name||o.name;
 if(k==='abilities')Object.assign(o,{damage:+(r.power||20),cool:+(r.cooldown||800),key:String(r.key||'q').toLowerCase()});
-if(k==='items')Object.assign(o,{count:+(r.stack||1),heals:+(r.heals||0)});\nif(k==='equipment')Object.assign(o,{count:1,heals:0,equipmentSlot:r.slot||'Weapon',attackBonus:+(r.attackBonus||0),defenceBonus:+(r.defenceBonus||0)});
+if(k==='items')Object.assign(o,{count:+(r.stack||1),heals:+(r.heals||0)});
+if(k==='equipment')Object.assign(o,{count:1,heals:0,equipmentSlot:r.slot||'Weapon',attackBonus:+(r.attackBonus||0),defenceBonus:+(r.defenceBonus||0)});
 if(k==='npcs')Object.assign(o,{hp:+(r.health||100),damage:+(r.damage||10)});
 if(k==='hud')Object.assign(o,{look:'bar',shows:'health',color:r.color||'#4ade80'});
 if(w.select)w.select(o.id);
