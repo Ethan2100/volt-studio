@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('volt', {
   readProjectScript: (root, file) => ipcRenderer.invoke('project:readScript', { root, file }),
   writeProjectScript: (root, file, content) => ipcRenderer.invoke('project:writeScript', { root, file, content }),
   createProjectScript: (root, file, content) => ipcRenderer.invoke('project:createScript', { root, file, content }),
+  readGameData: (root) => ipcRenderer.invoke('project:readGameData', { root }),
+  writeGameData: (root, data) => ipcRenderer.invoke('project:writeGameData', { root, data }),
   projectAssets: (root) => ipcRenderer.invoke('project:listAssets', { root }),
   readProjectAsset: (root, file) => ipcRenderer.invoke('project:readAsset', { root, file }),
   importProjectAssets: (root) => ipcRenderer.invoke('project:importAssets', { root }),
