@@ -37,7 +37,7 @@ jobs:
         shell: pwsh
         run: |
           foreach ($v in @($env:INSTALLER_VERSION, $env:VOLT_VERSION)) {
-            if ($v -notmatch '^\\d+\\.\\d+\\.\\d+$') {
+            if ($v -notmatch '^\d+\.\d+\.\d+$') {
               throw "Versions must use MAJOR.MINOR.PATCH: $v"
             }
           }
@@ -89,7 +89,7 @@ jobs:
       - name: Build installer
         shell: pwsh
         working-directory: installer
-        run: '& "${env:ProgramFiles(x86)}\\NSIS\\makensis.exe" -V2 "-DVERSION=$env:INSTALLER_VERSION" installer.nsi'
+        run: '& "${env:ProgramFiles(x86)}\NSIS\makensis.exe" -V2 "-DVERSION=$env:INSTALLER_VERSION" installer.nsi'
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
