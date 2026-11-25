@@ -7,10 +7,13 @@
   "author": "Ethan",
   "license": "MIT",
   "scripts": {
+    "prestart": "node plugins/world-studio/build.js",
     "start": "electron .",
+    "predist": "node plugins/world-studio/build.js",
     "dist": "electron-builder --win",
     "dist:portable": "electron-builder --win portable",
     "compile": "node compiler/volt.js",
+    "preinstaller": "node plugins/world-studio/build.js",
     "installer": "electron-builder --win dir --x64 && makensis -DVERSION=%npm_package_version% installer/installer.nsi",
     "test": "node test/run-all.js"
   },
