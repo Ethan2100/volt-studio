@@ -216,7 +216,7 @@ let LOOT_COLOR = []
 fn addLoot(tableId, itemName, chancePercent, minCount, maxCount, color) {
   add tableId to LOOT_TABLE
   add itemName to LOOT_ITEM
-  add clamp(chancePercent, 0, 100) to LOOT_CHANCE
+  add constrain(chancePercent, 0, 100) to LOOT_CHANCE
   add max(1, minCount) to LOOT_MIN
   add max(max(1, minCount), maxCount) to LOOT_MAX
   add color to LOOT_COLOR
@@ -226,10 +226,10 @@ fn rollLoot(tableId) {
   let dropped = 0
   let i = 0
   while i < length(LOOT_TABLE) {
-    if LOOT_TABLE[i] == tableId and random(100) < LOOT_CHANCE[i] {
+    if LOOT_TABLE[i] == tableId and random(0, 100) < LOOT_CHANCE[i] {
       let amount = LOOT_MIN[i]
       if LOOT_MAX[i] > LOOT_MIN[i] {
-        amount += floor(random(LOOT_MAX[i] - LOOT_MIN[i] + 1))
+        amount = random(LOOT_MIN[i], LOOT_MAX[i])
       }
       if give(LOOT_ITEM[i], amount, LOOT_COLOR[i]) { dropped += amount }
     }
@@ -413,7 +413,7 @@ fn stepTriggers(playerX, playerZ) {
         let action = TRIGGER_ACTION[i]
         if action == "quest" { startQuest(TRIGGER_PAYLOAD[i]) }
         if action == "advanceQuest" { advanceQuest(TRIGGER_PAYLOAD[i], 1) }
-        if action == "heal" { healPlayer(int(TRIGGER_PAYLOAD[i])) }
+        if action == "heal" { healPlayer(number(TRIGGER_PAYLOAD[i])) }
         if action == "xp" { addXP(int(TRIGGER_PAYLOAD[i])) }
         if action == "checkpoint" { setCheckpoint(playerX, PLAYER_Y, playerZ) }
         if action == "statusAttack" { applyStatus(TRIGGER_ID[i], "attack", int(TRIGGER_PAYLOAD[i]), 5000) }
