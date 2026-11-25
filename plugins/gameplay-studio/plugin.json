@@ -1,0 +1,7 @@
+{
+  "name": "gameplay-studio",
+  "type": "panel",
+  "version": "1.0.0",
+  "description": "Visual gameplay data editors for inventory, quests, skill progression, enemy AI graphs, loot, stats and status effects, save checkpoints, and interaction triggers.",
+  "panel": { "entry": "index.html", "title": "Gameplay Studio" }
+}
