@@ -25,7 +25,7 @@ if(k==='abilities')Object.assign(o,{damage:+(r.power||20),cool:+(r.cooldown||800
 if(k==='items')Object.assign(o,{count:+(r.stack||1),heals:+(r.heals||0)});
 if(k==='npcs')Object.assign(o,{hp:+(r.health||100),damage:+(r.damage||10)});
 if(k==='hud')Object.assign(o,{look:'bar',shows:'health',color:r.color||'#4ade80'});
-if(k==='npcs'&&w.select)w.select(o.id);
+if(w.select)w.select(o.id);
 }
 function add(){if(kind==='stats'){data.stats['newStat']=0;selected='stat_newStat';render();persist();return;}
 const r={id:kind.slice(0,-1)+'_'+Date.now(),name:meta[kind][2]+' '+(list(kind).length+1),description:''};
