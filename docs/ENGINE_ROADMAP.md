@@ -63,6 +63,10 @@ Recommended sources:
 
 The engine should never bundle a third-party asset without recording the exact source and license. Do not repackage or redistribute Quaternius assets as a standalone asset library where its license forbids it.
 
+## Expanded editor specification
+
+See [`EDITOR_FEATURE_CATALOG.md`](./EDITOR_FEATURE_CATALOG.md) for the detailed feature catalogue and recommended implementation order. It covers the unified asset browser, 3D model and material workflows, texture/shader editing, 2D sprite/tilemap tools, drag-and-drop responsive HUD editor, audio mixer, 2D/3D VFX, ultimate ability designer with aura and timed stat boosts, animation/cinematics, world building, gameplay graphs, debugging/profiling, and project/build tooling. The catalogue explicitly distinguishes planned work from implemented features and defines completion criteria for each editor.
+
 ## Engineering rules
 
 1. Inspect the current implementation before changing it.
