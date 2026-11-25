@@ -8097,6 +8097,7 @@ function init() {
   select(null);
 }
 window.__worldStudio = {
+  removeShared(sharedId) { const i = S.objects.findIndex((o) => o.sharedId === sharedId); if (i < 0) return false; const removed = S.objects.splice(i, 1)[0]; if (sel === removed.id) select(null); rebuildAll(); renderExplorer(); renderProps(); commit(); return true; },
   project(x, y, z) { camera.updateMatrixWorld(true); const v = new THREE.Vector3(x, y, z).project(camera), r = cv.getBoundingClientRect(); return [(v.x + 1) / 2 * r.width + r.left, (1 - v.y) / 2 * r.height + r.top]; },
   get gizmoK() { return gizmoScaleFor(); }, get cam() { return cam; }, get sel() { return sel; }, get scene() { return S; }, genVolt, importSource, startPlay, stopPlay, select, setTool, addPreset, get mode() { return mode; }, get play() { return play; }, snapshot, setMode };
 init();
