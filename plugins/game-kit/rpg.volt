@@ -21,19 +21,19 @@ let QUEST_REWARD_ITEM = []
 let QUEST_REWARD_COUNT = []
 let QUEST_STATE = []       // 0 inactive, 1 active, 2 complete
 
-fn questIndex(id) {
+fn questIndex(recordId) {
   let i = 0
   while i < length(QUEST_ID) {
-    if QUEST_ID[i] == id { return i }
+    if QUEST_ID[i] == recordId { return i }
     i += 1
   }
   return -1
 }
 
-fn createQuest(id, name, goal, rewardXp, rewardItem, rewardCount) {
-  let at = questIndex(id)
+fn createQuest(recordId, name, goal, rewardXp, rewardItem, rewardCount) {
+  let at = questIndex(recordId)
   if at >= 0 { return at }
-  add id to QUEST_ID
+  add recordId to QUEST_ID
   add name to QUEST_NAME
   add max(1, goal) to QUEST_GOAL
   add 0 to QUEST_PROGRESS
@@ -44,15 +44,15 @@ fn createQuest(id, name, goal, rewardXp, rewardItem, rewardCount) {
   return length(QUEST_ID) - 1
 }
 
-fn startQuest(id) {
-  let i = questIndex(id)
+fn startQuest(recordId) {
+  let i = questIndex(recordId)
   if i < 0 or QUEST_STATE[i] != 0 { return false }
   QUEST_STATE[i] = 1
   return true
 }
 
-fn advanceQuest(id, amount) {
-  let i = questIndex(id)
+fn advanceQuest(recordId, amount) {
+  let i = questIndex(recordId)
   if i < 0 or QUEST_STATE[i] != 1 { return false }
   QUEST_PROGRESS[i] = min(QUEST_GOAL[i], QUEST_PROGRESS[i] + max(0, amount))
   RPG_DIRTY = true
@@ -60,13 +60,13 @@ fn advanceQuest(id, amount) {
   return QUEST_STATE[i] == 2
 }
 
-fn questCompleted(id) {
-  let i = questIndex(id)
+fn questCompleted(recordId) {
+  let i = questIndex(recordId)
   return i >= 0 and QUEST_STATE[i] == 2
 }
 
-fn claimQuest(id) {
-  let i = questIndex(id)
+fn claimQuest(recordId) {
+  let i = questIndex(recordId)
   if i < 0 or QUEST_STATE[i] != 2 { return false }
   QUEST_STATE[i] = 3
   RPG_DIRTY = true
@@ -88,19 +88,19 @@ let SKILL_COST = []
 let SKILL_PREREQ = []
 let SKILL_UNLOCKED = []
 
-fn skillIndex(id) {
+fn skillIndex(recordId) {
   let i = 0
   while i < length(SKILL_ID) {
-    if SKILL_ID[i] == id { return i }
+    if SKILL_ID[i] == recordId { return i }
     i += 1
   }
   return -1
 }
 
-fn defineSkill(id, requiredLevel, xpCost, prerequisite) {
-  let at = skillIndex(id)
+fn defineSkill(recordId, requiredLevel, xpCost, prerequisite) {
+  let at = skillIndex(recordId)
   if at >= 0 { return at }
-  add id to SKILL_ID
+  add recordId to SKILL_ID
   add max(1, requiredLevel) to SKILL_LEVEL
   add max(0, xpCost) to SKILL_COST
   add prerequisite to SKILL_PREREQ
@@ -118,13 +118,13 @@ fn addXP(amount) {
   }
 }
 
-fn skillUnlocked(id) {
-  let i = skillIndex(id)
+fn skillUnlocked(recordId) {
+  let i = skillIndex(recordId)
   return i >= 0 and SKILL_UNLOCKED[i]
 }
 
-fn unlockSkill(id) {
-  let i = skillIndex(id)
+fn unlockSkill(recordId) {
+  let i = skillIndex(recordId)
   if i < 0 or SKILL_UNLOCKED[i] { return false }
   if PLAYER_LEVEL < SKILL_LEVEL[i] or PLAYER_XP < SKILL_COST[i] { return false }
   if SKILL_PREREQ[i] != "" and not skillUnlocked(SKILL_PREREQ[i]) { return false }
@@ -248,10 +248,10 @@ let STATUS_DEF_STAT = []
 let STATUS_DEF_AMOUNT = []
 let STATUS_DEF_DURATION = []
 
-fn defineStatus(id, stat, amount, durationMs) {
+fn defineStatus(recordId, stat, amount, durationMs) {
   let i = 0
   while i < length(STATUS_DEF_ID) {
-    if STATUS_DEF_ID[i] == id {
+    if STATUS_DEF_ID[i] == recordId {
       STATUS_DEF_STAT[i] = stat
       STATUS_DEF_AMOUNT[i] = amount
       STATUS_DEF_DURATION[i] = durationMs
@@ -259,28 +259,28 @@ fn defineStatus(id, stat, amount, durationMs) {
     }
     i += 1
   }
-  add id to STATUS_DEF_ID
+  add recordId to STATUS_DEF_ID
   add stat to STATUS_DEF_STAT
   add amount to STATUS_DEF_AMOUNT
   add durationMs to STATUS_DEF_DURATION
   return true
 }
 
-fn applyDefinedStatus(id) {
+fn applyDefinedStatus(recordId) {
   let i = 0
   while i < length(STATUS_DEF_ID) {
-    if STATUS_DEF_ID[i] == id {
-      return applyStatus(id, STATUS_DEF_STAT[i], STATUS_DEF_AMOUNT[i], STATUS_DEF_DURATION[i])
+    if STATUS_DEF_ID[i] == recordId {
+      return applyStatus(recordId, STATUS_DEF_STAT[i], STATUS_DEF_AMOUNT[i], STATUS_DEF_DURATION[i])
     }
     i += 1
   }
   return false
 }
 
-fn applyStatus(id, stat, amount, durationMs) {
+fn applyStatus(recordId, stat, amount, durationMs) {
   let i = 0
   while i < length(STATUS_NAME) {
-    if STATUS_NAME[i] == id {
+    if STATUS_NAME[i] == recordId {
       STATUS_STAT[i] = stat
       STATUS_AMOUNT[i] = amount
       STATUS_LEFT[i] = max(1, durationMs)
@@ -289,7 +289,7 @@ fn applyStatus(id, stat, amount, durationMs) {
     }
     i += 1
   }
-  add id to STATUS_NAME
+  add recordId to STATUS_NAME
   add stat to STATUS_STAT
   add amount to STATUS_AMOUNT
   add max(1, durationMs) to STATUS_LEFT
@@ -308,10 +308,10 @@ fn recalcStatuses() {
   }
 }
 
-fn removeStatus(id) {
+fn removeStatus(recordId) {
   let i = 0
   while i < length(STATUS_NAME) {
-    if STATUS_NAME[i] == id {
+    if STATUS_NAME[i] == recordId {
       remove STATUS_NAME[i]
       remove STATUS_STAT[i]
       remove STATUS_AMOUNT[i]
@@ -324,10 +324,10 @@ fn removeStatus(id) {
   return false
 }
 
-fn hasStatus(id) {
+fn hasStatus(recordId) {
   let i = 0
   while i < length(STATUS_NAME) {
-    if STATUS_NAME[i] == id { return true }
+    if STATUS_NAME[i] == recordId { return true }
     i += 1
   }
   return false
@@ -392,8 +392,8 @@ let TRIGGER_ONCE = []
 let TRIGGER_FIRED = []
 let TRIGGER_INSIDE = []
 
-fn addTrigger(id, x, z, radius, action, payload, once) {
-  add id to TRIGGER_ID
+fn addTrigger(recordId, x, z, radius, action, payload, once) {
+  add recordId to TRIGGER_ID
   add x to TRIGGER_X
   add z to TRIGGER_Z
   add radius to TRIGGER_RADIUS
