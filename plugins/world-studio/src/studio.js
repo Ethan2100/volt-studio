@@ -2755,8 +2755,8 @@ function itemStepLines(o, ident) {
     L.push(`  if held("f") and holding() == ${qs(o.name)} {`,
       `    equipItem(${qs(o.name)}, ${qs(o.equipmentSlot)}, ${r(o.attackBonus || 0)}, ${r(o.defenceBonus || 0)})`, '  }');
   }
-  if (r(o.heals) > 0) {
-    L.push(`  if held("f") and holding() == ${qs(o.name)} and not ${o.equipmentSlot ? 'true' : 'false'} {`,
+  if (r(o.heals) > 0 && !o.equipmentSlot) {
+    L.push(`  if held("f") and holding() == ${qs(o.name)} {`,
       `    if takeOne(${qs(o.name)}) {`, `      healPlayer(${r(o.heals)})`, '    }', '  }');
   }
   return L;
