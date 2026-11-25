@@ -1338,7 +1338,8 @@ function pickModelFile(at) {
     const file = inp.files && inp.files[0]; if (!file) return;
     loadModelBytes(file, (name) => {
       const [x, z] = dropPoint(at);
-      const o = makeObj('model', { name: uniqueName('Model'), file: name, scale: 100 });
+      const clips = (modelCache.get(name) && modelCache.get(name).anims) || [];
+      const o = makeObj('model', { name: uniqueName('Model'), file: name, anim: clips[0] || '', scale: 100 });
       o.x = sn(x); o.z = sn(z); o.y = 0;
       S.objects.push(o); refreshNode(o); select(o.id); commit();
     }, (err) => toast(err.message, true));
