@@ -18,7 +18,7 @@ const html = read('shell.html')
   .replace('/*STUDIO*/', () => safe(read('studio.js')))
   // Load after studio.js: the Game panel attaches to its toolbar and
   // consumes window.__worldStudio plus the host's postMessage bridge.
-  .replace('</body>', '<script>/*GAME_PANEL*/</script>\\n</body>')
+  .replace('</body>', '<script>/*GAME_PANEL*/</script></body>')
   .replace('/*GAME_PANEL*/', () => safe(readPanel('game-panel.js')));
 fs.writeFileSync(path.join(__dirname, 'index.html'), html);
 console.log('Built index.html (' + Math.round(html.length / 1024) + ' KB, including Game panel)');
