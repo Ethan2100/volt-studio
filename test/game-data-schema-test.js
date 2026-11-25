@@ -17,6 +17,6 @@ for (const key of keys) {
 }
 check('legacy enemy records migrate to NPC records', main.includes('stored.enemies') && main.includes('data.npcs = stored.enemies'));
 check('old project data receives defaults without discarding saved values', main.includes('Object.assign({}, EMPTY_GAME_DATA, stored)'));
-check('game data writes use an atomic temporary file', main.includes("const temp = target + '.tmp'") && main.includes('fs.renameSync(temp, target)'));
+check('game data writes use an atomic temporary file', main.includes("temp = target + '.tmp'") && main.includes('fs.renameSync(temp, target)'));
 console.log('\\n' + (keys.length * 2 + 3 - failed) + ' checks passed, ' + failed + ' failed');
 process.exitCode = failed ? 1 : 0;
