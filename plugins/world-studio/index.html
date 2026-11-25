@@ -7093,8 +7093,16 @@ window.addEventListener('message', (e) => {
   const m = e.data; if (!m || m.voltHost !== 1) return;
   if (m.type === 'hello') {
     host.ok = true;
+    const dataReq = host.req++;
+    toHost('getGameData', { req: dataReq });
     if (!host.greeted) { host.greeted = true; autoLoadFromFile(); askHostForCharacters(); }
     for (const o of S.objects) if (o.kind === 'char' && o.file) askHostForModel(o.file);
+  }
+  if (m.type === 'gameData' || m.type === 'gameDataUpdated') {
+    window.voltGameData = m.data || null;
+    const n = m.data ? ['abilities','items','quests','skills','enemies','lootTables'].reduce((sum,k)=>sum+((m.data[k]||[]).length),0) : 0;
+    const label = document.getElementById('projectLabel');
+    if (label) label.textContent = 'World Studio · ' + n + ' shared game records';
   }
   if (m.type === 'source' && host.waiting.has(m.req)) { const cb = host.waiting.get(m.req); host.waiting.delete(m.req); cb(m.source || ''); }
   if (m.type === 'asset' && host.waiting.has(m.req)) { const cb = host.waiting.get(m.req); host.waiting.delete(m.req); cb(m.base64 || null); }
