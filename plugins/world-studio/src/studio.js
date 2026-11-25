@@ -3047,7 +3047,7 @@ function worldLines() {
       if (field.valueType === 'number') value = Number(value || 0);
       else if (field.valueType === 'boolean') value = value === true || value === 'true';
       else value = String(value ?? '');
-      L.push(`let ${variable} = __saved(${qs(key)}, ${JSON.stringify(value)})`);
+      L.push(`let ${variable} = saved(${qs(key)}, ${JSON.stringify(value)})`);
     }
     for (const obj of hurtable) {
       if (obj.kind !== 'char' && obj.kind !== 'model') continue;
@@ -3083,7 +3083,7 @@ function worldLines() {
     for (const field of (gd.saveFields || [])) {
       const key = 'field_' + (field.id || identish(field.name));
       const variable = 'save_' + identish(field.id || field.name);
-      L.push(`  __save(${qs(key)}, ${variable})`);
+      L.push(`  save ${qs(key)}, ${variable}`);
     }
   }
   for (const o of abilities) {
