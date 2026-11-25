@@ -1,0 +1,13 @@
+{
+  "name": "rpg-kit",
+  "type": "library",
+  "version": "1.0.0",
+  "description": "Reusable RPG foundations for Volt 3D games: procedural starter sword, damageable enemy NPCs with chase and melee attack AI, and shared combat-kit integration.",
+  "snippets": [
+    {
+      "file": "rpg.volt",
+      "label": "RPG kit (sword and enemy NPCs)",
+      "description": "Import after game.volt and combat.volt. Call rpgEquipSword() once, rpgStepEnemies() and rpgSwordStep() every frame, and rpgSwordAttack() when the attack key is pressed."
+    }
+  ]
+}
