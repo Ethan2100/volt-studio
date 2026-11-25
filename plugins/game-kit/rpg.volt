@@ -339,7 +339,7 @@ let CHECKPOINT_Y = 0
 let CHECKPOINT_Z = 0
 let CHECKPOINT_SET = false
 
-fn setCheckponumber(x, y, z) {
+fn setCheckpoint(x, y, z) {
   CHECKPOINT_X = x
   CHECKPOINT_Y = y
   CHECKPOINT_Z = z
@@ -347,7 +347,7 @@ fn setCheckponumber(x, y, z) {
   save "checkpoint", [x, y, z]
 }
 
-fn restoreCheckponumber() {
+fn restoreCheckpoint() {
   let point = saved("checkpoint", [])
   if length(point) < 3 { return false }
   CHECKPOINT_X = point[0]
@@ -415,7 +415,7 @@ fn stepTriggers(playerX, playerZ) {
         if action == "advanceQuest" { advanceQuest(TRIGGER_PAYLOAD[i], 1) }
         if action == "heal" { healPlayer(number(TRIGGER_PAYLOAD[i])) }
         if action == "xp" { addXP(number(TRIGGER_PAYLOAD[i])) }
-        if action == "checkpoint" { setCheckponumber(playerX, PLAYER_Y, playerZ) }
+        if action == "checkpoint" { setCheckpoint(playerX, PLAYER_Y, playerZ) }
         if action == "statusAttack" { applyStatus(TRIGGER_ID[i], "attack", number(TRIGGER_PAYLOAD[i]), 5000) }
         if action == "statusDefence" { applyStatus(TRIGGER_ID[i], "defence", number(TRIGGER_PAYLOAD[i]), 5000) }
         if action == "status" { applyDefinedStatus(TRIGGER_PAYLOAD[i]) }
