@@ -1,25 +1,22 @@
-# =====================================================================
-#  Build and release Volt Studio
-#
-#  How to use: on GitHub, open the Actions tab -> "Build and release"
-#  -> Run workflow -> type the new version (like 1.4.1) -> Run.
-#
-#  GitHub then builds the Windows installer on its own computer and
-#  publishes it as a new release (about 10 minutes). Nothing needs to
-#  be downloaded or uploaded from your PC.
-# =====================================================================
-
 name: Build and release
 
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: "New version number, like 1.4.1"
+      installer_version:
+        description: "Volt Studio installer version (for example 1.9.5)"
         required: true
+        type: string
+        default: "1.9.4"
+      volt_version:
+        description: "Volt language/compiler version (for example 3.4.0)"
+        required: true
+        type: string
+        default: "3.3.1"
       notes:
-        description: "What's new (one line, optional)"
+        description: "Release notes"
         required: false
+        type: string
         default: ""
 
 permissions:
@@ -29,21 +26,24 @@ jobs:
   release:
     runs-on: windows-latest
     env:
-      VERSION: ${{ inputs.version }}
+      INSTALLER_VERSION: ${{ inputs.installer_version }}
+      VOLT_VERSION: ${{ inputs.volt_version }}
 
     steps:
       - name: Get the code
         uses: actions/checkout@v5
 
-      - name: Check the version number
+      - name: Validate versions and release tag
         shell: pwsh
         run: |
-          if ($env:VERSION -notmatch '^\d+\.\d+\.\d+$') {
-            throw "The version must look like 1.4.1 (three numbers with dots). You typed: $env:VERSION"
+          foreach ($v in @($env:INSTALLER_VERSION, $env:VOLT_VERSION)) {
+            if ($v -notmatch '^\\d+\\.\\d+\\.\\d+$') {
+              throw "Versions must use MAJOR.MINOR.PATCH: $v"
+            }
           }
           git fetch --tags --quiet
-          if (git tag --list "v$env:VERSION") {
-            throw "Version $env:VERSION has already been released. Pick a higher number."
+          if (git tag --list "v$env:INSTALLER_VERSION") {
+            throw "Installer version $env:INSTALLER_VERSION has already been released. Choose a new installer version."
           }
 
       - name: Set up Node.js
@@ -54,43 +54,55 @@ jobs:
 
       - name: Install packages
         run: npm ci
-      - name: Run the tests
+
+      - name: Run tests
         run: npm test
 
-      - name: Set the app version
+      - name: Set application and compiler versions
         shell: pwsh
-        run: npm version $env:VERSION --no-git-tag-version --allow-same-version
+        run: |
+          npm version $env:INSTALLER_VERSION --no-git-tag-version --allow-same-version
+          $file = "compiler/volt.js"
+          $source = Get-Content $file -Raw
+          $updated = [regex]::Replace($source, "const VERSION = '[^']+';", "const VERSION = '$env:VOLT_VERSION';", 1)
+          if ($updated -eq $source) {
+            throw "Could not find the compiler VERSION declaration in $file"
+          }
+          [System.IO.File]::WriteAllText((Resolve-Path $file), $updated, [System.Text.UTF8Encoding]::new($false))
+          if (-not (Select-String -Path $file -Pattern ("const VERSION = '" + [regex]::Escape($env:VOLT_VERSION) + "';"))) {
+            throw "Compiler version update did not persist."
+          }
 
-      - name: Build the app
+      - name: Build Windows application
         run: npx electron-builder --win dir --x64 --publish never
 
-      - name: Make sure the USB driver is the Windows one
+      - name: Validate native modules
         shell: pwsh
         run: |
           $bad = Get-ChildItem -Recurse "dist/win-unpacked/resources/app.asar.unpacked" -Filter *.node |
                  Where-Object { $_.FullName -notmatch 'prebuilds' }
-          if ($bad) { throw "Found a USB driver file that would break on Windows: $($bad.FullName)" }
+          if ($bad) { throw "Found native module outside prebuilds: $($bad.FullName)" }
 
-      - name: Install NSIS (the installer maker)
+      - name: Install NSIS
         run: choco install nsis -y --no-progress
 
-      - name: Build the installer
+      - name: Build installer
         shell: pwsh
         working-directory: installer
-        run: '& "${env:ProgramFiles(x86)}\NSIS\makensis.exe" -V2 "-DVERSION=$env:VERSION" installer.nsi'
+        run: '& "${env:ProgramFiles(x86)}\\NSIS\\makensis.exe" -V2 "-DVERSION=$env:INSTALLER_VERSION" installer.nsi'
 
-      - name: Publish the release
+      - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ inputs.version }}
-          name: Volt Studio ${{ inputs.version }}
+          tag_name: v${{ inputs.installer_version }}
+          name: Volt Studio Setup ${{ inputs.installer_version }} (Volt ${{ inputs.volt_version }})
           target_commitish: ${{ github.sha }}
           make_latest: true
           files: dist/*.exe
           body: |
+            **Volt Studio installer:** ${{ inputs.installer_version }}
+            **Volt language/compiler:** ${{ inputs.volt_version }}
+
             ${{ inputs.notes }}
 
-            **Download "Volt Studio Setup ${{ inputs.version }}.exe" below and run it.**
-            Windows may say "Windows protected your PC" because the app isn't signed: click **More info → Run anyway**.
-
-            Write Volt once and turn it into Arduino C++, MicroPython, Python, Ruby, JavaScript or a web page.
+            Download the Windows installer below and run it. Windows may show SmartScreen because the installer is not code-signed.
